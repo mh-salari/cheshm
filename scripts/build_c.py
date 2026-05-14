@@ -43,10 +43,25 @@ def lib_extension() -> str:
 
 
 def compile_command(c_file: Path, out_file: Path) -> list[str]:
-    """Return the compiler argv for this OS."""
+    """Return the compiler argv for this OS.
+
+    macOS builds are universal2 (arm64 + x86_64 fat binary) so the same
+    ``.dylib`` loads under both native Apple Silicon Python and x86_64 Python
+    via Rosetta. This matches the universal2 wheel tag used for PyPI.
+    """
     system = platform.system()
     if system == "Darwin":
-        return ["clang", "-O3", "-shared", "-fPIC", "-o", str(out_file), str(c_file), "-lm"]
+        return [
+            "clang",
+            "-O3",
+            "-shared",
+            "-fPIC",
+            "-arch", "arm64",
+            "-arch", "x86_64",
+            "-o", str(out_file),
+            str(c_file),
+            "-lm",
+        ]
     if system == "Linux":
         compiler = "cc" if shutil.which("cc") else "gcc"
         return [compiler, "-O3", "-shared", "-fPIC", "-o", str(out_file), str(c_file), "-lm"]
