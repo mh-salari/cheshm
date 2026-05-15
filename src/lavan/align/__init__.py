@@ -13,6 +13,7 @@ Public surface re-exported here for convenience::
         align_by_iris_center,
         align_by_min_diff,
         align_by_min_diff_plain,
+        align_eye_images,
         apply_transform,
         make_barrel_mask,
         make_iris_mask,
@@ -31,6 +32,7 @@ from .core import (
     make_barrel_mask,
     make_iris_mask,
 )
+from .pair import align_eye_images
 from .plots import (
     plot_blend,
     plot_diff,
@@ -42,6 +44,7 @@ __all__ = [
     "align_by_iris_center",
     "align_by_min_diff",
     "align_by_min_diff_plain",
+    "align_eye_images",
     "apply_transform",
     "make_barrel_mask",
     "make_iris_mask",
