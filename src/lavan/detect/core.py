@@ -258,6 +258,7 @@ def detect_glints(
     glint_threshold: int = 240,
     search_radius_factor: float = 2.0,
     search_radius_max_px: int | None = None,
+    glint_roi: tuple[int, int, int, int] | None = None,
     glint_center_method: str = "min_area_rect_center",
     max_area_px: int | None = None,
     keep_above: bool = True,
@@ -300,7 +301,8 @@ def detect_glints(
     payload is the post-filter (threshold ∧ search) image — useful as a
     live overlay for tuning.
     """
-    # 1+2: bright pixels inside the pupil-centred disk.
+    # 1+2: bright pixels inside the pupil-centred disk, optionally
+    # intersected with a user-supplied rectangle (``glint_roi``).
     _, glint_mask = cv2.threshold(img, glint_threshold, 255, cv2.THRESH_BINARY)
     radius = search_radius_factor * pupil_radius
     if search_radius_max_px is not None:
@@ -314,6 +316,8 @@ def detect_glints(
         255,
         thickness=-1,
     )
+    if glint_roi is not None:
+        search_mask = cv2.bitwise_and(search_mask, _roi_mask(img.shape, glint_roi))
     candidates_mask = cv2.bitwise_and(glint_mask, search_mask)
 
     contours, _ = cv2.findContours(candidates_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
