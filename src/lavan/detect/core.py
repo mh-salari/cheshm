@@ -259,6 +259,7 @@ def detect_glints(
     keep_below: bool = True,
     keep_left: bool = True,
     keep_right: bool = True,
+    filter_margin_px: int = 5,
     glints_target: int = 1,
     coalesce_into_one: bool = True,
     split_widest_for_target: bool = False,
@@ -279,7 +280,9 @@ def detect_glints(
       4. Optionally drop contours whose centroid fails the half-plane
          filter described by ``keep_above`` / ``keep_below`` /
          ``keep_left`` / ``keep_right`` (default = all four True =
-         no filter).
+         no filter). ``filter_margin_px`` softens the boundary so a
+         glint sitting a few pixels past the pupil-centre line still
+         counts as belonging to the chosen half.
       5. If ``coalesce_into_one`` and ``glints_target == 1``, union every
          surviving contour into one blob and keep the largest.
       6. If ``split_widest_for_target`` and exactly ``glints_target - 1``
@@ -326,6 +329,7 @@ def detect_glints(
                 keep_below=keep_below,
                 keep_left=keep_left,
                 keep_right=keep_right,
+                margin_px=filter_margin_px,
             )
         ]
 
@@ -367,14 +371,18 @@ def _passes_half_plane_filter(
     keep_below: bool,
     keep_left: bool,
     keep_right: bool,
+    margin_px: int,
 ) -> bool:
     """Return True iff the contour's centroid sits in the kept half-planes.
 
     Vertical (above/below) and horizontal (left/right) checks are
-    independent. A point ``(gx, gy)`` is admitted iff its Y is in a kept
-    vertical half AND its X is in a kept horizontal half — so disabling
-    e.g. ``keep_above`` drops every glint with ``gy < pupil_center.y``
-    regardless of its horizontal position.
+    independent. Each axis has three meaningful states:
+
+      - both halves checked: no filter on that axis.
+      - one half checked: that half plus ``margin_px`` across the
+        boundary is admitted (a real glint sitting a few pixels off the
+        pupil-centre line still counts as belonging to the chosen half).
+      - neither half checked: nothing passes that axis.
     """
     m = cv2.moments(contour)
     if m["m00"] <= 0:
@@ -382,8 +390,25 @@ def _passes_half_plane_filter(
     gx = m["m10"] / m["m00"]
     gy = m["m01"] / m["m00"]
     cx, cy = pupil_center
-    vertical_ok = (gy < cy and keep_above) or (gy >= cy and keep_below)
-    horizontal_ok = (gx < cx and keep_left) or (gx >= cx and keep_right)
+
+    if keep_above and keep_below:
+        vertical_ok = True
+    elif keep_above:
+        vertical_ok = gy < cy + margin_px
+    elif keep_below:
+        vertical_ok = gy > cy - margin_px
+    else:
+        vertical_ok = False
+
+    if keep_left and keep_right:
+        horizontal_ok = True
+    elif keep_left:
+        horizontal_ok = gx < cx + margin_px
+    elif keep_right:
+        horizontal_ok = gx > cx - margin_px
+    else:
+        horizontal_ok = False
+
     return vertical_ok and horizontal_ok
 
 
