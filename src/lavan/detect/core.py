@@ -160,6 +160,18 @@ def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
     return x == 0 or y == 0 or x + cw == w or y + ch == h
 
 
+def _roi_mask(shape: tuple[int, ...], roi: tuple[int, int, int, int]) -> np.ndarray:
+    """Build a uint8 mask with the ``(x, y, w, h)`` rectangle set to 255."""
+    h, w = shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
+    rx, ry, rw, rh = (int(v) for v in roi)
+    rx, ry = max(rx, 0), max(ry, 0)
+    rw, rh = max(min(rw, w - rx), 0), max(min(rh, h - ry), 0)
+    if rw and rh:
+        mask[ry : ry + rh, rx : rx + rw] = 255
+    return mask
+
+
 def pupil_center_of_mass(
     pupil_mask: np.ndarray,
     pupil_contour: np.ndarray,
@@ -181,90 +193,197 @@ def pupil_center_of_mass(
     return (m["m10"] / m["m00"], m["m01"] / m["m00"])
 
 
+def _contour_center(contour: np.ndarray, method: str) -> tuple[float, float]:
+    """Geometric centre of ``contour`` chosen by ``method``.
+
+    Methods:
+      - ``convex_hull_centroid``: moments centroid of the filled convex hull.
+      - ``center_of_mass``: moments centroid of the contour itself.
+      - ``ellipse_fit_center``: centre of ``cv2.fitEllipse`` (needs >= 5 points).
+      - ``min_area_rect_center``: centre of the minimum-area rotated rect.
+
+    """
+    if method == "convex_hull_centroid":
+        hull = cv2.convexHull(contour)
+        m = cv2.moments(hull)
+        if m["m00"] <= 0:
+            raise ValueError("convex_hull_centroid: zero-area hull")
+        return (m["m10"] / m["m00"], m["m01"] / m["m00"])
+    if method == "center_of_mass":
+        m = cv2.moments(contour)
+        if m["m00"] <= 0:
+            raise ValueError("center_of_mass: zero-area contour")
+        return (m["m10"] / m["m00"], m["m01"] / m["m00"])
+    if method == "ellipse_fit_center":
+        if len(contour) < 5:
+            raise ValueError("ellipse_fit_center: contour needs >= 5 points")
+        (cx, cy), _, _ = cv2.fitEllipse(contour)
+        return (cx, cy)
+    if method == "min_area_rect_center":
+        (cx, cy), _, _ = cv2.minAreaRect(contour)
+        return (cx, cy)
+    raise ValueError(
+        f"unknown center method {method!r}; expected one of "
+        "'convex_hull_centroid', 'center_of_mass', 'ellipse_fit_center', 'min_area_rect_center'",
+    )
+
+
 def detect_pupil_and_glints(
     img: np.ndarray,
     pupil_threshold: int = 30,
     glint_threshold: int = 240,
-    glint_margin: int = 10,
+    glint_margin_ratio: float = 0.1,
     glints_target: int = 1,
     glint_max_area_ratio: float = 0.1,
     pupil_center_method: str = "convex_hull_centroid",
-) -> dict:
-    """Detect the pupil contour/centroid and glint contours in a grayscale eye image.
+    glint_center_method: str = "min_area_rect_center",
+    pupil_roi: tuple[int, int, int, int] | None = None,
+    glint_roi: tuple[int, int, int, int] | None = None,
+) -> dict | None:
+    """Detect the pupil contour, the limbus circle, and glint contours in a grayscale eye image.
 
-    Contours touching the image border are rejected — the pupil is always an
-    interior feature, so any border-touching dark region (vignette, black
-    padding strip, eyelashes at the edge) cannot be the pupil.
+    Returns ``{pupil_contour, pupil_center, pupil_ellipse, glints, limbus,
+    pupil_mask, glint_search_area}`` on success. Returns ``None`` when the
+    chosen pupil method cannot produce a result at the current thresholds
+    (no contour, hull with fewer than 5 points, zero-mass mask, etc.).
 
-    The pupil center and diameter come from a smooth B-spline fit through
-    the convex hull of the largest interior dark contour (`fit_convex_hull_spline`).
-    `pupil_ellipse` is returned as `((cx, cy), (d, d), 0.0)` so downstream
-    code that expects the cv2.fitEllipse shape keeps working — the diameter
-    is the area-equivalent diameter from the spline, not an ellipse axis.
+    ``pupil_ellipse`` is ``((cx, cy), (w, h), angle)``; the centre is chosen
+    by ``pupil_center_method`` and ``(w, h, angle)`` come from
+    ``cv2.fitEllipse`` on the convex hull of the pupil contour. Border-
+    touching dark contours are rejected so the pupil is always an interior
+    region — unless ``pupil_roi`` is set, in which case the largest contour
+    inside the ROI is accepted regardless of border contact. ``limbus`` is
+    ``{"center": [lx, ly], "radius": r}`` or ``None`` if Daugman IDO did
+    not converge.
 
-    ``glints_target`` is the number of physical IR LEDs in the rig. When it's
-    1 (default — single LED on the EyeLink camera bar), all filtered bright
-    blobs are unioned into one centroid so a saturated, irregular reflection
-    doesn't get split across multiple contours.
+    ``pupil_center_method`` selects the pupil centre. The supported values are
+    the four methods of :func:`_contour_center`, plus ``"center_of_mass"``
+    which uses :func:`pupil_center_of_mass` (which preserves the glint hole
+    in the pupil mask — matches EyeLink Centroid mode) and
+    ``"convex_hull_centroid"`` which uses the spline centroid for higher
+    sub-pixel stability than the raw hull moment.
 
-    ``glint_max_area_ratio`` rejects any candidate contour whose area exceeds
-    this fraction of the detected pupil area. The IR glint is a tiny specular
-    highlight, so anything close to pupil-sized is almost certainly skin /
-    eyelid bleeding through above ``glint_threshold``.
+    ``glint_margin_ratio`` is signed: positive expands the glint search
+    region outward into the iris, negative shrinks it inward.
+      - 0.0  -> search region = pupil boundary
+      - +X   -> dilate by ``X * (limbus_radius - pupil_radius)`` pixels,
+                so +1.0 reaches the limbus. Falls back to scaling by
+                ``pupil_radius`` when limbus detection fails.
+      - -X   -> erode by ``X * pupil_radius`` pixels, so -1.0 collapses
+                to the pupil centre.
+
+    ``glints_target`` is the number of physical IR LEDs in the rig. When 1
+    (default), every bright blob inside the search region is unioned into a
+    single centroid so a saturated reflection split across contours still
+    yields one glint.
+
+    ``glint_max_area_ratio`` rejects bright contours whose area exceeds this
+    fraction of the pupil area — a guard against skin / eyelid bleed-through
+    above ``glint_threshold``.
+
+    ``glint_center_method`` chooses how each retained glint contour is
+    reduced to a single point — see :func:`_contour_center`. The default
+    ``"min_area_rect_center"`` is robust against the asymmetric brightness
+    distribution that biases plain moment centroids on rectangular glints.
+
+    ``pupil_roi`` and ``glint_roi`` are optional ``(x, y, w, h)`` rectangles.
+    When set, the corresponding search is confined to that rectangle;
+    ``glint_roi`` also overrides the pupil-mask + margin constraint and
+    disables the ``glint_max_area_ratio`` filter (an explicit ROI is treated
+    as "the glint is here").
     """
     _, pupil_mask = cv2.threshold(img, pupil_threshold, 255, cv2.THRESH_BINARY_INV)
+    if pupil_roi is not None:
+        pupil_mask = cv2.bitwise_and(pupil_mask, _roi_mask(img.shape, pupil_roi))
     contours, _ = cv2.findContours(pupil_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    interior = [c for c in contours if not _touches_border(c, img.shape)]
-    if not interior:
-        raise ValueError(
-            "no interior pupil contour at this threshold — raise pupil_threshold or "
-            "check the frame for a dark border covering the whole image",
-        )
-    pupil_contour = max(interior, key=cv2.contourArea)
+    if pupil_roi is not None:
+        # ROI is an explicit "the pupil is here" signal — take any non-empty
+        # contour. The border-rejection filter only makes sense without ROI,
+        # where it guards against picking up the frame's vignette.
+        candidates = [c for c in contours if cv2.contourArea(c) > 0]
+    else:
+        candidates = [c for c in contours if not _touches_border(c, img.shape)]
+    if not candidates:
+        return None
+    pupil_contour = max(candidates, key=cv2.contourArea)
     hull = cv2.convexHull(pupil_contour)
-    # The spline is computed even when an alternative centre is chosen so
-    # the equiv-diameter is available as a fallback when the hull has too
-    # few points for cv2.fitEllipse.
-    spline = fit_convex_hull_spline(pupil_contour)
+    if len(hull) < 5:
+        return None
+    # Computed once and reused for the (w, h, angle) tuple and the
+    # ``ellipse_fit_center`` method.
+    ellipse_fit = cv2.fitEllipse(hull)
+
     if pupil_center_method == "center_of_mass":
         com = pupil_center_of_mass(pupil_mask, pupil_contour)
         if com is None:
-            raise ValueError("center-of-mass: zero pupil mass")
+            return None
         cx, cy = com
     elif pupil_center_method == "convex_hull_centroid":
-        cx, cy = spline["center"]
+        cx, cy = fit_convex_hull_spline(pupil_contour)["center"]
+    elif pupil_center_method == "ellipse_fit_center":
+        (cx, cy), _, _ = ellipse_fit
     else:
-        raise ValueError(
-            f"unknown pupil_center_method {pupil_center_method!r}; "
-            f"expected 'center_of_mass' or 'convex_hull_centroid'",
-        )
+        cx, cy = _contour_center(pupil_contour, pupil_center_method)
     pupil_center = (round(cx), round(cy))
-    if len(hull) >= 5:
-        _, (w, h), angle = cv2.fitEllipse(hull)
-    else:
-        w = h = spline["equiv_diam"]
-        angle = 0.0
+    _, (w, h), angle = ellipse_fit
     pupil_ellipse = ((cx, cy), (w, h), angle)
     pupil_area = float(cv2.contourArea(pupil_contour))
     glint_max_area = pupil_area * glint_max_area_ratio
 
-    # Glints: bright regions inside (or near the edge of) the pupil
     _, glint_mask = cv2.threshold(img, glint_threshold, 255, cv2.THRESH_BINARY)
 
+    # Limbus is needed for the positive glint_margin_ratio direction (scaling
+    # by iris ring width). Best-effort — failure leaves limbus=None and falls
+    # back to a pupil-radius scale for any positive margin.
+    pupil_radius = max(w, h) / 2
+    limbus = None
+    try:
+        (lcx, lcy), lr = detect_limbus(img, (cx, cy), pupil_radius)
+        limbus = {"center": [float(lcx), float(lcy)], "radius": float(lr)}
+    except Exception:  # noqa: S110 - optional; Daugman IDO can fail at extreme thresholds
+        pass
+
+    # Glint search region: explicit ROI overrides the pupil-mask + dilation default.
+    # Dilation is expressed as a fraction of the iris ring (limbus_r - pupil_r)
+    # so the tuning value transfers across image resolutions.
+    if glint_roi is not None:
+        glint_search_mask = _roi_mask(img.shape, glint_roi)
+    else:
+        glint_search_mask = np.zeros_like(glint_mask)
+        cv2.drawContours(glint_search_mask, [pupil_contour], -1, 255, thickness=cv2.FILLED)
+        if glint_margin_ratio > 0:
+            # Expand outward in iris-ring units so +100% reaches the limbus.
+            # If limbus detection failed, fall back to pupil_radius as the scale.
+            ring_px = max(limbus["radius"] - pupil_radius, 0.0) if limbus is not None else pupil_radius
+            glint_margin_px = round(glint_margin_ratio * ring_px)
+            if glint_margin_px > 0:
+                k = 2 * glint_margin_px + 1
+                glint_search_mask = cv2.dilate(
+                    glint_search_mask,
+                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)),
+                )
+        elif glint_margin_ratio < 0:
+            # Shrink inward in pupil-radius units so -100% collapses to the centre.
+            erosion_px = round(-glint_margin_ratio * pupil_radius)
+            if erosion_px > 0:
+                k = 2 * erosion_px + 1
+                glint_search_mask = cv2.erode(
+                    glint_search_mask,
+                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)),
+                )
+
+    # An explicit glint_roi means "the glint is here" — disable the area
+    # filter that exists to reject skin/eyelid bleed in the no-ROI case.
+    apply_area_filter = glint_roi is None
+
     if glints_target == 1:
-        # Single-LED rig: confine the search to bright pixels inside the pupil
-        # (optionally dilated by glint_margin so reflections right at the pupil
-        # edge still count). Centroid-based filtering on the raw bright contours
-        # is unreliable when a huge skin/eyelid blob has its centroid inside the
-        # pupil while extending far outside it.
-        pupil_fill = np.zeros_like(glint_mask)
-        cv2.drawContours(pupil_fill, [pupil_contour], -1, 255, thickness=cv2.FILLED)
-        if glint_margin > 0:
-            k = 2 * int(glint_margin) + 1
-            pupil_fill = cv2.dilate(pupil_fill, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-        inside_mask = cv2.bitwise_and(glint_mask, pupil_fill)
+        # Single-LED rig: union every bright blob inside the search region into
+        # one centroid (a saturated, irregular reflection can split into multiple
+        # contours that still belong to the same physical LED).
+        inside_mask = cv2.bitwise_and(glint_mask, glint_search_mask)
         inside_contours, _ = cv2.findContours(inside_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        inside_contours = [c for c in inside_contours if cv2.contourArea(c) <= glint_max_area]
+        if apply_area_filter:
+            inside_contours = [c for c in inside_contours if cv2.contourArea(c) <= glint_max_area]
         if inside_contours:
             union = np.zeros_like(glint_mask)
             cv2.drawContours(union, inside_contours, -1, 255, thickness=cv2.FILLED)
@@ -273,19 +392,22 @@ def detect_pupil_and_glints(
         else:
             filtered = []
     else:
-        # Multi-LED: keep every bright blob whose centroid is inside or within
-        # ``glint_margin`` pixels of the pupil, and whose area is below the max.
+        # Multi-LED: keep every bright blob whose centroid lands inside the
+        # search region. The area filter only kicks in without glint_roi.
         glint_contours, _ = cv2.findContours(glint_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         filtered = []
         for c in glint_contours:
-            if cv2.contourArea(c) > glint_max_area:
+            if apply_area_filter and cv2.contourArea(c) > glint_max_area:
                 continue
             gm = cv2.moments(c)
             if gm["m00"] > 0:
                 cx = int(gm["m10"] / gm["m00"])
                 cy = int(gm["m01"] / gm["m00"])
-                dist = cv2.pointPolygonTest(pupil_contour, (cx, cy), True)
-                if dist >= -glint_margin:
+                if (
+                    0 <= cy < glint_search_mask.shape[0]
+                    and 0 <= cx < glint_search_mask.shape[1]
+                    and glint_search_mask[cy, cx] == 255
+                ):
                     filtered.append(c)
 
     if glints_target == 4 and len(filtered) == 3:
@@ -308,19 +430,29 @@ def detect_pupil_and_glints(
                     hc[:, :, 1] += y
                     filtered.append(hc)
 
-    # Build glint dicts
     glints = []
     for c in filtered:
-        gm = cv2.moments(c)
-        if gm["m00"] > 0:
-            cx = int(gm["m10"] / gm["m00"])
-            cy = int(gm["m01"] / gm["m00"])
-            ellipse = cv2.fitEllipse(c) if len(c) >= 5 else None
-            glints.append({"contour": c, "center": (cx, cy), "ellipse": ellipse})
+        try:
+            cx, cy = _contour_center(c, glint_center_method)
+        except ValueError:
+            # Per-glint failure under the chosen method (e.g. fewer than 5
+            # points for ellipse_fit_center). Drop this glint and keep the
+            # rest; the user can pick a different method if too many are lost.
+            continue
+        ellipse = cv2.fitEllipse(c) if len(c) >= 5 else None
+        glints.append({"contour": c, "center": (round(cx), round(cy)), "ellipse": ellipse})
 
+    # Surface the binary masks so callers can show the user what the current
+    # thresholds actually select. ``glint_search_area`` is the intersection of
+    # the bright mask with the glint search region — exactly the pixels that
+    # are evaluated for glint candidates.
+    glint_search_area = cv2.bitwise_and(glint_mask, glint_search_mask)
     return {
         "pupil_contour": pupil_contour,
         "pupil_center": pupil_center,
         "pupil_ellipse": pupil_ellipse,
         "glints": glints,
+        "limbus": limbus,
+        "pupil_mask": pupil_mask,
+        "glint_search_area": glint_search_area,
     }
