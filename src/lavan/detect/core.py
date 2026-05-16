@@ -1,17 +1,21 @@
-"""Pupil + glint detection: thresholding, contour fitting, marker selection.
+"""Pupil + glint detection on grayscale eye images.
 
 Public surface:
 
-  - :func:`detect_pupil_and_glints` — main entry point: takes a grayscale eye image,
-    returns ``{pupil_contour, pupil_center, pupil_ellipse, glints: [{contour, center, ellipse}, ...]}``.
-  - :func:`detect_limbus` — Daugman integro-differential operator limbus circle.
-  - :func:`detect_glints` — bright-spot detection inside a mask.
-  - :func:`pupil_center_of_mass` — centre-of-mass of the thresholded pupil area.
-  - :func:`fit_convex_hull_spline` — periodic cubic B-spline through the convex hull of a contour.
-  - :func:`crop_side` — convenience: return the left/right half of a binocular frame.
-"""
+  - :func:`detect_pupil` — pupil contour, center, fitted ellipse.
+  - :func:`detect_glints` — bright glints near a known pupil center,
+    with simple, opt-in refiners (position filter, area cap, target
+    coalescing, 4-LED split-the-widest).
+  - :func:`detect_limbus` — Daugman integro-differential operator limbus
+    circle (slow; only the limbus plugin should call this).
+  - :func:`pupil_center_of_mass`, :func:`fit_convex_hull_spline` —
+    building blocks that also serve as standalone helpers.
+  - :func:`crop_side` — convenience: return left/right half of a binocular frame.
 
-import operator
+The pupil and glint detectors are intentionally separate. The glint
+detector takes the pupil center + radius as inputs so callers compose
+the two explicitly; there is no convenience wrapper that chains them.
+"""
 
 import cv2
 import numpy as np
@@ -101,59 +105,6 @@ def crop_side(img: np.ndarray, side: str | None) -> np.ndarray:
     raise ValueError(f"unknown side: {side!r} (expected 'left', 'right', or None)")
 
 
-def detect_glints(img: np.ndarray, mask: np.ndarray, glint_threshold: int = 200) -> list[tuple[float, float]]:
-    """Return ``[(x, y), ...]`` glint centroids inside ``mask`` (left-to-right by ``x``).
-
-    Thresholds bright spots above ``glint_threshold`` inside ``mask``, splits
-    merged blobs when only 3 are found, returns centroids in image coordinates.
-    """
-    masked = img.copy()
-    masked[mask == 0] = 0
-
-    _, glint_mask = cv2.threshold(masked, glint_threshold, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(glint_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    blobs = []
-    for c in contours:
-        if c.squeeze().ndim < 2:
-            continue
-        m = cv2.moments(c)
-        if m["m00"] > 0:
-            blobs.append({
-                "contour": c,
-                "cx": m["m10"] / m["m00"],
-                "cy": m["m01"] / m["m00"],
-                "w": cv2.boundingRect(c)[2],
-            })
-    blobs.sort(key=operator.itemgetter("cx"))
-
-    # if 3 blobs, split the widest one at its horizontal midpoint
-    if len(blobs) == 3:
-        widths = [b["w"] for b in blobs]
-        median_w = sorted(widths)[1]
-        widest_idx = np.argmax(widths)
-        if widths[widest_idx] > 1.3 * median_w:
-            wide = blobs.pop(widest_idx)
-            bx, by, bw, bh = cv2.boundingRect(wide["contour"])
-            mid_x = bx + bw // 2
-            for x_range in [(bx, mid_x), (mid_x, bx + bw)]:
-                half_mask = np.zeros_like(glint_mask)
-                half_mask[by : by + bh, x_range[0] : x_range[1]] = glint_mask[by : by + bh, x_range[0] : x_range[1]]
-                half_contours, _ = cv2.findContours(half_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                for hc in half_contours:
-                    hm = cv2.moments(hc)
-                    if hm["m00"] > 0:
-                        blobs.append({
-                            "contour": hc,
-                            "cx": hm["m10"] / hm["m00"],
-                            "cy": hm["m01"] / hm["m00"],
-                            "w": cv2.boundingRect(hc)[2],
-                        })
-            blobs.sort(key=operator.itemgetter("cx"))
-
-    return [(b["cx"], b["cy"]) for b in blobs]
-
-
 def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
     h, w = shape[:2]
     x, y, cw, ch = cv2.boundingRect(contour)
@@ -228,78 +179,38 @@ def _contour_center(contour: np.ndarray, method: str) -> tuple[float, float]:
     )
 
 
-def detect_pupil_and_glints(
+def detect_pupil(
     img: np.ndarray,
     pupil_threshold: int = 30,
-    glint_threshold: int = 240,
-    glint_margin_ratio: float = 0.1,
-    glints_target: int = 1,
-    glint_max_area_ratio: float = 0.1,
     pupil_center_method: str = "convex_hull_centroid",
-    glint_center_method: str = "min_area_rect_center",
     pupil_roi: tuple[int, int, int, int] | None = None,
-    glint_roi: tuple[int, int, int, int] | None = None,
 ) -> dict | None:
-    """Detect the pupil contour, the limbus circle, and glint contours in a grayscale eye image.
+    """Detect the pupil contour, centre, and fitted ellipse in a grayscale image.
 
-    Returns ``{pupil_contour, pupil_center, pupil_ellipse, glints, limbus,
-    pupil_mask, glint_search_area}`` on success. Returns ``None`` when the
-    chosen pupil method cannot produce a result at the current thresholds
-    (no contour, hull with fewer than 5 points, zero-mass mask, etc.).
+    Returns ``{contour, center, ellipse, mask}`` on success, or ``None``
+    when no pupil can be produced at the current parameters (no candidate
+    contour, hull with fewer than 5 points, zero-mass mask, etc.).
 
-    ``pupil_ellipse`` is ``((cx, cy), (w, h), angle)``; the centre is chosen
-    by ``pupil_center_method`` and ``(w, h, angle)`` come from
-    ``cv2.fitEllipse`` on the convex hull of the pupil contour. Border-
-    touching dark contours are rejected so the pupil is always an interior
-    region — unless ``pupil_roi`` is set, in which case the largest contour
-    inside the ROI is accepted regardless of border contact. ``limbus`` is
-    ``{"center": [lx, ly], "radius": r}`` or ``None`` if Daugman IDO did
-    not converge.
+    ``ellipse`` is ``((cx, cy), (w, h), angle)`` from ``cv2.fitEllipse``
+    on the convex hull of the pupil contour. The pupil centre is chosen
+    by ``pupil_center_method``; see :func:`_contour_center` for the four
+    contour-based methods, plus ``"center_of_mass"`` which uses
+    :func:`pupil_center_of_mass` (the glint hole stays cut out — matches
+    EyeLink Centroid mode) and ``"convex_hull_centroid"`` which uses the
+    spline centroid for sub-pixel stability.
 
-    ``pupil_center_method`` selects the pupil centre. The supported values are
-    the four methods of :func:`_contour_center`, plus ``"center_of_mass"``
-    which uses :func:`pupil_center_of_mass` (which preserves the glint hole
-    in the pupil mask — matches EyeLink Centroid mode) and
-    ``"convex_hull_centroid"`` which uses the spline centroid for higher
-    sub-pixel stability than the raw hull moment.
-
-    ``glint_margin_ratio`` is signed: positive expands the glint search
-    region outward into the iris, negative shrinks it inward.
-      - 0.0  -> search region = pupil boundary
-      - +X   -> dilate by ``X * (limbus_radius - pupil_radius)`` pixels,
-                so +1.0 reaches the limbus. Falls back to scaling by
-                ``pupil_radius`` when limbus detection fails.
-      - -X   -> erode by ``X * pupil_radius`` pixels, so -1.0 collapses
-                to the pupil centre.
-
-    ``glints_target`` is the number of physical IR LEDs in the rig. When 1
-    (default), every bright blob inside the search region is unioned into a
-    single centroid so a saturated reflection split across contours still
-    yields one glint.
-
-    ``glint_max_area_ratio`` rejects bright contours whose area exceeds this
-    fraction of the pupil area — a guard against skin / eyelid bleed-through
-    above ``glint_threshold``.
-
-    ``glint_center_method`` chooses how each retained glint contour is
-    reduced to a single point — see :func:`_contour_center`. The default
-    ``"min_area_rect_center"`` is robust against the asymmetric brightness
-    distribution that biases plain moment centroids on rectangular glints.
-
-    ``pupil_roi`` and ``glint_roi`` are optional ``(x, y, w, h)`` rectangles.
-    When set, the corresponding search is confined to that rectangle;
-    ``glint_roi`` also overrides the pupil-mask + margin constraint and
-    disables the ``glint_max_area_ratio`` filter (an explicit ROI is treated
-    as "the glint is here").
+    Border-touching dark contours are rejected so the pupil is always an
+    interior region — unless ``pupil_roi`` is set, in which case the
+    largest contour inside the ROI is accepted regardless of border
+    contact (an explicit ROI is treated as "the pupil is here").
     """
     _, pupil_mask = cv2.threshold(img, pupil_threshold, 255, cv2.THRESH_BINARY_INV)
     if pupil_roi is not None:
         pupil_mask = cv2.bitwise_and(pupil_mask, _roi_mask(img.shape, pupil_roi))
     contours, _ = cv2.findContours(pupil_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if pupil_roi is not None:
-        # ROI is an explicit "the pupil is here" signal — take any non-empty
-        # contour. The border-rejection filter only makes sense without ROI,
-        # where it guards against picking up the frame's vignette.
+        # An explicit ROI overrides the border-rejection filter — the
+        # filter only makes sense to guard against frame vignette.
         candidates = [c for c in contours if cv2.contourArea(c) > 0]
     else:
         candidates = [c for c in contours if not _touches_border(c, img.shape)]
@@ -309,8 +220,8 @@ def detect_pupil_and_glints(
     hull = cv2.convexHull(pupil_contour)
     if len(hull) < 5:
         return None
-    # Computed once and reused for the (w, h, angle) tuple and the
-    # ``ellipse_fit_center`` method.
+    # Reused for both the (w, h, angle) tuple and the ellipse_fit_center
+    # method below.
     ellipse_fit = cv2.fitEllipse(hull)
 
     if pupil_center_method == "center_of_mass":
@@ -324,140 +235,180 @@ def detect_pupil_and_glints(
         (cx, cy), _, _ = ellipse_fit
     else:
         cx, cy = _contour_center(pupil_contour, pupil_center_method)
-    pupil_center = (round(cx), round(cy))
+
     _, (w, h), angle = ellipse_fit
-    pupil_ellipse = ((cx, cy), (w, h), angle)
-    pupil_area = float(cv2.contourArea(pupil_contour))
-    glint_max_area = pupil_area * glint_max_area_ratio
+    return {
+        "contour": pupil_contour,
+        "center": (round(cx), round(cy)),
+        "ellipse": ((cx, cy), (w, h), angle),
+        "mask": pupil_mask,
+    }
 
+
+def detect_glints(
+    img: np.ndarray,
+    pupil_center: tuple[float, float],
+    pupil_radius: float,
+    *,
+    glint_threshold: int = 240,
+    search_radius_factor: float = 2.0,
+    search_radius_max_px: int | None = None,
+    glint_center_method: str = "min_area_rect_center",
+    max_area_px: int | None = None,
+    keep_above: bool = True,
+    keep_below: bool = True,
+    keep_left: bool = True,
+    keep_right: bool = True,
+    glints_target: int = 1,
+    coalesce_into_one: bool = True,
+    split_widest_for_target: bool = False,
+) -> dict:
+    """Detect bright glint blobs near ``pupil_center``.
+
+    Search region: a filled circle centred at ``pupil_center`` with radius
+    ``search_radius_factor * pupil_radius``, optionally clamped from above
+    by ``search_radius_max_px``. No iris / limbus geometry is involved —
+    the search is a plain pixel-distance test from the pupil centre.
+
+    Pipeline:
+
+      1. Threshold the image at ``glint_threshold`` (bright pixels = 255).
+      2. Intersect with the circular search region.
+      3. Find contours; optionally drop any whose area exceeds
+         ``max_area_px``.
+      4. Optionally drop contours whose centroid fails the half-plane
+         filter described by ``keep_above`` / ``keep_below`` /
+         ``keep_left`` / ``keep_right`` (default = all four True =
+         no filter).
+      5. If ``coalesce_into_one`` and ``glints_target == 1``, union every
+         surviving contour into one blob and keep the largest.
+      6. If ``split_widest_for_target`` and exactly ``glints_target - 1``
+         contours survive, split the widest in half horizontally — covers
+         the 4-LED rig case where two LEDs merge into one blob.
+      7. Compute each glint's centre via ``glint_center_method``.
+
+    Returns ``{"glints": [...], "search_area": np.ndarray}``. Each glint
+    is ``{"contour", "center": (cx, cy), "ellipse" | None}``. The mask
+    payload is the post-filter (threshold ∧ search) image — useful as a
+    live overlay for tuning.
+    """
+    # 1+2: bright pixels inside the pupil-centred disk.
     _, glint_mask = cv2.threshold(img, glint_threshold, 255, cv2.THRESH_BINARY)
+    radius = search_radius_factor * pupil_radius
+    if search_radius_max_px is not None:
+        radius = min(radius, float(search_radius_max_px))
+    radius_int = max(round(radius), 0)
+    search_mask = np.zeros_like(glint_mask)
+    cv2.circle(
+        search_mask,
+        (round(pupil_center[0]), round(pupil_center[1])),
+        radius_int,
+        255,
+        thickness=-1,
+    )
+    candidates_mask = cv2.bitwise_and(glint_mask, search_mask)
 
-    # Limbus is only consumed when the glint search region expands outward
-    # from the pupil (positive glint_margin_ratio with no explicit glint_roi).
-    # In every other case — pupil-only callers passing a negative margin,
-    # callers supplying an explicit glint_roi, or callers that never look
-    # at the limbus output — running Daugman IDO would be pure cost on the
-    # main thread. Skip it.
-    pupil_radius = max(w, h) / 2
-    needs_limbus = glint_roi is None and glint_margin_ratio > 0
-    limbus: dict | None = None
-    if needs_limbus:
-        try:
-            (lcx, lcy), lr = detect_limbus(img, (cx, cy), pupil_radius)
-            limbus = {"center": [float(lcx), float(lcy)], "radius": float(lr)}
-        except Exception:  # noqa: S110 - optional; Daugman IDO can fail at extreme thresholds
-            pass
+    contours, _ = cv2.findContours(candidates_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Glint search region: explicit ROI overrides the pupil-mask + dilation default.
-    # Dilation is expressed as a fraction of the iris ring (limbus_r - pupil_r)
-    # so the tuning value transfers across image resolutions.
-    if glint_roi is not None:
-        glint_search_mask = _roi_mask(img.shape, glint_roi)
-    else:
-        glint_search_mask = np.zeros_like(glint_mask)
-        cv2.drawContours(glint_search_mask, [pupil_contour], -1, 255, thickness=cv2.FILLED)
-        if glint_margin_ratio > 0:
-            # Expand outward in iris-ring units so +100% reaches the limbus.
-            # If limbus detection failed, fall back to pupil_radius as the scale.
-            ring_px = max(limbus["radius"] - pupil_radius, 0.0) if limbus is not None else pupil_radius
-            glint_margin_px = round(glint_margin_ratio * ring_px)
-            if glint_margin_px > 0:
-                k = 2 * glint_margin_px + 1
-                glint_search_mask = cv2.dilate(
-                    glint_search_mask,
-                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)),
-                )
-        elif glint_margin_ratio < 0:
-            # Shrink inward in pupil-radius units so -100% collapses to the centre.
-            erosion_px = round(-glint_margin_ratio * pupil_radius)
-            if erosion_px > 0:
-                k = 2 * erosion_px + 1
-                glint_search_mask = cv2.erode(
-                    glint_search_mask,
-                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)),
-                )
+    # 3: area cap (absolute pixels) — optional.
+    if max_area_px is not None:
+        contours = [c for c in contours if cv2.contourArea(c) <= max_area_px]
 
-    # An explicit glint_roi means "the glint is here" — disable the area
-    # filter that exists to reject skin/eyelid bleed in the no-ROI case.
-    apply_area_filter = glint_roi is None
+    # 4: half-plane filter on each contour's moments centroid.
+    if not (keep_above and keep_below and keep_left and keep_right):
+        contours = [
+            c
+            for c in contours
+            if _passes_half_plane_filter(
+                c,
+                pupil_center,
+                keep_above=keep_above,
+                keep_below=keep_below,
+                keep_left=keep_left,
+                keep_right=keep_right,
+            )
+        ]
 
-    if glints_target == 1:
-        # Single-LED rig: union every bright blob inside the search region into
-        # one centroid (a saturated, irregular reflection can split into multiple
-        # contours that still belong to the same physical LED).
-        inside_mask = cv2.bitwise_and(glint_mask, glint_search_mask)
-        inside_contours, _ = cv2.findContours(inside_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if apply_area_filter:
-            inside_contours = [c for c in inside_contours if cv2.contourArea(c) <= glint_max_area]
-        if inside_contours:
-            union = np.zeros_like(glint_mask)
-            cv2.drawContours(union, inside_contours, -1, 255, thickness=cv2.FILLED)
-            u_contours, _ = cv2.findContours(union, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            filtered = [max(u_contours, key=cv2.contourArea)] if u_contours else []
-        else:
-            filtered = []
-    else:
-        # Multi-LED: keep every bright blob whose centroid lands inside the
-        # search region. The area filter only kicks in without glint_roi.
-        glint_contours, _ = cv2.findContours(glint_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        filtered = []
-        for c in glint_contours:
-            if apply_area_filter and cv2.contourArea(c) > glint_max_area:
-                continue
-            gm = cv2.moments(c)
-            if gm["m00"] > 0:
-                cx = int(gm["m10"] / gm["m00"])
-                cy = int(gm["m01"] / gm["m00"])
-                if (
-                    0 <= cy < glint_search_mask.shape[0]
-                    and 0 <= cx < glint_search_mask.shape[1]
-                    and glint_search_mask[cy, cx] == 255
-                ):
-                    filtered.append(c)
+    # 5: coalesce into one blob when a single LED is expected.
+    if glints_target == 1 and coalesce_into_one and contours:
+        union = np.zeros_like(glint_mask)
+        cv2.drawContours(union, contours, -1, 255, thickness=cv2.FILLED)
+        unified, _ = cv2.findContours(union, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = [max(unified, key=cv2.contourArea)] if unified else []
 
-    if glints_target == 4 and len(filtered) == 3:
-        # 4-LED rig fallback: if one blob spans two LEDs horizontally, split it.
-        widths = [cv2.boundingRect(c)[2] for c in filtered]
-        median_w = sorted(widths)[1]
-        widest_idx = np.argmax(widths)
-        if widths[widest_idx] > 1.5 * median_w:
-            wide_c = filtered.pop(widest_idx)
-            x, y, w, h = cv2.boundingRect(wide_c)
-            roi = glint_mask[y : y + h, x : x + w].copy()
-            left_roi = roi.copy()
-            left_roi[:, w // 2 :] = 0
-            right_roi = roi.copy()
-            right_roi[:, : w // 2] = 0
-            for half_roi, offset_x in [(left_roi, x), (right_roi, x)]:
-                half_contours, _ = cv2.findContours(half_roi, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                for hc in half_contours:
-                    hc[:, :, 0] += offset_x
-                    hc[:, :, 1] += y
-                    filtered.append(hc)
+    # 6: split the widest blob in half when the rig has one more LED than
+    # contours found — the 4-LED 3-found special case generalised to any
+    # ``target == found + 1``.
+    if split_widest_for_target and glints_target > 1 and len(contours) == glints_target - 1 and contours:
+        contours = _split_widest_blob(contours, glint_mask)
+
+    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
 
     glints = []
-    for c in filtered:
+    for c in contours:
         try:
             cx, cy = _contour_center(c, glint_center_method)
         except ValueError:
-            # Per-glint failure under the chosen method (e.g. fewer than 5
-            # points for ellipse_fit_center). Drop this glint and keep the
-            # rest; the user can pick a different method if too many are lost.
+            # Per-glint method failure: drop this blob, keep the others.
+            # The user can switch ``glint_center_method`` if too many are
+            # rejected. No automatic fallback to another method.
             continue
         ellipse = cv2.fitEllipse(c) if len(c) >= 5 else None
         glints.append({"contour": c, "center": (round(cx), round(cy)), "ellipse": ellipse})
 
-    # Surface the binary masks so callers can show the user what the current
-    # thresholds actually select. ``glint_search_area`` is the intersection of
-    # the bright mask with the glint search region — exactly the pixels that
-    # are evaluated for glint candidates.
-    glint_search_area = cv2.bitwise_and(glint_mask, glint_search_mask)
-    return {
-        "pupil_contour": pupil_contour,
-        "pupil_center": pupil_center,
-        "pupil_ellipse": pupil_ellipse,
-        "glints": glints,
-        "limbus": limbus,
-        "pupil_mask": pupil_mask,
-        "glint_search_area": glint_search_area,
-    }
+    return {"glints": glints, "search_area": candidates_mask}
+
+
+def _passes_half_plane_filter(
+    contour: np.ndarray,
+    pupil_center: tuple[float, float],
+    *,
+    keep_above: bool,
+    keep_below: bool,
+    keep_left: bool,
+    keep_right: bool,
+) -> bool:
+    """Return True iff the contour's centroid sits in the kept half-planes.
+
+    Vertical (above/below) and horizontal (left/right) checks are
+    independent. A point ``(gx, gy)`` is admitted iff its Y is in a kept
+    vertical half AND its X is in a kept horizontal half — so disabling
+    e.g. ``keep_above`` drops every glint with ``gy < pupil_center.y``
+    regardless of its horizontal position.
+    """
+    m = cv2.moments(contour)
+    if m["m00"] <= 0:
+        return False
+    gx = m["m10"] / m["m00"]
+    gy = m["m01"] / m["m00"]
+    cx, cy = pupil_center
+    vertical_ok = (gy < cy and keep_above) or (gy >= cy and keep_below)
+    horizontal_ok = (gx < cx and keep_left) or (gx >= cx and keep_right)
+    return vertical_ok and horizontal_ok
+
+
+def _split_widest_blob(contours: list[np.ndarray], mask: np.ndarray) -> list[np.ndarray]:
+    """Split the widest contour in two halves horizontally.
+
+    Used when the rig has one more LED than the threshold + filter
+    pipeline produced contours — typical case is two adjacent LEDs whose
+    glints merged into a single bright blob.
+    """
+    widths = [cv2.boundingRect(c)[2] for c in contours]
+    widest_idx = int(np.argmax(widths))
+    median_w = sorted(widths)[len(widths) // 2]
+    # Only split when the widest is meaningfully wider than the others —
+    # a uniform set of LEDs is not a candidate for splitting.
+    if widths[widest_idx] <= 1.3 * median_w:
+        return contours
+    survivors = [c for i, c in enumerate(contours) if i != widest_idx]
+    wide = contours[widest_idx]
+    bx, by, bw, bh = cv2.boundingRect(wide)
+    mid_x = bx + bw // 2
+    halves: list[np.ndarray] = []
+    for x_lo, x_hi in ((bx, mid_x), (mid_x, bx + bw)):
+        half = np.zeros_like(mask)
+        half[by : by + bh, x_lo:x_hi] = mask[by : by + bh, x_lo:x_hi]
+        half_contours, _ = cv2.findContours(half, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        halves.extend(half_contours)
+    return survivors + halves
