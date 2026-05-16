@@ -332,16 +332,21 @@ def detect_pupil_and_glints(
 
     _, glint_mask = cv2.threshold(img, glint_threshold, 255, cv2.THRESH_BINARY)
 
-    # Limbus is needed for the positive glint_margin_ratio direction (scaling
-    # by iris ring width). Best-effort — failure leaves limbus=None and falls
-    # back to a pupil-radius scale for any positive margin.
+    # Limbus is only consumed when the glint search region expands outward
+    # from the pupil (positive glint_margin_ratio with no explicit glint_roi).
+    # In every other case — pupil-only callers passing a negative margin,
+    # callers supplying an explicit glint_roi, or callers that never look
+    # at the limbus output — running Daugman IDO would be pure cost on the
+    # main thread. Skip it.
     pupil_radius = max(w, h) / 2
-    limbus = None
-    try:
-        (lcx, lcy), lr = detect_limbus(img, (cx, cy), pupil_radius)
-        limbus = {"center": [float(lcx), float(lcy)], "radius": float(lr)}
-    except Exception:  # noqa: S110 - optional; Daugman IDO can fail at extreme thresholds
-        pass
+    needs_limbus = glint_roi is None and glint_margin_ratio > 0
+    limbus: dict | None = None
+    if needs_limbus:
+        try:
+            (lcx, lcy), lr = detect_limbus(img, (cx, cy), pupil_radius)
+            limbus = {"center": [float(lcx), float(lcy)], "radius": float(lr)}
+        except Exception:  # noqa: S110 - optional; Daugman IDO can fail at extreme thresholds
+            pass
 
     # Glint search region: explicit ROI overrides the pupil-mask + dilation default.
     # Dilation is expressed as a fraction of the iris ring (limbus_r - pupil_r)
