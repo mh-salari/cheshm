@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PKG_DIR = REPO_ROOT / "src" / "daugman_derived_boundary_detectors"
+PKG_DIR = REPO_ROOT / "src" / "lavan" / "boundary"
 
 KERNELS = (
     "active_contour_core",

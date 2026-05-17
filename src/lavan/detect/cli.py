@@ -1,7 +1,7 @@
 """CLI entry point: ``tune`` (interactive GUI) and ``detect`` (single-image).
 
-``detect`` runs :func:`~pupil_glint_detector.detect_pupil` and then
-:func:`~pupil_glint_detector.detect_glints` against the loaded image
+``detect`` runs :func:`~lavan.detect.detect_pupil` and then
+:func:`~lavan.detect.detect_glints` against the loaded image
 and prints the combined JSON-serialisable result. Only the most-used
 knobs are surfaced as flags; the advanced refiners (half-plane keep
 toggles, area cap, coalescing, widest-blob split, custom ROIs) keep
@@ -192,9 +192,9 @@ def _handle_detect(args: argparse.Namespace) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Entry point for the ``pupil-glint-detector`` CLI."""
+    """Entry point for the ``lavan-detect`` CLI."""
     parser = argparse.ArgumentParser(
-        prog="pupil-glint-detector",
+        prog="lavan-detect",
         description="Pupil + glint detection on grayscale eye images.",
     )
     sub = parser.add_subparsers(dest="command", required=True)

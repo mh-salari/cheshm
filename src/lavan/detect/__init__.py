@@ -1,8 +1,8 @@
-"""Pupil + glint detection on grayscale eye images.
+"""Pupil + glint + limbus detection on grayscale eye images.
 
 Public surface re-exported here for convenience::
 
-    from pupil_glint_detector import (
+    from lavan.detect import (
         crop_side,
         detect_glints,
         detect_limbus,
@@ -11,20 +11,15 @@ Public surface re-exported here for convenience::
         pupil_center_of_mass,
     )
 
-Pair this package with an alignment library such as
-``eye-image-alignment`` to register two eye images using the detected
-pupil + limbus geometry.
-
 ``detect_pupil`` and ``detect_glints`` are independent entry points
 that callers compose explicitly — the glint detector takes the pupil
 centre + radius as inputs. There is intentionally no convenience
 wrapper that chains the two so the cost of each pass is visible at
 the call site.
 
-The ``cli`` and ``gui`` submodules are not re-exported from the
-package root because both call into the old monolithic API and will
-be rewritten against ``detect_pupil`` / ``detect_glints`` before the
-next release.
+``detect_limbus`` wraps :mod:`lavan.boundary.integro_differential_operator`;
+once a pupil + limbus pair is in hand, :mod:`lavan.align` registers
+two eye images by their iris texture.
 """
 
 from .core import (

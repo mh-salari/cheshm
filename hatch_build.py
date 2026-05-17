@@ -51,7 +51,7 @@ class CKernelBuildHook(BuildHookInterface):
     def initialize(self, _version: str, build_data: dict) -> None:
         """Compile any missing kernel binaries and register them with the wheel."""
         ext = _lib_extension()
-        pkg_dir = Path(self.root) / "src" / "daugman_derived_boundary_detectors"
+        pkg_dir = Path(self.root) / "src" / "lavan" / "boundary"
 
         missing = [k for k in KERNELS if not (pkg_dir / f"{k}{ext}").exists()]
         if missing:
@@ -67,7 +67,7 @@ class CKernelBuildHook(BuildHookInterface):
 
         # Tell hatchling to ship the freshly-compiled binary in the wheel.
         build_data.setdefault("force_include", {}).update({
-            str(pkg_dir / f"{kernel}{ext}"): f"daugman_derived_boundary_detectors/{kernel}{ext}" for kernel in KERNELS
+            str(pkg_dir / f"{kernel}{ext}"): f"lavan/boundary/{kernel}{ext}" for kernel in KERNELS
         })
 
         # The wheel contains a compiled binary, so it is NOT pure Python.

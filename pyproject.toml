@@ -1,0 +1,184 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lavan"
+dynamic = ["version"]
+description = "Eye-image primitives: pupil + glint + limbus detection, Daugman boundary detectors, and iris-texture image alignment."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Mohammadhossein Salari", email = "mohammadhossein.salari@gmail.com"},
+]
+keywords = [
+    "eye-tracking",
+    "iris-detection",
+    "pupil-detection",
+    "glint-detection",
+    "limbus-detection",
+    "daugman",
+    "image-alignment",
+    "image-processing",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "matplotlib",
+    "numba",
+    "numpy",
+    "opencv-python",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.13.0",
+    "pytest",
+]
+
+[project.scripts]
+lavan-detect = "lavan.detect.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/mh-salari/lavan"
+Repository = "https://github.com/mh-salari/lavan"
+Issues = "https://github.com/mh-salari/lavan/issues"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lavan"]
+
+# Custom build hook compiles the 3 C kernels for the current OS and bundles
+# the resulting .dylib / .so / .dll into the wheel. See hatch_build.py.
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/lavan",
+    "scripts",
+    "hatch_build.py",
+    "README.md",
+]
+
+[tool.ruff]
+line-length = 119
+preview = true
+
+lint.extend-select = [
+    "E",
+    "W",
+    "C90",
+    "I",
+    "N",
+    "D",
+    "UP",
+    "YTT",
+    "ANN",
+    "ASYNC",
+    "S",
+    "BLE",
+    "FBT",
+    "B",
+    "A",
+    "COM",
+    "C4",
+    "DTZ",
+    "T10",
+    "DJ",
+    "EM",
+    "EXE",
+    "FA",
+    "ISC",
+    "ICN",
+    "LOG",
+    "G",
+    "INP",
+    "PIE",
+    "PYI",
+    "PT",
+    "Q",
+    "RSE",
+    "RET",
+    "SLF",
+    "SLOT",
+    "SIM",
+    "TID",
+    "TC",
+    "INT",
+    "ARG",
+    "PTH",
+    "TD",
+    "FIX",
+    "PD",
+    "PGH",
+    "PL",
+    "TRY",
+    "FLY",
+    "NPY",
+    "FAST",
+    "AIR",
+    "PERF",
+    "FURB",
+    "RUF",
+    "PLC0415",
+]
+
+lint.ignore = [
+    "E501",
+    "E741",
+    "FBT003",
+    "D203",
+    "D213",
+    "S311",
+    "PERF401",
+    "RET504",
+    "FA102",
+    "COM812",
+    "TRY300",
+    "BLE001",
+    "PLR2004",
+    "D400",
+    "D415",
+    "TID252",
+    "FBT001",
+    "FBT002",
+    "PLR0915",
+    "TRY003",
+    "EM101",
+    "EM102",
+    "D401",
+    "PLR0911",
+    "C901",
+    "PLR0912",
+    "PLR0913",
+    "PLR0917",
+    "PLR0914",
+    "N803",
+    "N806",
+]
+
+# Greek letters + typographic minus that appear in paper-faithful docstrings
+# (σ in Gaussian-kernel sizing, α for ellipse rotation, θ angles, − minus in math).
+lint.allowed-confusables = ["σ", "α", "−", "θ"]
+
+[tool.ruff.lint.per-file-ignores]
+# C-compilation orchestration: argv is hardcoded literal strings, not user input.
+"hatch_build.py" = ["S404", "S603"]
+"scripts/build_c.py" = ["S404", "S603", "INP001"]

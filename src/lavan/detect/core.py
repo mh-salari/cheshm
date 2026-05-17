@@ -21,8 +21,9 @@ import math
 
 import cv2
 import numpy as np
-from daugman_derived_boundary_detectors import IntegroDifferentialOperator
 from scipy.interpolate import splev, splprep
+
+from lavan.boundary import IntegroDifferentialOperator
 
 
 def fit_convex_hull_spline(contour: np.ndarray, n_points: int = 200) -> dict:

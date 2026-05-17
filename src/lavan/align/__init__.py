@@ -9,7 +9,7 @@ rather than by eyelashes or specular glints.
 
 Public surface re-exported here for convenience::
 
-    from eye_image_alignment import (
+    from lavan.align import (
         align_by_iris_center,
         align_by_min_diff,
         align_by_min_diff_plain,

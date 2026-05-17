@@ -14,9 +14,9 @@
   ``pupil_guided_contour_core.c``.
 """
 
-from daugman_derived_boundary_detectors.daugman_active_contour import DaugmanActiveContour
-from daugman_derived_boundary_detectors.integro_differential_operator import IntegroDifferentialOperator
-from daugman_derived_boundary_detectors.pupil_guided_contour import PupilGuidedContour
+from .daugman_active_contour import DaugmanActiveContour
+from .integro_differential_operator import IntegroDifferentialOperator
+from .pupil_guided_contour import PupilGuidedContour
 
 __all__ = [
     "DaugmanActiveContour",

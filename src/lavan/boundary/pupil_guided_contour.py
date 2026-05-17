@@ -38,7 +38,7 @@ import pathlib
 import cv2
 import numpy as np
 
-from daugman_derived_boundary_detectors.daugman_active_contour import _gaussian_kernel_1d
+from .daugman_active_contour import _gaussian_kernel_1d
 
 _LIB_DIR = pathlib.Path(__file__).parent
 _LIB_NAME = "pupil_guided_contour_core"
