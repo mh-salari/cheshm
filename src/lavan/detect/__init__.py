@@ -22,14 +22,10 @@ once a pupil + limbus pair is in hand, :mod:`lavan.align` registers
 two eye images by their iris texture.
 """
 
-from .core import (
-    crop_side,
-    detect_glints,
-    detect_limbus,
-    detect_pupil,
-    fit_convex_hull_spline,
-    pupil_center_of_mass,
-)
+from .glint import detect_glints
+from .limbus import detect_limbus
+from .pupil import detect_pupil, fit_convex_hull_spline, pupil_center_of_mass
+from .utils import crop_side
 
 __all__ = [
     "crop_side",
