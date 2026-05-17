@@ -86,6 +86,26 @@ def _add_detect_parser(sub: argparse._SubParsersAction) -> None:
         default="convex_hull_centroid",
         help="(default: convex_hull_centroid).",
     )
+    p.add_argument(
+        "--min-ellipse-fit-ratio",
+        type=float,
+        default=None,
+        help=(
+            "Reject pupils whose contour area divided by fitted-ellipse area "
+            "is below this fraction (0..1). Catches fragmented or under-filled "
+            "detections. Default: off (no gate)."
+        ),
+    )
+    p.add_argument(
+        "--min-roundness-ratio",
+        type=float,
+        default=None,
+        help=(
+            "Reject pupils whose 4*pi*area / perimeter^2 is below this fraction "
+            "(0..1). 1.0 = perfect circle. Use only with on-axis cameras; off-axis "
+            "pupils look elliptical and score low. Default: off (no gate)."
+        ),
+    )
     p.add_argument("--glint-threshold", type=int, default=240, help="(default: 240).")
     p.add_argument(
         "--search-radius-factor",
@@ -116,6 +136,8 @@ def _handle_detect(args: argparse.Namespace) -> None:
         img,
         pupil_threshold=args.pupil_threshold,
         pupil_center_method=args.pupil_center_method,
+        min_ellipse_fit_ratio=args.min_ellipse_fit_ratio,
+        min_roundness_ratio=args.min_roundness_ratio,
     )
     if pupil is None:
         raise SystemExit("pupil detection produced no result at the given parameters.")

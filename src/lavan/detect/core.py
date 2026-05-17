@@ -17,6 +17,8 @@ detector takes the pupil center + radius as inputs so callers compose
 the two explicitly; there is no convenience wrapper that chains them.
 """
 
+import math
+
 import cv2
 import numpy as np
 from daugman_derived_boundary_detectors import IntegroDifferentialOperator
@@ -184,11 +186,47 @@ def _contour_center(contour: np.ndarray, method: str) -> tuple[float, float]:
     )
 
 
+def _passes_shape_quality(
+    contour: np.ndarray,
+    ellipse_fit: tuple[tuple[float, float], tuple[float, float], float],
+    *,
+    min_ellipse_fit_ratio: float | None,
+    min_roundness_ratio: float | None,
+) -> bool:
+    """Return ``True`` iff ``contour`` satisfies the active shape-quality gates.
+
+    Each gate is skipped when its threshold is ``None``. With both gates
+    inactive the function always returns ``True`` and detection is
+    unchanged from the no-quality-gate baseline.
+    """
+    if min_ellipse_fit_ratio is None and min_roundness_ratio is None:
+        return True
+    contour_area = float(cv2.contourArea(contour))
+    if min_ellipse_fit_ratio is not None:
+        _, (w, h), _ = ellipse_fit
+        ellipse_area = math.pi * (w / 2.0) * (h / 2.0)
+        if ellipse_area <= 0:
+            return False
+        if contour_area / ellipse_area < float(min_ellipse_fit_ratio):
+            return False
+    if min_roundness_ratio is not None:
+        perimeter = float(cv2.arcLength(contour, closed=True))
+        if perimeter <= 0:
+            return False
+        roundness = 4.0 * math.pi * contour_area / (perimeter * perimeter)
+        if roundness < float(min_roundness_ratio):
+            return False
+    return True
+
+
 def detect_pupil(
     img: np.ndarray,
     pupil_threshold: int = 30,
     pupil_center_method: str = "convex_hull_centroid",
     pupil_roi: tuple[int, int, int, int] | None = None,
+    *,
+    min_ellipse_fit_ratio: float | None = None,
+    min_roundness_ratio: float | None = None,
 ) -> dict | None:
     """Detect the pupil contour, centre, and fitted ellipse in a grayscale image.
 
@@ -208,6 +246,25 @@ def detect_pupil(
     interior region — unless ``pupil_roi`` is set, in which case the
     largest contour inside the ROI is accepted regardless of border
     contact (an explicit ROI is treated as "the pupil is here").
+
+    Two optional post-fit shape-quality gates reject detections that
+    don't look pupil-shaped:
+
+    - ``min_ellipse_fit_ratio`` (0..1): ``contour_area /
+      fitted_ellipse_area``. Catches detections whose contour is
+      fragmented or under-fills its fit (irregular blobs, multi-component
+      masks).
+    - ``min_roundness_ratio`` (0..1): ``4·π·area / perimeter²``, the
+      isoperimetric quotient. ``1.0`` = perfect circle. Catches
+      jagged or elongated contours; only useful when the camera views
+      the eye on-axis (off-axis pupils are legitimately elliptical and
+      score well below 1.0).
+
+    Both gates default to ``None`` (off). When either is set, candidate
+    contours are walked from largest to smallest and the first one that
+    satisfies both active gates is chosen. ``None`` is returned only if
+    every candidate fails. With both gates off, behaviour matches the
+    no-gate baseline: the largest contour wins without any shape check.
     """
     _, pupil_mask = cv2.threshold(img, pupil_threshold, 255, cv2.THRESH_BINARY_INV)
     if pupil_roi is not None:
@@ -221,13 +278,29 @@ def detect_pupil(
         candidates = [c for c in contours if not _touches_border(c, img.shape)]
     if not candidates:
         return None
-    pupil_contour = max(candidates, key=cv2.contourArea)
-    hull = cv2.convexHull(pupil_contour)
-    if len(hull) < 5:
+    # Walk candidates largest -> smallest; with shape gates active, skip
+    # contours that fail the gates and try the next one. Without gates,
+    # the first iteration matches the prior "max by area" pick.
+    candidates.sort(key=cv2.contourArea, reverse=True)
+    pupil_contour = None
+    ellipse_fit = None
+    for candidate in candidates:
+        candidate_hull = cv2.convexHull(candidate)
+        if len(candidate_hull) < 5:
+            continue
+        candidate_fit = cv2.fitEllipse(candidate_hull)
+        if not _passes_shape_quality(
+            candidate,
+            candidate_fit,
+            min_ellipse_fit_ratio=min_ellipse_fit_ratio,
+            min_roundness_ratio=min_roundness_ratio,
+        ):
+            continue
+        pupil_contour = candidate
+        ellipse_fit = candidate_fit
+        break
+    if pupil_contour is None:
         return None
-    # Reused for both the (w, h, angle) tuple and the ellipse_fit_center
-    # method below.
-    ellipse_fit = cv2.fitEllipse(hull)
 
     if pupil_center_method == "center_of_mass":
         com = pupil_center_of_mass(pupil_mask, pupil_contour)
