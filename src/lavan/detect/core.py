@@ -188,7 +188,7 @@ def _contour_center(contour: np.ndarray, method: str) -> tuple[float, float]:
 
 def _passes_shape_quality(
     contour: np.ndarray,
-    ellipse_fit: tuple[tuple[float, float], tuple[float, float], float],
+    ellipse_fit: tuple[tuple[float, float], tuple[float, float], float] | None,
     *,
     min_ellipse_fit_ratio: float | None,
     min_roundness_ratio: float | None,
@@ -196,13 +196,18 @@ def _passes_shape_quality(
     """Return ``True`` iff ``contour`` satisfies the active shape-quality gates.
 
     Each gate is skipped when its threshold is ``None``. With both gates
-    inactive the function always returns ``True`` and detection is
-    unchanged from the no-quality-gate baseline.
+    inactive the function always returns ``True`` and the upstream
+    pipeline runs unchanged. ``ellipse_fit`` may be ``None`` (small
+    contours with < 5 points have no fittable ellipse); in that case
+    the ellipse-fit gate fails by construction while the roundness gate
+    still applies since it only needs the contour itself.
     """
     if min_ellipse_fit_ratio is None and min_roundness_ratio is None:
         return True
     contour_area = float(cv2.contourArea(contour))
     if min_ellipse_fit_ratio is not None:
+        if ellipse_fit is None:
+            return False
         _, (w, h), _ = ellipse_fit
         ellipse_area = math.pi * (w / 2.0) * (h / 2.0)
         if ellipse_area <= 0:
@@ -340,8 +345,9 @@ def detect_glints(
     keep_right: bool = True,
     filter_margin_px: int = 5,
     glints_target: int = 1,
-    coalesce_into_one: bool = True,
     split_widest_for_target: bool = False,
+    min_ellipse_fit_ratio: float | None = None,
+    min_roundness_ratio: float | None = None,
 ) -> dict:
     """Detect bright glint blobs near ``pupil_center``.
 
@@ -362,12 +368,17 @@ def detect_glints(
          no filter). ``filter_margin_px`` softens the boundary so a
          glint sitting a few pixels past the pupil-centre line still
          counts as belonging to the chosen half.
-      5. If ``coalesce_into_one`` and ``glints_target == 1``, union every
-         surviving contour into one blob and keep the largest.
+      5. Apply the opt-in shape-quality gates
+         (``min_ellipse_fit_ratio`` / ``min_roundness_ratio``) per
+         contour. Contours that fail any active gate are dropped.
       6. If ``split_widest_for_target`` and exactly ``glints_target - 1``
          contours survive, split the widest in half horizontally — covers
          the 4-LED rig case where two LEDs merge into one blob.
-      7. Compute each glint's centre via ``glint_center_method``.
+      7. Keep the ``glints_target`` largest remaining contours by area
+         (or fewer when not enough candidates survived).
+      8. Compute each surviving glint's centre via
+         ``glint_center_method``; the returned glints are ordered
+         left-to-right by bounding-box x.
 
     Returns ``{"glints": [...], "search_area": np.ndarray}``. Each glint
     is ``{"contour", "center": (cx, cy), "ellipse" | None}``. The mask
@@ -415,23 +426,36 @@ def detect_glints(
             )
         ]
 
-    # 5: coalesce into one blob when a single LED is expected.
-    if glints_target == 1 and coalesce_into_one and contours:
-        union = np.zeros_like(glint_mask)
-        cv2.drawContours(union, contours, -1, 255, thickness=cv2.FILLED)
-        unified, _ = cv2.findContours(union, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = [max(unified, key=cv2.contourArea)] if unified else []
+    # 5: drop contours whose shape doesn't match a clean glint reflection.
+    accepted: list[tuple[np.ndarray, tuple]] = []
+    for c in contours:
+        ellipse = cv2.fitEllipse(c) if len(c) >= 5 else None
+        if not _passes_shape_quality(
+            c,
+            ellipse,
+            min_ellipse_fit_ratio=min_ellipse_fit_ratio,
+            min_roundness_ratio=min_roundness_ratio,
+        ):
+            continue
+        accepted.append((c, ellipse))
 
     # 6: split the widest blob in half when the rig has one more LED than
     # contours found — the 4-LED 3-found special case generalised to any
-    # ``target == found + 1``.
-    if split_widest_for_target and glints_target > 1 and len(contours) == glints_target - 1 and contours:
-        contours = _split_widest_blob(contours, glint_mask)
+    # ``target == found + 1``. Operates on the contour list only; the
+    # split halves get fresh ellipse fits below.
+    if split_widest_for_target and glints_target > 1 and len(accepted) == glints_target - 1 and accepted:
+        split_contours = _split_widest_blob([c for c, _ in accepted], glint_mask)
+        accepted = [(c, cv2.fitEllipse(c) if len(c) >= 5 else None) for c in split_contours]
 
-    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
+    # 7: keep the N largest by area; fewer when we don't have enough.
+    accepted.sort(key=lambda pair: cv2.contourArea(pair[0]), reverse=True)
+    accepted = accepted[: max(glints_target, 0)]
+
+    # Output ordering: left-to-right by bounding-box x.
+    accepted.sort(key=lambda pair: cv2.boundingRect(pair[0])[0])
 
     glints = []
-    for c in contours:
+    for c, ellipse in accepted:
         try:
             cx, cy = _contour_center(c, glint_center_method)
         except ValueError:
@@ -439,7 +463,6 @@ def detect_glints(
             # The user can switch ``glint_center_method`` if too many are
             # rejected. No automatic fallback to another method.
             continue
-        ellipse = cv2.fitEllipse(c) if len(c) >= 5 else None
         glints.append({"contour": c, "center": (round(cx), round(cy)), "ellipse": ellipse})
 
     return {"glints": glints, "search_area": candidates_mask}

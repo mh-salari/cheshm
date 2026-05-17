@@ -120,6 +120,24 @@ def _add_detect_parser(sub: argparse._SubParsersAction) -> None:
         help="(default: min_area_rect_center).",
     )
     p.add_argument("--glints-target", type=int, default=1, help="number of IR LEDs (default: 1).")
+    p.add_argument(
+        "--glint-min-ellipse-fit-ratio",
+        type=float,
+        default=None,
+        help=(
+            "Reject glints whose contour area divided by fitted-ellipse area "
+            "is below this fraction (0..1). Default: off (no gate)."
+        ),
+    )
+    p.add_argument(
+        "--glint-min-roundness-ratio",
+        type=float,
+        default=None,
+        help=(
+            "Reject glints whose 4*pi*area / perimeter^2 is below this fraction "
+            "(0..1). 1.0 = perfect circle. Default: off (no gate)."
+        ),
+    )
     p.set_defaults(handler=_handle_detect)
 
 
@@ -152,6 +170,8 @@ def _handle_detect(args: argparse.Namespace) -> None:
         search_radius_factor=args.search_radius_factor,
         glint_center_method=args.glint_center_method,
         glints_target=args.glints_target,
+        min_ellipse_fit_ratio=args.glint_min_ellipse_fit_ratio,
+        min_roundness_ratio=args.glint_min_roundness_ratio,
     )
 
     serialisable = {
