@@ -1,8 +1,24 @@
-"""CLI entry point: ``tune`` (interactive GUI) and ``detect`` (single-image)."""
+"""CLI entry point: ``tune`` (interactive GUI) and ``detect`` (single-image).
+
+``detect`` runs :func:`~pupil_glint_detector.detect_pupil` and then
+:func:`~pupil_glint_detector.detect_glints` against the loaded image
+and prints the combined JSON-serialisable result. Only the most-used
+knobs are surfaced as flags; the advanced refiners (half-plane keep
+toggles, area cap, coalescing, widest-blob split, custom ROIs) keep
+their library defaults — callers who need them invoke the API
+directly.
+"""
 
 import argparse
 import json
 from pathlib import Path
+
+CENTER_METHOD_CHOICES = (
+    "convex_hull_centroid",
+    "center_of_mass",
+    "ellipse_fit_center",
+    "min_area_rect_center",
+)
 
 
 def _add_tune_parser(sub: argparse._SubParsersAction) -> None:
@@ -20,7 +36,10 @@ def _add_tune_parser(sub: argparse._SubParsersAction) -> None:
         "--output",
         type=Path,
         default=None,
-        help="JSON path to save thresholds to (default: <input>/thresholds.json for directory input, or <input>.thresholds.json for single image).",
+        help=(
+            "JSON path to save thresholds to (default: <input>/thresholds.json for "
+            "directory input, or <input>.thresholds.json for single image)."
+        ),
     )
     p.add_argument(
         "--pattern",
@@ -61,46 +80,66 @@ def _add_detect_parser(sub: argparse._SubParsersAction) -> None:
         help="JSON path to save the detection result. Default: print to stdout.",
     )
     p.add_argument("--pupil-threshold", type=int, default=30, help="(default: 30).")
-    p.add_argument("--glint-threshold", type=int, default=240, help="(default: 240).")
-    p.add_argument("--glint-margin", type=int, default=10, help="px tolerance around pupil (default: 10).")
-    p.add_argument("--glints-target", type=int, default=1, help="number of IR LEDs (default: 1).")
-    p.add_argument(
-        "--glint-max-area-ratio",
-        type=float,
-        default=0.1,
-        help="reject glint candidates exceeding this fraction of pupil area (default: 0.1).",
-    )
     p.add_argument(
         "--pupil-center-method",
-        choices=("convex_hull_centroid", "center_of_mass"),
+        choices=CENTER_METHOD_CHOICES,
         default="convex_hull_centroid",
         help="(default: convex_hull_centroid).",
     )
+    p.add_argument("--glint-threshold", type=int, default=240, help="(default: 240).")
+    p.add_argument(
+        "--search-radius-factor",
+        type=float,
+        default=2.0,
+        help="Glint search disk radius as a multiple of the pupil radius (default: 2.0).",
+    )
+    p.add_argument(
+        "--glint-center-method",
+        choices=CENTER_METHOD_CHOICES,
+        default="min_area_rect_center",
+        help="(default: min_area_rect_center).",
+    )
+    p.add_argument("--glints-target", type=int, default=1, help="number of IR LEDs (default: 1).")
     p.set_defaults(handler=_handle_detect)
 
 
 def _handle_detect(args: argparse.Namespace) -> None:
     import cv2  # noqa: PLC0415  (defer cv2 import to subcommand dispatch)
 
-    from .core import detect_pupil_and_glints  # noqa: PLC0415
+    from .core import detect_glints, detect_pupil  # noqa: PLC0415
 
     img = cv2.imread(str(args.input), cv2.IMREAD_GRAYSCALE)
     if img is None:
         raise SystemExit(f"failed to read {args.input}")
 
-    det = detect_pupil_and_glints(
+    pupil = detect_pupil(
         img,
         pupil_threshold=args.pupil_threshold,
-        glint_threshold=args.glint_threshold,
-        glint_margin=args.glint_margin,
-        glints_target=args.glints_target,
-        glint_max_area_ratio=args.glint_max_area_ratio,
         pupil_center_method=args.pupil_center_method,
     )
+    if pupil is None:
+        raise SystemExit("pupil detection produced no result at the given parameters.")
+
+    (ecx, ecy), (w, h), angle = pupil["ellipse"]
+    pupil_radius = max(w, h) / 2.0
+    glints_result = detect_glints(
+        img,
+        pupil_center=pupil["center"],
+        pupil_radius=pupil_radius,
+        glint_threshold=args.glint_threshold,
+        search_radius_factor=args.search_radius_factor,
+        glint_center_method=args.glint_center_method,
+        glints_target=args.glints_target,
+    )
+
     serialisable = {
-        "pupil_center": det["pupil_center"],
-        "pupil_ellipse": det["pupil_ellipse"],
-        "glints": [{"center": g["center"], "ellipse": g["ellipse"]} for g in det["glints"]],
+        "pupil_center": list(pupil["center"]),
+        "pupil_ellipse": {
+            "center": [float(ecx), float(ecy)],
+            "size": [float(w), float(h)],
+            "angle": float(angle),
+        },
+        "glints": [{"center": list(g["center"])} for g in glints_result["glints"]],
     }
     payload = json.dumps(serialisable, indent=2)
     if args.output:
