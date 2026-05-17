@@ -244,9 +244,9 @@ def detect_pupil(
     on the convex hull of the pupil contour. The pupil centre is chosen
     by ``pupil_center_method``; see :func:`_contour_center` for the four
     contour-based methods, plus ``"center_of_mass"`` which uses
-    :func:`pupil_center_of_mass` (the glint hole stays cut out — matches
-    EyeLink Centroid mode) and ``"convex_hull_centroid"`` which uses the
-    spline centroid for sub-pixel stability.
+    :func:`pupil_center_of_mass` (the glint hole stays cut out) and
+    ``"convex_hull_centroid"`` which uses the spline centroid for
+    sub-pixel stability.
 
     Border-touching dark contours are rejected so the pupil is always an
     interior region — unless ``pupil_roi`` is set, in which case the

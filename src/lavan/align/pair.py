@@ -1,12 +1,12 @@
 """High-level entry point: align two eye images given pre-computed detections.
 
 ``align_eye_images(ref_img, tgt_img, ref_det, tgt_det)`` consumes detection
-dicts (as produced and cached upstream by eye-annotation-tool's Manual
-Threshold mode) and runs the two-step rigid registration. Step 1 translates
-the target so its mean glint position matches the reference; step 2 refines
-``(dx, dy, theta)`` by minimising image difference inside a barrel-shaped
-iris mask. Detection is never run inside this module — that lives in
-eye-annotation-tool's ``auto_detectors.algorithms``.
+dicts produced by any upstream pupil + glint + limbus detector (e.g.
+:mod:`lavan.detect`) and runs the two-step rigid registration. Step 1
+translates the target so its mean glint position matches the reference;
+step 2 refines ``(dx, dy, theta)`` by minimising image difference inside a
+barrel-shaped iris mask. Detection is never run inside this module —
+callers pass pre-computed dicts.
 
 Detection dict shape::
 
