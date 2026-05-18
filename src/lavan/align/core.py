@@ -15,9 +15,10 @@ Two equivalent implementations are exposed:
 Both take the same mask, search-range, and rotation-centre arguments and
 return ``((dx, dy, theta), best_score)``. A separate :func:`apply_transform`
 helper applies the returned parameters to an image, and
-:func:`align_by_iris_center` returns the initial translation that places
-the target's iris centre on top of the reference's (useful as a
-pre-alignment step before the image-diff refinement).
+:func:`align_by_translation` returns the pure-translation that places one
+reference point (e.g. a glint centroid, a pupil centre, an iris centre)
+on top of another — useful as a pre-alignment step before the image-diff
+refinement.
 """
 
 from collections.abc import Iterable
@@ -307,13 +308,18 @@ def align_by_min_diff(
     return best_params, best_score
 
 
-def align_by_iris_center(
-    ref_iris_center: tuple[float, float],
-    mov_iris_center: tuple[float, float],
+def align_by_translation(
+    ref_point: tuple[float, float],
+    mov_point: tuple[float, float],
 ) -> tuple[float, float, float]:
-    """Return ``(dx, dy, 0.0)`` translation that places ``mov_iris_center`` on ``ref_iris_center``."""
-    dx = ref_iris_center[0] - mov_iris_center[0]
-    dy = ref_iris_center[1] - mov_iris_center[1]
+    """Return ``(dx, dy, 0.0)`` translation that places ``mov_point`` on ``ref_point``.
+
+    The reference point can be anything you want the two images aligned by —
+    a glint centroid, a pupil centre, an iris centre. The function only
+    knows about coordinates; the choice of point is the caller's.
+    """
+    dx = ref_point[0] - mov_point[0]
+    dy = ref_point[1] - mov_point[1]
     return (dx, dy, 0.0)
 
 

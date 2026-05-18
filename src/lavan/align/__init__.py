@@ -10,7 +10,7 @@ rather than by eyelashes or specular glints.
 Public surface re-exported here for convenience::
 
     from lavan.align import (
-        align_by_iris_center,
+        align_by_translation,
         align_by_min_diff,
         align_by_min_diff_plain,
         align_eye_images,
@@ -25,7 +25,7 @@ Public surface re-exported here for convenience::
 """
 
 from .core import (
-    align_by_iris_center,
+    align_by_translation,
     align_by_min_diff,
     align_by_min_diff_plain,
     apply_transform,
@@ -41,7 +41,7 @@ from .plots import (
 )
 
 __all__ = [
-    "align_by_iris_center",
+    "align_by_translation",
     "align_by_min_diff",
     "align_by_min_diff_plain",
     "align_eye_images",
