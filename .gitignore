@@ -8,8 +8,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Compiled C kernels (built by scripts/build_c.py for local dev; wheels ship a
-# pre-compiled binary via the hatch_build.py hook on release).
+# Native build artefacts (compiled by CMake under build/; scikit-build-core
+# installs them into the wheel at release time).
 *.so
 *.dylib
 *.dll

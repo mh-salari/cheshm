@@ -1,14 +1,19 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = [
+    "scikit-build-core >=0.10",
+    "cython >=3.0",
+    "setuptools_scm >=8",
+    "numpy",
+]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "lavan"
 dynamic = ["version"]
-description = "Eye-image primitives: pupil + glint + limbus detection, Daugman boundary detectors, and iris-texture image alignment."
+description = "Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of two eye images."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {text = "LGPL-3.0-or-later"}
 authors = [
     {name = "Mohammadhossein Salari", email = "mohammadhossein.salari@gmail.com"},
 ]
@@ -25,7 +30,8 @@ keywords = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "Programming Language :: C++",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
@@ -58,24 +64,46 @@ Homepage = "https://github.com/mh-salari/lavan"
 Repository = "https://github.com/mh-salari/lavan"
 Issues = "https://github.com/mh-salari/lavan/issues"
 
-[tool.hatch.version]
-source = "vcs"
+# scikit-build-core drives the CMake build; the top-level CMakeLists.txt
+# compiles the 3 plain-C kernels (loaded via ctypes) and the vendored
+# pupil-detectors 2D C++/Cython extension. Wheels are tagged with the
+# native platform so PyPI delivers the right binary per OS/arch.
+[tool.scikit-build]
+minimum-version = "0.10"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/lavan"]
+sdist.include = ["src/lavan/**", "CMakeLists.txt", "README.md", "NOTICE.md", "LICENSE", "LICENSE.GPL"]
+# Version is read from VCS via setuptools_scm and substituted into CMake's
+# ${SKBUILD_PROJECT_VERSION} so we don't repeat it in two places.
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/lavan"]
+[tool.setuptools_scm]
 
-# Custom build hook compiles the 3 C kernels for the current OS and bundles
-# the resulting .dylib / .so / .dll into the wheel. See hatch_build.py.
-[tool.hatch.build.targets.wheel.hooks.custom]
-path = "hatch_build.py"
+# Cross-OS wheel builds via cibuildwheel. The GitHub Actions matrix in
+# .github/workflows/wheels.yml drives one job per (os, arch) and picks
+# the right per-platform section below for system-dep install + wheel
+# repair. macOS / Linux let cibuildwheel auto-run delocate / auditwheel
+# to bundle OpenCV's C++ shared libs into the wheel; Windows needs an
+# explicit delvewheel command because cibuildwheel's auto-repair on
+# Windows is opt-in.
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux* pp*"
+build-verbosity = 1
+test-command = 'python -c "from lavan.pupil_detector_2d import Detector2D; from lavan.boundary.pupil_guided_contour import _lib; print(\"smoke ok:\", Detector2D, _lib._name)"'
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "src/lavan",
-    "scripts",
-    "hatch_build.py",
-    "README.md",
-]
+[tool.cibuildwheel.macos]
+before-all = "brew install eigen opencv"
+
+[tool.cibuildwheel.linux]
+before-all = ["yum install -y eigen3-devel", "bash scripts/manylinux-before-all.sh"]
+manylinux-x86_64-image = "manylinux2014"
+
+[tool.cibuildwheel.windows]
+before-all = "choco install -y eigen opencv"
+environment = { OpenCV_DIR = "C:/tools/opencv/build" }
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --add-path C:/tools/opencv/build/x64/vc15/bin"
 
 [tool.ruff]
 line-length = 119
