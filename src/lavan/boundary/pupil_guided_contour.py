@@ -34,6 +34,7 @@ cluttered head-mounted images.
 import ctypes
 import math
 import pathlib
+import platform
 
 import cv2
 import numpy as np
@@ -42,7 +43,7 @@ from .daugman_active_contour import _gaussian_kernel_1d
 
 _LIB_DIR = pathlib.Path(__file__).parent
 _LIB_NAME = "pupil_guided_contour_core"
-_lib_ext = ".dylib" if (_LIB_DIR / f"{_LIB_NAME}.dylib").exists() else ".so"
+_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
 _lib.pupil_guided_radial_search.restype = ctypes.c_int
 _lib.pupil_guided_radial_search.argtypes = [

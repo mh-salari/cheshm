@@ -15,6 +15,7 @@ foreach(kernel ${LAVAN_C_KERNELS})
     PREFIX ""
     OUTPUT_NAME ${kernel}
     POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
   )
   if(NOT MSVC)
     # libm for sin/cos/sqrt/...; not needed under MSVC's CRT.

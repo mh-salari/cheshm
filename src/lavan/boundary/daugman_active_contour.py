@@ -31,6 +31,7 @@ approximation suitable for head-mounted eye-tracker geometry.
 import ctypes
 import math
 import pathlib
+import platform
 
 import cv2
 import numpy as np
@@ -42,7 +43,7 @@ _EYELID_TOP_DEG = set(range(240, 301))
 
 _LIB_DIR = pathlib.Path(__file__).parent
 _LIB_NAME = "active_contour_core"
-_lib_ext = ".dylib" if (_LIB_DIR / f"{_LIB_NAME}.dylib").exists() else ".so"
+_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
 _lib.active_contour_radial_search.restype = ctypes.c_int
 _lib.active_contour_radial_search.argtypes = [

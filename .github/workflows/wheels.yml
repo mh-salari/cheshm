@@ -17,7 +17,7 @@ jobs:
         include:
           - os: macos-14
             arch: arm64
-          - os: macos-13
+          - os: macos-15-intel
             arch: x86_64
           - os: ubuntu-22.04
             arch: x86_64
@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3
+        uses: pypa/cibuildwheel@v3.4
         env:
           CIBW_ARCHS: ${{ matrix.arch }}
 
@@ -62,20 +62,17 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
-  # Publish to PyPI on tag pushes (vX.Y.Z). The workflow uses PyPI's
-  # trusted-publishing flow, so no API token is stored in GitHub
-  # secrets; the publisher must be configured at
-  # https://pypi.org/manage/account/publishing/.
+  # Publish to PyPI on tag pushes (vX.Y.Z).
   publish_pypi:
     name: Publish to PyPI
     needs: [build_wheels, build_sdist]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

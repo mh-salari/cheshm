@@ -12,6 +12,7 @@ The Python wrapper here is a thin ``ctypes`` binding around the C kernel in
 
 import ctypes
 import pathlib
+import platform
 
 import cv2
 import numpy as np
@@ -36,7 +37,7 @@ _GAUSSIAN_KERNEL_1D = np.array([0.27406862, 0.45186276, 0.27406862], dtype=np.fl
 
 _LIB_DIR = pathlib.Path(__file__).parent
 _LIB_NAME = "integro_differential_operator_core"
-_lib_ext = ".dylib" if (_LIB_DIR / f"{_LIB_NAME}.dylib").exists() else ".so"
+_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
 _lib.integro_differential_operator_search.restype = ctypes.c_int
 _lib.integro_differential_operator_search.argtypes = [

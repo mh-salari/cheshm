@@ -25,6 +25,7 @@
  *   (macOS: cc -O3 -shared -fPIC -o active_contour_core.dylib active_contour_core.c -lm)
  */
 
+#define _USE_MATH_DEFINES  /* MSVC: enable M_PI in <math.h> */
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

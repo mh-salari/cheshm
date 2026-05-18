@@ -14,6 +14,7 @@
  *   (macOS: cc -O3 -shared -fPIC -o pupil_guided_contour_core.dylib pupil_guided_contour_core.c -lm)
  */
 
+#define _USE_MATH_DEFINES  /* MSVC: enable M_PI in <math.h> */
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
