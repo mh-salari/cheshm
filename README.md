@@ -3,10 +3,7 @@
 [![License: LGPL v3](https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg)](LICENSE)
 <!-- PyPI / DOI badges added after first release tag. -->
 
-Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture
-rigid alignment of two eye images. Includes C-accelerated Daugman boundary
-detectors (used by the limbus detector) and a vendored Pupil Labs 2D pupil
-detector.
+Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of two eye images. Includes C-accelerated Daugman boundary detectors (used by the limbus detector) and a vendored Pupil Labs 2D pupil detector.
 
 ## Name
 
@@ -155,13 +152,12 @@ dx, dy, theta = align_eye_images(ref_img, ref_geom, tgt_img, tgt_geom)
 
 ## License
 
-`lavan` is released under the [GNU Lesser General Public License v3 or later
-(LGPL-3.0-or-later)](LICENSE). The LGPL incorporates the [GPL](LICENSE.GPL)
-by reference; both are shipped with the package. See [NOTICE.md](NOTICE.md)
-for vendored components and their attribution.
+`lavan` is released under the [GNU Lesser General Public License v3 or later (LGPL-3.0-or-later)](LICENSE). The LGPL incorporates the [GPL](LICENSE.GPL) by reference; both are shipped with the package. See [NOTICE.md](NOTICE.md) for vendored components and their attribution.
 
 ## Acknowledgments
 
-This work received funding from the European Union's Horizon Europe research
-and innovation funding program under grant agreement No 101072410, Eyes4ICU
-project.
+This work received funding from the European Union's Horizon Europe research and innovation funding program under grant agreement No 101072410, Eyes4ICU project.
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mh-salari/lavan/main/resources/Funded_by_EU_Eyes4ICU.png" alt="Funded by EU Eyes4ICU" width="500">
+</p>
