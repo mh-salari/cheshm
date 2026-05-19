@@ -1,7 +1,9 @@
 # `lavan`
 
-[![License: LGPL v3](https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg)](LICENSE)
-<!-- PyPI / DOI badges added after first release tag. -->
+[![PyPI version](https://img.shields.io/pypi/v/lavan)](https://pypi.org/project/lavan/)
+[![Downloads](https://static.pepy.tech/badge/lavan)](https://pepy.tech/project/lavan)
+[![License](https://img.shields.io/pypi/l/lavan)](https://github.com/mh-salari/lavan/blob/main/LICENSE)
+[![DOI](https://zenodo.org/badge/1242928603.svg)](https://doi.org/10.5281/zenodo.20284443)
 
 Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of two eye images. Includes C-accelerated Daugman boundary detectors (used by the limbus detector) and a vendored Pupil Labs 2D pupil detector.
 
