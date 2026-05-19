@@ -26,9 +26,9 @@ Public surface re-exported here for convenience::
 """
 
 from .core import (
-    align_by_translation,
     align_by_min_diff,
     align_by_min_diff_plain,
+    align_by_translation,
     apply_transform,
     make_barrel_mask,
     make_iris_mask,
@@ -43,9 +43,9 @@ from .plots import (
 )
 
 __all__ = [
-    "align_by_translation",
     "align_by_min_diff",
     "align_by_min_diff_plain",
+    "align_by_translation",
     "align_eye_images",
     "apply_transform",
     "make_barrel_mask",
