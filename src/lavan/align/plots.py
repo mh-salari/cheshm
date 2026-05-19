@@ -126,14 +126,14 @@ def plot_mask_overlay(
 def save_aligned_pair_images(
     out_dir: Path,
     prefix: str,
-    dil_img: np.ndarray,
-    con_img: np.ndarray,
+    ref_img: np.ndarray,
+    target_img: np.ndarray,
     aligned: np.ndarray,
     *,
     diff_dir: Path | None = None,
     overlay_dir: Path | None = None,
-    ref_label: str = "dilated",
-    target_label: str = "constricted (aligned)",
+    ref_label: str = "reference",
+    target_label: str = "aligned",
 ) -> None:
     """Write two PNGs that visualise one (reference, aligned target) pair.
 
@@ -143,29 +143,29 @@ def save_aligned_pair_images(
 
     Pass ``diff_dir`` / ``overlay_dir`` to write the two PNGs to separate
     sub-directories; otherwise both land in ``out_dir``. ``ref_label`` /
-    ``target_label`` control the panel titles for use cases other than the
-    classic dilated/constricted pair.
+    ``target_label`` override the panel titles when the caller has a more
+    specific naming for the pair (e.g. ``pre`` / ``post``).
     """
     diff_dir = diff_dir or out_dir
     overlay_dir = overlay_dir or out_dir
 
     fig = Figure(figsize=(16, 4))
     axes = fig.subplots(1, 4)
-    axes[0].imshow(dil_img, cmap="gray")
+    axes[0].imshow(ref_img, cmap="gray")
     axes[0].set_title(ref_label)
     axes[0].axis("off")
     axes[1].imshow(aligned, cmap="gray")
     axes[1].set_title(target_label)
     axes[1].axis("off")
-    plot_diff(dil_img, con_img, title="diff (before)", ax=axes[2])
-    plot_diff(dil_img, aligned, title="diff (after)", ax=axes[3])
+    plot_diff(ref_img, target_img, title="diff (before)", ax=axes[2])
+    plot_diff(ref_img, aligned, title="diff (after)", ax=axes[3])
     fig.suptitle(prefix, fontsize=11, fontweight="bold")
     fig.tight_layout()
     fig.savefig(diff_dir / f"{prefix}_diff.png", dpi=120, bbox_inches="tight")
 
     fig2 = Figure(figsize=(5, 4))
     ax2 = fig2.subplots()
-    plot_blend(dil_img, aligned, title=f"{prefix} overlay", ax=ax2)
+    plot_blend(ref_img, aligned, title=f"{prefix} overlay", ax=ax2)
     fig2.tight_layout()
     fig2.savefig(overlay_dir / f"{prefix}_overlay.png", dpi=120, bbox_inches="tight")
 
