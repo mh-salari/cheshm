@@ -3,7 +3,6 @@
 Public surface re-exported here for convenience::
 
     from lavan.detect import (
-        crop_side,
         detect_glints,
         detect_limbus,
         detect_pupil,
@@ -18,17 +17,15 @@ wrapper that chains the two so the cost of each pass is visible at
 the call site.
 
 ``detect_limbus`` wraps :mod:`lavan.boundary.integro_differential_operator`;
-once a pupil + limbus pair is in hand, :mod:`lavan.align` registers
-two eye images by their iris texture.
+once a pupil + limbus pair is in hand, :mod:`lavan.align` registers a
+target eye image onto a reference by their iris texture.
 """
 
 from .glint import detect_glints
 from .limbus import detect_limbus
 from .pupil import detect_pupil, fit_convex_hull_spline, pupil_center_of_mass
-from .utils import crop_side
 
 __all__ = [
-    "crop_side",
     "detect_glints",
     "detect_limbus",
     "detect_pupil",

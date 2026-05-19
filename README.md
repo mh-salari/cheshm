@@ -5,7 +5,11 @@
 [![License](https://img.shields.io/pypi/l/lavan)](https://github.com/mh-salari/lavan/blob/main/LICENSE)
 [![DOI](https://zenodo.org/badge/1242928603.svg)](https://doi.org/10.5281/zenodo.20284443)
 
-Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of two eye images. Includes C-accelerated Daugman boundary detectors (used by the limbus detector) and a vendored Pupil Labs 2D pupil detector.
+Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of a target eye image onto a reference. Includes C-accelerated Daugman boundary detectors (used by the limbus detector) and a vendored Pupil Labs 2D pupil detector.
+
+## Single-eye contract
+
+Every public function in lavan operates on **one eye at a time** — a single grayscale image.
 
 ## Name
 
@@ -18,7 +22,7 @@ Four sub-packages, each owning its own surface:
 - [`lavan.boundary`](src/lavan/boundary/README.md) — Daugman-derived boundary detectors: C-accelerated integro-differential operator (1993/2004, circle fit), Fourier-series active contour (2007, non-circular), and an in-house pupil-shape-prior variant.
 - `lavan.detect` — threshold-based pupil and glint detection, and a Daugman-operator limbus detector, for grayscale eye images.
 - `lavan.pupil_detector_2d` — Pupil Labs' 2D pupil detector from the [Pupil Core](https://github.com/pupil-labs/pupil/) eye-tracking platform, vendored under LGPL v3 from [pupil-labs/pupil-detectors](https://github.com/pupil-labs/pupil-detectors) and built natively for every wheel platform. Exposes `Detector2D`, `DetectorBase`, and `Roi`. See [NOTICE.md](NOTICE.md) for attribution.
-- `lavan.align` — rigid alignment of two eye images by iris texture, given pupil + limbus geometry on each. Returns `(dx, dy, theta)`. Includes iris-centre alignment, minimum-difference search, barrel/iris-mask helpers, and matplotlib-based blend / diff / overlay plotting.
+- `lavan.align` — rigid alignment of a target eye image onto a reference by iris texture, given pupil + limbus geometry on each. Returns `(dx, dy, theta)`. Includes iris-centre alignment, minimum-difference search, barrel/iris-mask helpers, and matplotlib-based blend / diff / overlay plotting.
 
 ### `lavan.detect` settings
 

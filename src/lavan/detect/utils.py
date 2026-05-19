@@ -1,36 +1,21 @@
-"""Shared helpers used by both the pupil and glint detectors.
+"""Shared internal helpers used by both the pupil and glint detectors.
 
 These are the small primitives the per-target modules build on:
 
-  - :func:`crop_side` — split a binocular frame into its left or right
-    half (or return the whole image unchanged).
   - :func:`_roi_mask` — build a binary mask from a rectangle.
   - :func:`_contour_center` — four ways to take a contour's centre.
   - :func:`_passes_shape_quality` — two opt-in gates (ellipse-fit ratio
     and isoperimetric roundness) used to reject contours whose shape
     doesn't match a clean pupil / glint blob.
 
-The underscore-prefixed names are internal to ``lavan.detect`` and not
-re-exported. ``crop_side`` is the only public helper here.
+All names here are underscore-prefixed and internal to ``lavan.detect``;
+nothing in this module is part of the public surface.
 """
 
 import math
 
 import cv2
 import numpy as np
-
-
-def crop_side(img: np.ndarray, side: str | None) -> np.ndarray:
-    """Return the left or right half of a binocular frame, or the whole image."""
-    if side is None:
-        return img
-    _h, w = img.shape[:2]
-    mid = w // 2
-    if side == "left":
-        return img[:, :mid]
-    if side == "right":
-        return img[:, mid:]
-    raise ValueError(f"unknown side: {side!r} (expected 'left', 'right', or None)")
 
 
 def _roi_mask(shape: tuple[int, ...], roi: tuple[int, int, int, int]) -> np.ndarray:

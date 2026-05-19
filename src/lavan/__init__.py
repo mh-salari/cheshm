@@ -8,8 +8,9 @@ Three sub-packages, each owning its own surface:
 - :mod:`lavan.detect` — pupil + glint + limbus detection on grayscale eye
   images. ``detect_pupil`` and ``detect_glints`` are independent entry points;
   ``detect_limbus`` wraps the integro-differential operator.
-- :mod:`lavan.align` — iris-texture rigid alignment of two eye images given
-  pupil + limbus geometry on each. Returns ``(dx, dy, theta)``.
+- :mod:`lavan.align` — iris-texture rigid alignment of a target eye image
+  onto a reference eye image, given pupil + limbus geometry on each. Returns
+  ``(dx, dy, theta)``.
 
 Typical use::
 
