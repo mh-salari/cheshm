@@ -5,6 +5,8 @@
   - :func:`plot_mask_overlay` — grayscale image with a colour tint on masked pixels.
   - :func:`save_aligned_pair_images` — 4-panel diff QC PNG plus a blend overlay PNG
     for one (reference, aligned target) pair.
+  - :func:`save_diff_heatmap` — pixel-clean colour-mapped diff PNG (no axes, no
+    titles), sized to the input arrays.
 
 All four plotting helpers accept either ``ax=None`` (the function creates its
 own ``matplotlib.figure.Figure``) or a caller-provided axis. The image-saving
@@ -21,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.image import imsave as _mpl_imsave
 
 
 def _finalize(
@@ -165,3 +168,25 @@ def save_aligned_pair_images(
     plot_blend(dil_img, aligned, title=f"{prefix} overlay", ax=ax2)
     fig2.tight_layout()
     fig2.savefig(overlay_dir / f"{prefix}_overlay.png", dpi=120, bbox_inches="tight")
+
+
+def save_diff_heatmap(
+    out_path: str | Path,
+    ref: np.ndarray,
+    aligned: np.ndarray,
+    *,
+    vmax: float | None = None,
+    cmap: str = "hot",
+) -> float:
+    """Write ``|ref - aligned|`` as a colour-mapped PNG sized to the inputs.
+
+    ``vmax=None`` uses the per-image 99th percentile. Returns the value
+    actually used so callers can record it.
+    """
+    if ref.shape != aligned.shape:
+        raise ValueError(f"ref shape {ref.shape} differs from aligned shape {aligned.shape}")
+    diff = np.abs(ref.astype(np.float32) - aligned.astype(np.float32))
+    if vmax is None:
+        vmax = max(float(np.percentile(diff, 99)), 1.0)
+    _mpl_imsave(str(out_path), diff, cmap=cmap, vmin=0.0, vmax=float(vmax), format="png")
+    return float(vmax)

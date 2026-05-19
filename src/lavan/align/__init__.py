@@ -21,6 +21,7 @@ Public surface re-exported here for convenience::
         plot_diff,
         plot_mask_overlay,
         save_aligned_pair_images,
+        save_diff_heatmap,
     )
 """
 
@@ -38,6 +39,7 @@ from .plots import (
     plot_diff,
     plot_mask_overlay,
     save_aligned_pair_images,
+    save_diff_heatmap,
 )
 
 __all__ = [
@@ -52,4 +54,5 @@ __all__ = [
     "plot_diff",
     "plot_mask_overlay",
     "save_aligned_pair_images",
+    "save_diff_heatmap",
 ]
