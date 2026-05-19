@@ -25,7 +25,8 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import KeyEvent
 from matplotlib.widgets import Button, CheckButtons, Slider
 
-from .core import detect_glints, detect_pupil
+from .glint import detect_glints
+from .pupil import detect_pupil
 
 DEFAULT_PUPIL_THRESHOLD = 25
 DEFAULT_GLINT_THRESHOLD = 200

@@ -142,9 +142,10 @@ def _add_detect_parser(sub: argparse._SubParsersAction) -> None:
 
 
 def _handle_detect(args: argparse.Namespace) -> None:
-    import cv2  # noqa: PLC0415  (defer cv2 import to subcommand dispatch)
+    import cv2  # noqa: PLC0415 — defer cv2 import to subcommand dispatch
 
-    from .core import detect_glints, detect_pupil  # noqa: PLC0415
+    from .glint import detect_glints  # noqa: PLC0415
+    from .pupil import detect_pupil  # noqa: PLC0415
 
     img = cv2.imread(str(args.input), cv2.IMREAD_GRAYSCALE)
     if img is None:
