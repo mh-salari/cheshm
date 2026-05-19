@@ -122,6 +122,7 @@ repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --add-path C:/to
 [tool.ruff]
 line-length = 119
 preview = true
+extend-exclude = ["src/lavan/pupil_detector_2d"]
 
 # RUFF DEFAULTS
 # (These are all the default groups, even if you don't currently select them)
