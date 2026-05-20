@@ -870,7 +870,7 @@ def run(img_dir: str | Path | None = None) -> None:
     # entering full-screen). Without this, the image stays put until
     # the next redraw is triggered by something else.
     dpg.set_viewport_resize_callback(lambda *_: redraw())
-    state.zoom = _fit_zoom(canvas_w)
+    state.zoom = _fit_zoom(state.canvas_w)
     dpg.set_value("zoom_slider", state.zoom)
     redraw()
     # After dpg has rendered a couple of frames the panel size resolves
