@@ -1,9 +1,7 @@
-# `lavan.boundary` — iris / pupil boundary detectors
+# `lavan.limbus_detectors.daugman` — Daugman-derived limbus boundary detectors
 
-Two methods due to John Daugman, plus one in-house extension built on the
-2007 framework for PSA work. Originally distributed as
-`daugman-derived-boundary-detectors`; folded into `lavan` and importable as
-`lavan.boundary`.
+Two methods from John Daugman, plus a pupil-shape-prior extension of the
+2007 active-contour framework. Importable as `lavan.limbus_detectors.daugman`.
 
 ## 1. `IntegroDifferentialOperator` (1993 / 2004)
 
@@ -25,24 +23,23 @@ Independence." *IEEE Trans. PAMI*, 15(11), 1148-1161.
 
 **Files:**
 
-- [`integro_differential_operator.py`](integro_differential_operator.py) —
+- [`integro_differential/core.py`](integro_differential/core.py) —
   `IntegroDifferentialOperator` class, Python wrapper.
-- [`integro_differential_operator_core.c`](integro_differential_operator_core.c)
-  + `.dylib` — compiled C kernel (Bresenham circle perimeter +
-  intensity integral + Gaussian-smoothed `∂/∂r` derivative).
+- [`integro_differential/core.c`](integro_differential/core.c) +
+  compiled `core.{so,dylib,dll}` — Bresenham circle perimeter +
+  intensity integral + Gaussian-smoothed `∂/∂r` derivative.
 
 ### Provenance
 
-The Python implementation was adapted from Furkan Başatemür's MIT-licensed
+The Python implementation was adapted from Fatih BAŞATEMUR's MIT-licensed
 reference port at
 <https://github.com/fbasatemur/daugman_iris_detection>.
 
 **What we changed relative to the upstream implementation:**
 
 - Rewrote the per-`(x₀, y₀)` integral-of-mean-around-the-circle and its
-  Gaussian-smoothed `∂/∂r` derivative in C
-  (`integro_differential_operator_core.c`) for roughly a 100× speed-up on
-  our 2400×500 eye-half frames. The Python class is now a thin `ctypes`
+  Gaussian-smoothed `∂/∂r` derivative in C (`integro_differential/core.c`)
+  for roughly a 100× speed-up. The Python class is now a thin `ctypes`
   wrapper around `integro_differential_operator_search` plus the
   morphological-open preprocessing and the coarse-to-fine search wrapper
   (`result`).
@@ -79,16 +76,16 @@ Section II ("Active Contours and Generalized Coordinates"), eqs. (1) and
 
 **Files:**
 
-- [`daugman_active_contour.py`](daugman_active_contour.py) —
+- [`active_contour/core.py`](active_contour/core.py) —
   `DaugmanActiveContour` class. Python wrapper that computes the Sobel
   gradients via OpenCV and dispatches the per-angle radial-gradient
   search + Gaussian-smoothing + argmax to the C kernel.
-- [`active_contour_core.c`](active_contour_core.c) + `.dylib` — compiled
-  C kernel (bilinear sampling of the Sobel gradients along each radial
-  ray, radial-direction projection, 1-D Gaussian smoothing across radii,
-  argmax per angle).
+- [`active_contour/core.c`](active_contour/core.c) + compiled
+  `core.{so,dylib,dll}` — bilinear sampling of the Sobel gradients along
+  each radial ray, radial-direction projection, 1-D Gaussian smoothing
+  across radii, argmax per angle.
 
-## 3. `PupilGuidedContour` — pupil-shape-prior active contour (in-house extension)
+## 3. `PupilGuidedContour` — pupil-shape-prior active contour
 
 Same Fourier-series framework as `DaugmanActiveContour`, but the radial
 search uses **per-angle** bounds derived from the pupil ellipse rather
@@ -103,8 +100,7 @@ Per angle `θ`, the pupil ellipse `(a_p, b_p, α_p)` gives a radial profile
 `r_p(θ) = a_p b_p / sqrt((b_p cos(θ−α))² + (a_p sin(θ−α))²)`. The radial
 search then runs over `r ∈ [k_min · r_p(θ), k_max · r_p(θ)]`. Only the
 pupil's shape is used — its centre is intentionally discarded, so the
-recovered limbus centre can differ from the pupil centre (which is the
-PSA signal).
+recovered limbus centre is free to differ from the pupil centre.
 
 `M = 3` is the default truncation: it keeps the k=0 (mean radius) and k=2
 (ellipse harmonic) components plus k=1, enough to express a centred
@@ -113,17 +109,17 @@ eyelashes on cluttered images.
 
 **Files:**
 
-- [`pupil_guided_contour.py`](pupil_guided_contour.py) — `PupilGuidedContour`
+- [`pupil_guided/core.py`](pupil_guided/core.py) — `PupilGuidedContour`
   class.
-- [`pupil_guided_contour_core.c`](pupil_guided_contour_core.c) + `.dylib`
-  — compiled C kernel (same bilinear-sample + radial-projection +
-  Gaussian-smoothed argmax structure as `active_contour_core.c`, but
-  reads `r_min` / `r_max` as length-`N` arrays).
+- [`pupil_guided/core.c`](pupil_guided/core.c) + compiled
+  `core.{so,dylib,dll}` — same bilinear-sample + radial-projection +
+  Gaussian-smoothed argmax structure as `active_contour/core.c`, but
+  reads `r_min` / `r_max` as length-`N` arrays.
 
 ## API
 
 ```python
-from lavan.boundary import (
+from lavan.limbus_detectors.daugman import (
     DaugmanActiveContour,
     IntegroDifferentialOperator,
     PupilGuidedContour,
@@ -138,34 +134,10 @@ results = operator.search(cen_x, cen_y, range_, step)
 dac = DaugmanActiveContour(image, N=360, M=5)
 (cx, cy), thetas, R_theta = dac.fit(seed_center=(sx, sy), r_min=..., r_max=...)
 
-# Pupil-shape-prior variant for PSA work (anisotropic search)
+# Pupil-shape-prior variant (anisotropic search)
 pgc = PupilGuidedContour(image, pupil_ellipse, N=360, M=3)
 (cx, cy), thetas, R_theta = pgc.fit(seed_center=(sx, sy), k_min=..., k_max=...)
 
 # Boundary points in either case: (cx + R_θ cos θ, cy + R_θ sin θ).
 ```
 
-## Building from source
-
-The 3 C kernels (`active_contour_core.c`, `integro_differential_operator_core.c`, `pupil_guided_contour_core.c`) need to be compiled into a shared library before the Python wrappers can `ctypes.CDLL` them. PyPI wheels for `lavan` ship a pre-compiled binary for the host OS, so a normal `pip install lavan` is enough. **For local development** (or to rebuild on macOS), run from the lavan repo root:
-
-```bash
-python scripts/build_c.py
-pip install -e .
-```
-
-`scripts/build_c.py` detects the host OS and runs the right compiler invocation:
-
-| OS       | Compiler       | Output           |
-|----------|----------------|------------------|
-| macOS    | `clang`        | `*_core.dylib`   |
-| Linux    | `cc` / `gcc`   | `*_core.so`      |
-| Windows  | `gcc` (MinGW)  | `*_core.dll`     |
-
-The compile is `-O3 -shared -fPIC -lm` — no third-party C dependencies, no CMake.
-
-When building a wheel with `python -m build`, the same compile is invoked automatically by the `hatch_build.py` Hatchling build hook and the binary is bundled into the wheel.
-
-## Acknowledgments
-
-This work received funding from the European Union's Horizon Europe research and innovation funding program under grant agreement No 101072410, Eyes4ICU project.

@@ -7,15 +7,55 @@ Recognition of Persons by a Test of Statistical Independence." IEEE Trans.
 PAMI, 15(11), 1148-1161.
 
 The Python wrapper here is a thin ``ctypes`` binding around the C kernel in
-``integro_differential_operator_core.c``.
+``core.c``.
 """
 
 import ctypes
 import pathlib
 import platform
+from typing import Literal
 
 import cv2
 import numpy as np
+
+# Overlays this detector produces (limbus is returned as a circle).
+_OVERLAYS = (
+    ("curve", "line"),
+    ("center", "point"),
+    ("mask", "fill"),
+)
+
+# GUI metadata. Defaults / types / choices come from `detect_limbus`'s
+# signature; this dict carries slider bounds, per-param help, and label
+# overrides where the auto-derived label would be wrong.
+_UI = {
+    "r_min": {
+        "min": 1,
+        "max": 1024,
+        "help": "Lower bound on candidate iris radius (pixels).",
+    },
+    "r_max": {
+        "min": 1,
+        "max": 1024,
+        "help": "Upper bound on candidate iris radius (pixels).",
+    },
+    "c_type": {
+        "label": "Perimeter type",
+        "help": "Which half of the circle perimeter contributes — 'half' = left/right semicircles (avoids eyelid bias), 'full' = whole circle.",
+    },
+    "range_": {
+        "min": 0,
+        "max": 200,
+        "label": "Search range (px)",
+        "help": "Half-width of the centre-sweep grid around the seed (±range, in pixels).",
+    },
+    "step": {
+        "min": 1,
+        "max": 20,
+        "label": "Search step (px)",
+        "help": "Grid step for the centre sweep (pixels). Smaller = finer + slower.",
+    },
+}
 
 # Equivalent of skimage.morphology.disk(3); avoids the skimage dependency.
 _DISK3 = np.array(
@@ -36,7 +76,7 @@ _DISK3 = np.array(
 _GAUSSIAN_KERNEL_1D = np.array([0.27406862, 0.45186276, 0.27406862], dtype=np.float64)
 
 _LIB_DIR = pathlib.Path(__file__).parent
-_LIB_NAME = "integro_differential_operator_core"
+_LIB_NAME = "core"
 _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
 _lib.integro_differential_operator_search.restype = ctypes.c_int
@@ -143,3 +183,31 @@ class IntegroDifferentialOperator:
                 self.r_min, self.r_max = int(np.ceil(0.1 * circle_max[3])), int(np.ceil(0.8 * circle_max[3]))
 
         return self.image, info
+
+
+def detect_limbus(
+    img: np.ndarray,
+    seed_center: tuple[float, float],
+    *,
+    r_min: int = 40,
+    r_max: int = 62,
+    c_type: Literal["half", "full"] = "half",
+    range_: int = 5,
+    step: int = 1,
+) -> dict | None:
+    """One-shot integro-differential limbus localization around ``seed_center``.
+
+    Builds an :class:`IntegroDifferentialOperator` for ``img`` and runs a
+    single centre sweep over a ``(±range_, step)`` grid around
+    ``seed_center``. The returned circle is the highest-scoring candidate.
+
+    Returns ``{"center": (cx, cy), "radius": r}`` or ``None`` if the
+    search produced no candidate.
+    """
+    op = IntegroDifferentialOperator(img, r_min=r_min, r_max=r_max, c_type=c_type)
+    cx, cy = int(round(seed_center[0])), int(round(seed_center[1]))
+    results = op.search(cx, cy, range_, step)
+    if len(results) == 0:
+        return None
+    best = results[-1]
+    return {"center": (int(best[0]), int(best[1])), "radius": int(best[3])}

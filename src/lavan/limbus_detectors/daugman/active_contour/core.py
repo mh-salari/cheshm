@@ -15,7 +15,7 @@ Algorithm:
      sampled at ``n_r`` radii in ``[r_min, r_max]`` (bilinear interpolation),
      smoothed across the radial coordinate with a 1-D Gaussian
      (``radial_smoothing``), and ``r_theta`` is the radius of maximum
-     smoothed gradient. The inner loop runs in C (``active_contour_core.c``).
+     smoothed gradient. The inner loop runs in C (``core.c``).
   4. The discrete Fourier transform of ``{r_theta}`` (paper eq. 1) is
      truncated to ``M`` complex coefficients with monotonically-decreasing
      weights. The inverse DFT (paper eq. 2) gives the smooth, possibly non-
@@ -36,13 +36,63 @@ import platform
 import cv2
 import numpy as np
 
+from .._common import _gaussian_kernel_1d
+
+# Overlays this detector produces.
+_OVERLAYS = (
+    ("curve", "line"),
+    ("center", "point"),
+    ("mask", "fill"),
+)
+
+# GUI metadata. Defaults / types come from `detect_limbus`'s signature;
+# this dict carries slider bounds and per-param help only.
+_UI = {
+    "N": {
+        "min": 8,
+        "max": 1440,
+        "label": "Angular samples (N)",
+        "help": "Number of angles θ around the seed (paper notation: N).",
+    },
+    "M": {
+        "min": 1,
+        "max": 32,
+        "label": "Fourier harmonics (M)",
+        "help": "Number of Fourier coefficients kept (paper notation: M). Daugman 2007 recommends 5 for iris, 17 for pupil.",
+    },
+    "gradient_sigma": {
+        "min": 0.0,
+        "max": 10.0,
+        "help": "Gaussian σ (px) for pre-gradient blur. 0 = no blur.",
+    },
+    "radial_smoothing": {
+        "min": 0.0,
+        "max": 10.0,
+        "help": "Gaussian σ (radial samples) applied to the radial-gradient profile before argmax.",
+    },
+    "skip_eyelid_wedges": {
+        "label": "Skip eyelid wedges",
+        "help": "Mask out the upper-lid angular wedge (240°–300° in image coords) during the radial search.",
+    },
+    "r_min": {
+        "min": 1.0,
+        "max": 1024.0,
+        "help": "Lower bound on iris radius (pixels).",
+    },
+    "r_max": {
+        "min": 1.0,
+        "max": 1024.0,
+        "help": "Upper bound on iris radius (pixels).",
+    },
+}
+
 # Image-coordinate angle range (y-down) typically occupied by the upper
 # eyelid in head-on eye-tracker frames; skipped during the radial search
 # and filled by cyclic linear interpolation before the FFT.
 _EYELID_TOP_DEG = set(range(240, 301))
 
 _LIB_DIR = pathlib.Path(__file__).parent
-_LIB_NAME = "active_contour_core"
+_LIB_NAME = "core"
 _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
 _lib.active_contour_radial_search.restype = ctypes.c_int
@@ -62,14 +112,6 @@ _lib.active_contour_radial_search.argtypes = [
     ctypes.c_int,  # k_len
     ctypes.POINTER(ctypes.c_double),  # r_theta_out
 ]
-
-
-def _gaussian_kernel_1d(sigma: float) -> np.ndarray:
-    """Odd-length 1-D Gaussian kernel sized to roughly ±3σ."""
-    if sigma <= 0:
-        return np.array([1.0], dtype=np.float64)
-    k = max(round(sigma * 6) | 1, 3)
-    return cv2.getGaussianKernel(k, sigma).ravel().astype(np.float64)
 
 
 class DaugmanActiveContour:
@@ -202,3 +244,34 @@ class DaugmanActiveContour:
 
         R_theta = self._fourier_truncate(r_theta)
         return (cx, cy), thetas, R_theta
+
+
+def detect_limbus(
+    img: np.ndarray,
+    seed_center: tuple[float, float],
+    *,
+    N: int = 360,
+    M: int = 5,
+    gradient_sigma: float = 1.0,
+    radial_smoothing: float = 2.0,
+    skip_eyelid_wedges: bool = True,
+    r_min: float = 30.0,
+    r_max: float = 80.0,
+) -> dict:
+    """One-shot Daugman 2007 active-contour limbus fit around ``seed_center``.
+
+    Builds a :class:`DaugmanActiveContour` for ``img`` and runs a single
+    radial-gradient search + Fourier truncation. Returns
+    ``{"center": (cx, cy), "thetas": np.ndarray, "R_theta": np.ndarray}``.
+    Boundary points are at ``(cx + R_theta cos θ, cy + R_theta sin θ)``.
+    """
+    op = DaugmanActiveContour(
+        img,
+        N=N,
+        M=M,
+        gradient_sigma=gradient_sigma,
+        radial_smoothing=radial_smoothing,
+        skip_eyelid_wedges=skip_eyelid_wedges,
+    )
+    (cx, cy), thetas, R_theta = op.fit(seed_center, r_min=r_min, r_max=r_max)
+    return {"center": (cx, cy), "thetas": thetas, "R_theta": R_theta}

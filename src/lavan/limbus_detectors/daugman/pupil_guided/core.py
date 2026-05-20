@@ -10,7 +10,7 @@ locking onto eyelash gradients at high radii.
 The pupil's *position* is intentionally not used — the search is centred at
 the externally supplied seed (typically the integro-differential operator
 output). The limbus centre is therefore allowed to differ from the pupil
-centre, which is the signal that pupil-size artifact (PSA) analysis needs.
+centre, preserving pupil/limbus decentration as signal.
 
 Algorithm:
 
@@ -20,8 +20,7 @@ Algorithm:
      angle: ``r_p(θ) = a_p b_p / sqrt((b_p cos(θ−α))² + (a_p sin(θ−α))²)``.
   3. Per-angle search bounds: ``r ∈ [k_min · r_p(θ), k_max · r_p(θ)]``.
   4. Radial-gradient argmax per angle (bilinear-sampled Sobel gradients,
-     1-D Gaussian smoothing across radii) runs in C
-     (``pupil_guided_contour_core.c``).
+     1-D Gaussian smoothing across radii) runs in C (``core.c``).
   5. Cyclic linear interpolation fills any missing angles, then the M-term
      Fourier truncation gives the smooth boundary R_θ.
 
@@ -39,10 +38,53 @@ import platform
 import cv2
 import numpy as np
 
-from .daugman_active_contour import _gaussian_kernel_1d
+from .._common import _gaussian_kernel_1d
+
+# Overlays this detector produces.
+_OVERLAYS = (
+    ("curve", "line"),
+    ("center", "point"),
+    ("mask", "fill"),
+)
+
+# GUI metadata. Defaults / types come from `detect_limbus`'s signature.
+_UI = {
+    "N": {
+        "min": 8,
+        "max": 1440,
+        "label": "Angular samples (N)",
+        "help": "Number of angles θ around the seed (paper notation: N).",
+    },
+    "M": {
+        "min": 1,
+        "max": 32,
+        "label": "Fourier harmonics (M)",
+        "help": "Number of Fourier coefficients kept (paper notation: M). Default 3 keeps the mean + ellipse harmonic.",
+    },
+    "gradient_sigma": {
+        "min": 0.0,
+        "max": 10.0,
+        "help": "Gaussian σ (px) for pre-gradient blur. 0 = no blur.",
+    },
+    "radial_smoothing": {
+        "min": 0.0,
+        "max": 10.0,
+        "help": "Gaussian σ (radial samples) applied to the radial-gradient profile before argmax.",
+    },
+    "k_min": {
+        "min": 0.1,
+        "max": 20.0,
+        "help": "Lower radius factor: search starts at k_min · pupil_radius(θ).",
+    },
+    "k_max": {
+        "min": 0.1,
+        "max": 20.0,
+        "help": "Upper radius factor: search ends at k_max · pupil_radius(θ).",
+    },
+}
 
 _LIB_DIR = pathlib.Path(__file__).parent
-_LIB_NAME = "pupil_guided_contour_core"
+_LIB_NAME = "core"
 _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
 _lib.pupil_guided_radial_search.restype = ctypes.c_int
@@ -202,3 +244,34 @@ class PupilGuidedContour:
 
         R_theta = self._fourier_truncate(r_theta)
         return (cx, cy), self._thetas, R_theta
+
+
+def detect_limbus(
+    img: np.ndarray,
+    seed_center: tuple[float, float],
+    pupil_ellipse: tuple[tuple[float, float], tuple[float, float], float],
+    *,
+    N: int = 360,
+    M: int = 3,
+    gradient_sigma: float = 1.0,
+    radial_smoothing: float = 2.0,
+    k_min: float = 2.0,
+    k_max: float = 4.0,
+) -> dict:
+    """One-shot pupil-shape-prior active-contour limbus fit around ``seed_center``.
+
+    Builds a :class:`PupilGuidedContour` for ``img`` using
+    ``pupil_ellipse`` as the per-angle radius prior, then runs a single
+    radial-gradient search + Fourier truncation. Returns
+    ``{"center": (cx, cy), "thetas": np.ndarray, "R_theta": np.ndarray}``.
+    """
+    op = PupilGuidedContour(
+        img,
+        pupil_ellipse,
+        N=N,
+        M=M,
+        gradient_sigma=gradient_sigma,
+        radial_smoothing=radial_smoothing,
+    )
+    (cx, cy), thetas, R_theta = op.fit(seed_center, k_min=k_min, k_max=k_max)
+    return {"center": (cx, cy), "thetas": thetas, "R_theta": R_theta}

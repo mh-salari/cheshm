@@ -12,20 +12,33 @@
 
 /* ── Bresenham half-circle perimeter ──────────────────────────────────────── */
 
-static int circle_perimeter_half(int r, int *out_dr, int *out_dc) {
+static int circle_perimeter_half(int r, int* out_dr, int* out_dc)
+{
     int n = 0;
     int dp = 3 - 2 * r;
     int a = 0, b = r;
 
-    while (a <= b) {
-        out_dr[n] = a;  out_dc[n] = b;   n++;
-        out_dr[n] = a;  out_dc[n] = -b;  n++;
-        out_dr[n] = -a; out_dc[n] = b;   n++;
-        out_dr[n] = -a; out_dc[n] = -b;  n++;
-        if (dp > 0) {
+    while (a <= b)
+    {
+        out_dr[n] = a;
+        out_dc[n] = b;
+        n++;
+        out_dr[n] = a;
+        out_dc[n] = -b;
+        n++;
+        out_dr[n] = -a;
+        out_dc[n] = b;
+        n++;
+        out_dr[n] = -a;
+        out_dc[n] = -b;
+        n++;
+        if (dp > 0)
+        {
             b--;
             dp += 4 * (a - b) + 10;
-        } else {
+        }
+        else
+        {
             dp += 4 * a + 6;
         }
         a++;
@@ -35,29 +48,38 @@ static int circle_perimeter_half(int r, int *out_dr, int *out_dc) {
 
 /* ── Differential operator at one (x, y) ─────────────────────────────────── */
 
-static void differential(
-    const unsigned char *image, int h, int w,
-    int x, int y, int r_min, int r_max,
-    const double *gk, int gk_len,
-    double *out_value, int *out_radius)
+static void differential(const unsigned char* image,
+                         int h,
+                         int w,
+                         int x,
+                         int y,
+                         int r_min,
+                         int r_max,
+                         const double* gk,
+                         int gk_len,
+                         double* out_value,
+                         int* out_radius)
 {
     int n_radii = r_max - r_min;
-    double *values = (double *)malloc(n_radii * sizeof(double));
+    double* values = (double*)malloc(n_radii * sizeof(double));
     /* Worst case: 8 points per Bresenham step, max radius steps = r_max */
     int max_pts = 8 * (r_max + 1);
-    int *dr = (int *)malloc(max_pts * sizeof(int));
-    int *dc = (int *)malloc(max_pts * sizeof(int));
+    int* dr = (int*)malloc(max_pts * sizeof(int));
+    int* dc = (int*)malloc(max_pts * sizeof(int));
 
     /* Compute mean pixel value on each circle */
-    for (int ri = 0; ri < n_radii; ri++) {
+    for (int ri = 0; ri < n_radii; ri++)
+    {
         int r = r_min + ri;
         int n_pts = circle_perimeter_half(r, dr, dc);
         double total = 0.0;
         int count = 0;
-        for (int k = 0; k < n_pts; k++) {
+        for (int k = 0; k < n_pts; k++)
+        {
             int rr = x + dr[k];
             int cc = y + dc[k];
-            if (rr >= 0 && rr < h && cc >= 0 && cc < w) {
+            if (rr >= 0 && rr < h && cc >= 0 && cc < w)
+            {
                 total += image[rr * w + cc];
                 count++;
             }
@@ -67,16 +89,19 @@ static void differential(
 
     /* Diff */
     int n_diff = n_radii - 1;
-    double *diff_values = (double *)malloc(n_diff * sizeof(double));
-    for (int i = 0; i < n_diff; i++) {
+    double* diff_values = (double*)malloc(n_diff * sizeof(double));
+    for (int i = 0; i < n_diff; i++)
+    {
         diff_values[i] = values[i + 1] - values[i];
     }
 
     /* Convolve with Gaussian (full mode) */
     int conv_len = n_diff + gk_len - 1;
-    double *conv = (double *)calloc(conv_len, sizeof(double));
-    for (int i = 0; i < n_diff; i++) {
-        for (int j = 0; j < gk_len; j++) {
+    double* conv = (double*)calloc(conv_len, sizeof(double));
+    for (int i = 0; i < n_diff; i++)
+    {
+        for (int j = 0; j < gk_len; j++)
+        {
             conv[i + j] += diff_values[i] * gk[j];
         }
     }
@@ -84,8 +109,10 @@ static void differential(
     /* Find max */
     double best_val = -1e30;
     int best_idx = 0;
-    for (int i = 0; i < conv_len; i++) {
-        if (conv[i] > best_val) {
+    for (int i = 0; i < conv_len; i++)
+    {
+        if (conv[i] > best_val)
+        {
             best_val = conv[i];
             best_idx = i;
         }
@@ -120,17 +147,25 @@ static void differential(
  *
  * Returns: number of results written.
  */
-int integro_differential_operator_search(
-    const unsigned char *image, int h, int w,
-    int cen_x, int cen_y, int range_, int step,
-    int r_min, int r_max,
-    const double *gk, int gk_len,
-    double *out)
+int integro_differential_operator_search(const unsigned char* image,
+                                         int h,
+                                         int w,
+                                         int cen_x,
+                                         int cen_y,
+                                         int range_,
+                                         int step,
+                                         int r_min,
+                                         int r_max,
+                                         const double* gk,
+                                         int gk_len,
+                                         double* out)
 {
     int n = 0;
-    for (int dx = -range_; dx <= range_; dx += step) {
+    for (int dx = -range_; dx <= range_; dx += step)
+    {
         int px = dx + cen_x;
-        for (int dy = -range_; dy <= range_; dy += step) {
+        for (int dy = -range_; dy <= range_; dy += step)
+        {
             int py = dy + cen_y;
             double value;
             int radius;
