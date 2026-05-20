@@ -32,10 +32,39 @@ jobs:
           # instead of a 0.0.0.devN placeholder.
           fetch-depth: 0
 
+      # OpenCV is not in any cibuildwheel image by default. macOS and
+      # Windows install on the host (where cibuildwheel runs); Linux
+      # builds from source inside the manylinux container via
+      # CIBW_BEFORE_ALL_LINUX.
+      - name: Install OpenCV (macOS)
+        if: runner.os == 'macOS'
+        run: brew install opencv
+
+      - name: Install OpenCV (Windows)
+        if: runner.os == 'Windows'
+        run: choco install opencv -y --version 4.10.0
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4
         env:
           CIBW_ARCHS: ${{ matrix.arch }}
+          CIBW_BEFORE_ALL_LINUX: |
+            curl -L https://github.com/opencv/opencv/archive/refs/tags/4.10.0.tar.gz | tar -xz
+            cd opencv-4.10.0
+            cmake -S . -B build \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_LIST=core,imgproc \
+              -DBUILD_SHARED_LIBS=ON \
+              -DBUILD_TESTS=OFF \
+              -DBUILD_EXAMPLES=OFF \
+              -DBUILD_DOCS=OFF \
+              -DBUILD_PERF_TESTS=OFF \
+              -DBUILD_OPENCV_APPS=OFF \
+              -DBUILD_JAVA=OFF \
+              -DBUILD_opencv_python_bindings_generator=OFF \
+              -DCMAKE_INSTALL_PREFIX=/usr/local
+            cmake --build build -j --target install
+          CIBW_ENVIRONMENT_WINDOWS: 'OpenCV_DIR=C:\\tools\\opencv\\build'
 
       - uses: actions/upload-artifact@v4
         with:
