@@ -1,4 +1,4 @@
-"""Threshold-based glint detector."""
+"""Simple threshold-based glint detector."""
 
 from .core import detect_glints
 

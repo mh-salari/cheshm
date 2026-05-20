@@ -129,8 +129,10 @@ inline double evaluate_segment(double t, double u_i, double u_ip1, double h, dou
 
 inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &points, int n_samples)
 {
+    // Periodic cubic spline degree is 3, so the algorithm needs at
+    // least four distinct knots; matches scipy's FITPACK m > k gate.
     const int K = static_cast<int>(points.size());
-    if (K < 3 || n_samples < 3) {
+    if (K < 4 || n_samples < 3) {
         return {0.0, 0.0, 0.0};
     }
 

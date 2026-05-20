@@ -1,8 +1,5 @@
 """Glint detectors.
 
-- :mod:`.threshold` — threshold-based detector (``detect_glints``).
+- :mod:`.Simple` — threshold-based detector with optional half-plane,
+  shape-quality, and widest-blob-split refiners.
 """
-
-from .threshold import detect_glints
-
-__all__ = ["detect_glints"]

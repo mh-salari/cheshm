@@ -45,7 +45,6 @@ dependencies = [
     "numba",
     "numpy",
     "opencv-python",
-    "scipy",
 ]
 
 [project.optional-dependencies]

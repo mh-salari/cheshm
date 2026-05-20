@@ -11,7 +11,7 @@ from pathlib import Path
 
 import cv2
 
-from lavan.glint_detectors.threshold import detect_glints
+from lavan.glint_detectors.Simple import detect_glints
 from lavan.pupil_detectors.Simple import detect_pupil
 
 CENTER_METHOD_CHOICES = (
