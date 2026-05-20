@@ -18,6 +18,8 @@ from typing import Literal
 import cv2
 import numpy as np
 
+from cheshm._protocols import LimbusResult
+
 # Overlays this detector produces (limbus is returned as a circle).
 _OVERLAYS = (
     ("curve", "line"),
@@ -194,7 +196,7 @@ def detect_limbus(
     c_type: Literal["half", "full"] = "half",
     range_: int = 5,
     step: int = 1,
-) -> dict | None:
+) -> LimbusResult | None:
     """One-shot integro-differential limbus localization around ``seed_center``.
 
     Builds an :class:`IntegroDifferentialOperator` for ``img`` and runs a

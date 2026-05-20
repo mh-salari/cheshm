@@ -12,6 +12,8 @@ collection, and ellipse fitting with quality validation.
 import cv2
 import numpy as np
 
+from cheshm._protocols import PupilResult
+
 from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
@@ -48,7 +50,7 @@ def detect_pupil(
     *,
     max_ellipse_radi: int = 50,
     good_ellipse_threshold: int = 15,
-) -> dict | None:
+) -> PupilResult | None:
     """Detect the pupil ellipse via ExCuSe (Fuhl et al. 2015).
 
     Returns ``{"ellipse", "center"}`` matching the rest of cheshm's pupil

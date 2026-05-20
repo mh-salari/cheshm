@@ -36,6 +36,8 @@ import platform
 import cv2
 import numpy as np
 
+from cheshm._protocols import LimbusResult
+
 from .._common import _gaussian_kernel_1d
 
 # Overlays this detector produces.
@@ -257,7 +259,7 @@ def detect_limbus(
     skip_eyelid_wedges: bool = True,
     r_min: float = 30.0,
     r_max: float = 80.0,
-) -> dict:
+) -> LimbusResult:
     """One-shot Daugman 2007 active-contour limbus fit around ``seed_center``.
 
     Builds a :class:`DaugmanActiveContour` for ``img`` and runs a single

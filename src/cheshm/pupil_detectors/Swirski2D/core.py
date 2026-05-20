@@ -14,6 +14,8 @@ final pupil ellipse.
 import cv2
 import numpy as np
 
+from cheshm._protocols import PupilResult
+
 from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
@@ -112,7 +114,7 @@ def detect_pupil(
     early_rejection: bool = True,
     seed: int = 0,
     max_inliers: int = 1024,
-) -> dict | None:
+) -> PupilResult | None:
     """Detect the pupil ellipse via Swirski et al. 2012.
 
     Returns ``{"contour", "ellipse", "center"}`` matching the rest of

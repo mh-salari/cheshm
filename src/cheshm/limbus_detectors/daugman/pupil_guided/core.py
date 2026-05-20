@@ -38,6 +38,8 @@ import platform
 import cv2
 import numpy as np
 
+from cheshm._protocols import LimbusResult
+
 from .._common import _gaussian_kernel_1d
 
 # Overlays this detector produces.
@@ -257,7 +259,7 @@ def detect_limbus(
     radial_smoothing: float = 2.0,
     k_min: float = 2.0,
     k_max: float = 4.0,
-) -> dict:
+) -> LimbusResult:
     """One-shot pupil-shape-prior active-contour limbus fit around ``seed_center``.
 
     Builds a :class:`PupilGuidedContour` for ``img`` using

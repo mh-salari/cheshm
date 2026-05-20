@@ -15,5 +15,32 @@ Sub-packages, each owning its own surface:
 - :mod:`cheshm.viz` — cv2 image-save helpers (diff heatmap, alignment
   comparison + overlay, detection overlay).
 
+Detector typing helpers are re-exported here: ``PupilDetector`` /
+``GlintDetector`` / ``LimbusDetector`` callable protocols and
+``PupilResult`` / ``GlintResult`` / ``LimbusResult`` / ``Glint`` /
+``Ellipse`` for typed return shapes.
+
 Cheshm (چشم) is the Persian word for "eye".
 """
+
+from cheshm._protocols import (
+    Ellipse,
+    Glint,
+    GlintDetector,
+    GlintResult,
+    LimbusDetector,
+    LimbusResult,
+    PupilDetector,
+    PupilResult,
+)
+
+__all__ = [
+    "Ellipse",
+    "Glint",
+    "GlintDetector",
+    "GlintResult",
+    "LimbusDetector",
+    "LimbusResult",
+    "PupilDetector",
+    "PupilResult",
+]

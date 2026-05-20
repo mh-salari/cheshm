@@ -12,6 +12,8 @@ from typing import Literal
 import cv2
 import numpy as np
 
+from cheshm._protocols import GlintResult
+
 from . import _core
 
 _OVERLAYS = (
@@ -117,7 +119,7 @@ def detect_glints(
     split_widest_for_target: bool = False,
     min_ellipse_fit_ratio: float | None = None,
     min_roundness_ratio: float | None = None,
-) -> dict:
+) -> GlintResult:
     """Detect bright glint blobs near ``pupil_center``.
 
     Search region: a filled circle centred at ``pupil_center`` with radius

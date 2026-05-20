@@ -13,6 +13,8 @@ centroid of pixels below a threshold (a rough dark-blob centre).
 import cv2
 import numpy as np
 
+from cheshm._protocols import PupilResult
+
 from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
@@ -108,7 +110,7 @@ def detect_pupil(
     corneal_reflection_ratio: int = 2,
     max_edge_points: int = 1024,
     seed_threshold: int = 30,
-) -> dict | None:
+) -> PupilResult | None:
     """Detect the pupil ellipse via Starburst (Li et al. 2005).
 
     Returns ``{"contour", "ellipse", "center"}`` matching the rest of
