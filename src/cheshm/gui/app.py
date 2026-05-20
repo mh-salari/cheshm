@@ -72,14 +72,17 @@ def _initial_overlay_state(detectors: list[Detector]) -> tuple[dict, dict, dict,
 class _State:
     """Application state mutated by widget callbacks."""
 
-    def __init__(self, img_dir: Path) -> None:
-        self.img_dir = img_dir
-        self.images: list[Path] = sorted(p for p in img_dir.iterdir() if p.suffix.lower() in _IMAGE_EXTS)
-        if not self.images:
-            raise SystemExit(f"no images with extensions {_IMAGE_EXTS} in {img_dir}")
+    def __init__(self, img_dir: Path | None = None) -> None:
+        self.img_dir: Path | None = img_dir
+        if img_dir is not None:
+            self.images: list[Path] = sorted(p for p in img_dir.iterdir() if p.suffix.lower() in _IMAGE_EXTS)
+        else:
+            self.images = []
         self.idx = 0
         self.zoom = 1.0
         self.brightness = 0
+        self.canvas_w = 640
+        self.canvas_h = 480
         self.detectors = discover_detectors()
         self.by_kind: dict[str, list[Detector]] = {
             k: [d for d in self.detectors if d.kind == k] for k in ("pupil", "glint", "limbus")
@@ -105,7 +108,9 @@ class _State:
         }
 
     @property
-    def current_path(self) -> Path:
+    def current_path(self) -> Path | None:
+        if not self.images:
+            return None
         return self.images[self.idx]
 
     def detector(self, kind: str, det_id: str | None) -> Detector | None:
@@ -607,26 +612,76 @@ def _fit_zoom(canvas_w: int) -> float:
     return min(1.0, available / canvas_w)
 
 
-def run(img_dir: str | Path) -> None:
-    state = _State(Path(img_dir).expanduser().resolve())
+def _placeholder_canvas(w: int, h: int) -> np.ndarray:
+    """Grey BGR canvas used when no images are loaded yet."""
+    return np.full((h, w, 3), 60, dtype=np.uint8)
 
-    first = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
-    if first is None:
-        raise SystemExit(f"failed to read {state.current_path}")
-    canvas_h, canvas_w = first.shape
+
+def run(img_dir: str | Path | None = None) -> None:
+    if img_dir is not None:
+        state = _State(Path(img_dir).expanduser().resolve())
+    else:
+        state = _State(None)
+
+    if state.images:
+        first = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
+        if first is None:
+            raise SystemExit(f"failed to read {state.current_path}")
+        state.canvas_h, state.canvas_w = first.shape
+        initial_canvas = cv2.cvtColor(first, cv2.COLOR_GRAY2BGR)
+    else:
+        initial_canvas = _placeholder_canvas(state.canvas_w, state.canvas_h)
 
     dpg.create_context()
     with dpg.texture_registry():
-        dpg.add_dynamic_texture(canvas_w, canvas_h,
-                                _to_rgba_float(cv2.cvtColor(first, cv2.COLOR_GRAY2BGR)),
+        dpg.add_dynamic_texture(state.canvas_w, state.canvas_h,
+                                _to_rgba_float(initial_canvas),
                                 tag="image_texture")
 
-    def redraw() -> None:
+    def _rebuild_texture_for_current() -> None:
+        """Recreate ``image_texture`` to match the current image's dimensions.
+
+        Dear PyGui textures are fixed-size at creation; loading a folder
+        whose images have a different size than the placeholder (or the
+        previous load) needs a fresh texture. The widget that displays
+        the texture re-binds by tag.
+        """
+        if not state.images:
+            return
         img = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
         if img is None:
             return
-        if img.shape != (canvas_h, canvas_w):
-            img = cv2.resize(img, (canvas_w, canvas_h), interpolation=cv2.INTER_AREA)
+        new_h, new_w = img.shape
+        if new_w == state.canvas_w and new_h == state.canvas_h:
+            return
+        state.canvas_h, state.canvas_w = new_h, new_w
+        dpg.delete_item("image_texture")
+        with dpg.texture_registry():
+            dpg.add_dynamic_texture(state.canvas_w, state.canvas_h,
+                                    _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)),
+                                    tag="image_texture")
+        dpg.configure_item("image_widget", texture_tag="image_texture")
+
+    def redraw() -> None:
+        if not state.images:
+            dpg.set_value("image_texture",
+                          _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)))
+            dpg.set_value("status_text", "no images loaded — use Open Folder or Add Files")
+            disp_w = int(state.canvas_w * state.zoom)
+            disp_h = int(state.canvas_h * state.zoom)
+            panel_w, panel_h = dpg.get_item_rect_size("image_panel")
+            if panel_w <= 0 or panel_h <= 0:
+                panel_w = max(dpg.get_viewport_client_width() - _LEFT_W - _RIGHT_W - 30, 200)
+                panel_h = max(dpg.get_viewport_client_height() - 80, 200)
+            pos_x = max((panel_w - disp_w) // 2, 0)
+            pos_y = max((panel_h - disp_h) // 2, 0)
+            dpg.configure_item("image_widget", width=disp_w, height=disp_h, pos=[pos_x, pos_y])
+            return
+        img = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            return
+        if img.shape != (state.canvas_h, state.canvas_w):
+            img = cv2.resize(img, (state.canvas_w, state.canvas_h), interpolation=cv2.INTER_AREA)
         # Brightness is display-only; detectors see the raw pixels.
         # Only re-run detection when the detection-affecting inputs change.
         sig = _detection_signature(state)
@@ -640,8 +695,8 @@ def run(img_dir: str | Path) -> None:
         _draw_glints(canvas, glints, state)
         _draw_limbus(canvas, limbus, state)
         dpg.set_value("image_texture", _to_rgba_float(canvas))
-        disp_w = int(canvas_w * state.zoom)
-        disp_h = int(canvas_h * state.zoom)
+        disp_w = int(state.canvas_w * state.zoom)
+        disp_h = int(state.canvas_h * state.zoom)
         # Centre the image inside the panel when it fits; otherwise let
         # the panel's scrollbar handle navigation. On the very first
         # redraw the panel hasn't been laid out yet, so get_item_rect_size
@@ -655,7 +710,7 @@ def run(img_dir: str | Path) -> None:
         dpg.configure_item("image_widget", width=disp_w, height=disp_h, pos=[pos_x, pos_y])
         dpg.set_value("status_text", f"{state.idx + 1}/{len(state.images)}  "
                                        f"{state.current_path.name}  "
-                                       f"({canvas_w}×{canvas_h})  "
+                                       f"({state.canvas_w}×{state.canvas_h})  "
                                        f"zoom×{state.zoom:.2f}  β={state.brightness:+d}")
 
     on_change = _on_setting_change(state, redraw)
@@ -669,7 +724,7 @@ def run(img_dir: str | Path) -> None:
         redraw()
 
     def reset_zoom() -> None:
-        state.zoom = _fit_zoom(canvas_w)
+        state.zoom = _fit_zoom(state.canvas_w)
         dpg.set_value("zoom_slider", state.zoom)
         redraw()
 
@@ -689,18 +744,86 @@ def run(img_dir: str | Path) -> None:
             dpg.add_slider_int(tag="brightness_slider", default_value=0,
                                 min_value=-100, max_value=100, width=150, callback=on_brightness)
 
+        def _refresh_image_widgets() -> None:
+            """Rebuild the listbox + path-text after ``state.images`` changes."""
+            dpg.configure_item("image_list", items=[p.name for p in state.images])
+            if state.images:
+                dpg.set_value("image_list", state.current_path.name)
+                dpg.set_value("img_dir_text", str(state.img_dir) if state.img_dir else "(multiple sources)")
+            else:
+                dpg.set_value("img_dir_text", "(no images)")
+
+        def _on_folder_picked(sender, app_data) -> None:
+            picked = Path(app_data["file_path_name"])
+            if not picked.is_dir():
+                return
+            new_imgs = sorted(p for p in picked.iterdir() if p.suffix.lower() in _IMAGE_EXTS)
+            if not new_imgs:
+                dpg.set_value("status_text", f"no images in {picked}")
+                return
+            state.img_dir = picked
+            state.images = new_imgs
+            state.idx = 0
+            state.last_detection_sig = None
+            _rebuild_texture_for_current()
+            _refresh_image_widgets()
+            state.zoom = _fit_zoom(state.canvas_w)
+            dpg.set_value("zoom_slider", state.zoom)
+            redraw()
+
+        def _on_files_picked(sender, app_data) -> None:
+            picked_paths = [Path(p) for p in app_data.get("selections", {}).values()]
+            new_files = [p for p in picked_paths if p.is_file() and p.suffix.lower() in _IMAGE_EXTS]
+            if not new_files:
+                return
+            existing = set(state.images)
+            appended = [p for p in new_files if p not in existing]
+            if not appended:
+                return
+            first_time = not state.images
+            state.images.extend(appended)
+            if first_time:
+                state.img_dir = appended[0].parent
+                state.idx = 0
+                state.last_detection_sig = None
+                _rebuild_texture_for_current()
+                state.zoom = _fit_zoom(state.canvas_w)
+                dpg.set_value("zoom_slider", state.zoom)
+            else:
+                state.img_dir = None  # mixed sources
+            _refresh_image_widgets()
+            redraw()
+
+        with dpg.file_dialog(directory_selector=True, show=False, modal=True,
+                              callback=_on_folder_picked, tag="folder_dialog",
+                              width=700, height=400):
+            pass
+
+        with dpg.file_dialog(directory_selector=False, show=False, modal=True,
+                              callback=_on_files_picked, tag="files_dialog",
+                              width=700, height=400):
+            for ext in sorted(_IMAGE_EXTS):
+                dpg.add_file_extension(ext)
+            dpg.add_file_extension(".*")
+
         with dpg.group(horizontal=True):
             with dpg.child_window(width=_LEFT_W, autosize_y=True):
-                dpg.add_text(str(state.img_dir), wrap=220, color=(180, 180, 180))
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Open Folder",
+                                   callback=lambda: dpg.show_item("folder_dialog"))
+                    dpg.add_button(label="Add Files",
+                                   callback=lambda: dpg.show_item("files_dialog"))
+                dpg.add_text(str(state.img_dir) if state.img_dir else "(no images)",
+                             wrap=220, color=(180, 180, 180), tag="img_dir_text")
 
                 def on_prev() -> None:
-                    if state.idx > 0:
+                    if state.images and state.idx > 0:
                         state.idx -= 1
                         dpg.set_value("image_list", state.current_path.name)
                         redraw()
 
                 def on_next() -> None:
-                    if state.idx < len(state.images) - 1:
+                    if state.images and state.idx < len(state.images) - 1:
                         state.idx += 1
                         dpg.set_value("image_list", state.current_path.name)
                         redraw()
@@ -718,14 +841,14 @@ def run(img_dir: str | Path) -> None:
 
                 dpg.add_listbox(
                     items=[p.name for p in state.images],
-                    default_value=state.current_path.name,
+                    default_value=state.current_path.name if state.images else "",
                     tag="image_list", num_items=20, width=220, callback=on_pick_image,
                 )
 
             with dpg.child_window(tag="image_panel", width=-_RIGHT_W, autosize_y=True,
                                    horizontal_scrollbar=True):
                 dpg.add_image("image_texture", tag="image_widget",
-                              width=canvas_w, height=canvas_h)
+                              width=state.canvas_w, height=state.canvas_h)
 
             with dpg.child_window(tag="settings_panel", width=_RIGHT_W - 20, autosize_y=True,
                                    border=True):
