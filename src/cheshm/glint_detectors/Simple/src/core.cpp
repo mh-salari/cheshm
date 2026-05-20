@@ -1,12 +1,6 @@
-// Public C surface for the Simple glint detector — a single extern "C"
-// entry point that cheshm's Python wrapper loads via ctypes. Threshold
-// → pupil-centred search disk → ROI / half-plane filtering →
-// shape-quality walk → optional widest-blob split → centre per glint.
-//
-// Variable-length output is laid out into caller-allocated buffers:
-// each glint occupies a fixed slot for its centre and ellipse, plus a
-// fixed-stride slice in the contour buffer whose actual length is
-// reported in ``out_contour_lengths``.
+// Simple glint detector — nanobind extension. Threshold → pupil-centred
+// search disk → ROI / half-plane filtering → shape-quality walk →
+// optional widest-blob split → centre per glint.
 
 #include "cheshm/roi.hpp"
 #include "cheshm/spline.hpp"
@@ -15,10 +9,18 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <limits>
+#include <memory>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/optional.h>
+#include <nanobind/stl/tuple.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <optional>
 #include <vector>
+
+namespace nb = nanobind;
+using namespace nb::literals;
 
 namespace cheshm::SimpleGlint {
 namespace {
@@ -189,7 +191,6 @@ std::vector<Candidate> split_widest(
 
 bool compute_center(
     const Candidate &cand,
-    const cv::Mat &candidates_mask,
     int method,
     double &cx,
     double &cy)
@@ -243,120 +244,47 @@ bool compute_center(
     }
 }
 
-}  // namespace
-}  // namespace cheshm::SimpleGlint
+struct Glint {
+    double cx;
+    double cy;
+    bool has_fit;
+    double e_cx;
+    double e_cy;
+    double e_w;
+    double e_h;
+    double e_angle;
+    std::vector<cv::Point> contour;  // already in full-image coords
+};
 
-extern "C" {
+struct DetectResult {
+    std::vector<Glint> glints;
+    cv::Mat search_mask;  // full-image canvas, ROI region populated
+};
 
-// Simple_glint_detect — threshold-based glint detection near a pupil.
-//
-// Inputs:
-//  img_data, width, height        grayscale uint8 buffer, row-major.
-//  roi_x, roi_y, roi_w, roi_h     ROI rectangle in full-image coords.
-//                                 ``roi_w > 0 && roi_h > 0`` activates a
-//                                 crop; outputs are translated back.
-//  has_pupil                      Non-zero when a pupil centre + radius
-//                                 are supplied; gates the search-disk
-//                                 mask and the half-plane filter.
-//  pupil_cx, pupil_cy, pupil_radius   Pupil position and scale in
-//                                 full-image coords.
-//  glint_threshold                Pixels above this intensity become
-//                                 candidate glint.
-//  search_radius_factor, search_radius_max_px
-//                                 Search-disk radius around the pupil
-//                                 centre = ``min(factor * radius,
-//                                 max_px)``. ``max_px = -1`` disables
-//                                 the cap.
-//  glint_center_method            0..4 matching Simple_pupil.
-//  max_area_px                    Reject contours whose area exceeds
-//                                 this. -1 = no cap.
-//  keep_above / keep_below /      Half-plane filter around the pupil
-//  keep_left / keep_right         centre; ignored when all four are set
-//                                 or no pupil is supplied.
-//  filter_margin_px               Slack on the half-plane boundary.
-//  glints_target                  Number of glints to keep.
-//  split_widest_for_target        Non-zero enables the widest-blob
-//                                 split when ``len(accepted) ==
-//                                 glints_target - 1``.
-//  min_ellipse_fit_ratio,         Opt-in shape-quality gates. Negative
-//  min_roundness_ratio            = gate off.
-//
-// Outputs:
-//  out_n_glints                   Number of glints written.
-//  out_centers_xy                 ``2 * max_glints`` doubles. Each
-//                                 (cx, cy) in full-image coordinates.
-//  out_ellipse_params             ``6 * max_glints`` doubles per glint:
-//                                 (cx, cy, w, h, angle, has_fit).
-//                                 ``has_fit = 0.0`` when the contour
-//                                 had fewer than five points.
-//  out_contour_lengths            ``max_glints`` ints; how many points
-//                                 the corresponding contour slot uses.
-//  out_contours_xy                ``2 * max_glints * max_contour_points
-//                                 _per_glint`` doubles; each glint i
-//                                 occupies a stride of
-//                                 ``2 * max_contour_points_per_glint``
-//                                 starting at ``i * stride``.
-//  max_glints                     Capacity of the per-glint output
-//                                 arrays.
-//  max_contour_points_per_glint   Capacity of one glint's contour slot.
-//  out_search_mask                ``width * height`` uint8 canvas; the
-//                                 ``threshold & search-disk & ROI``
-//                                 intersection. Regions outside the
-//                                 ROI are zeroed.
-//
-// Returns 1 on success (even when zero glints are found), 0 on error.
-int Simple_glint_detect(
-    const std::uint8_t *img_data,
-    int width,
-    int height,
-    int roi_x,
-    int roi_y,
-    int roi_w,
-    int roi_h,
-    int has_pupil,
-    double pupil_cx,
-    double pupil_cy,
-    double pupil_radius,
+std::optional<DetectResult> detect_impl(
+    const cv::Mat &full,
+    int roi_x, int roi_y, int roi_w, int roi_h,
+    bool has_pupil, double pupil_cx, double pupil_cy, double pupil_radius,
     int glint_threshold,
-    double search_radius_factor,
-    int search_radius_max_px,
+    double search_radius_factor, int search_radius_max_px,
     int glint_center_method,
     int max_area_px,
-    int keep_above,
-    int keep_below,
-    int keep_left,
-    int keep_right,
+    bool keep_above, bool keep_below, bool keep_left, bool keep_right,
     int filter_margin_px,
     int glints_target,
-    int split_widest_for_target,
+    bool split_widest_for_target,
     double min_ellipse_fit_ratio,
-    double min_roundness_ratio,
-    int *out_n_glints,
-    double *out_centers_xy,
-    double *out_ellipse_params,
-    int *out_contour_lengths,
-    double *out_contours_xy,
-    int max_glints,
-    int max_contour_points_per_glint,
-    std::uint8_t *out_search_mask)
+    double min_roundness_ratio)
 {
-    using namespace cheshm::SimpleGlint;  // NOLINT(google-build-using-namespace)
+    const int width = full.cols;
+    const int height = full.rows;
 
-    if (img_data == nullptr || width <= 0 || height <= 0 || out_search_mask == nullptr) {
-        if (out_n_glints != nullptr) {
-            *out_n_glints = 0;
-        }
-        return 0;
-    }
-
-    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t *>(img_data));
     cv::Rect crop(0, 0, width, height);
     bool roi_active = false;
     if (cheshm::roi_is_active(roi_w, roi_h)) {
         crop = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
         if (crop.area() == 0) {
-            *out_n_glints = 0;
-            return 0;
+            return std::nullopt;
         }
         roi_active = true;
     }
@@ -366,7 +294,7 @@ int Simple_glint_detect(
     cv::threshold(view, glint_mask, glint_threshold, 255, cv::THRESH_BINARY);
 
     cv::Mat search_mask(view.size(), CV_8U);
-    if (has_pupil != 0) {
+    if (has_pupil) {
         double radius = search_radius_factor * pupil_radius;
         if (search_radius_max_px >= 0) {
             radius = std::min(radius, static_cast<double>(search_radius_max_px));
@@ -382,10 +310,7 @@ int Simple_glint_detect(
     cv::Mat candidates_mask;
     cv::bitwise_and(glint_mask, search_mask, candidates_mask);
 
-    if (roi_active) {
-        std::memset(out_search_mask, 0, static_cast<size_t>(width) * static_cast<size_t>(height));
-    }
-    cv::Mat search_canvas(height, width, CV_8U, out_search_mask);
+    cv::Mat search_canvas = cv::Mat::zeros(height, width, CV_8U);
     candidates_mask.copyTo(search_canvas(crop));
 
     std::vector<std::vector<cv::Point>> contours;
@@ -404,8 +329,7 @@ int Simple_glint_detect(
     }
 
     const bool half_plane_active =
-        has_pupil != 0
-        && !(keep_above != 0 && keep_below != 0 && keep_left != 0 && keep_right != 0);
+        has_pupil && !(keep_above && keep_below && keep_left && keep_right);
     if (half_plane_active) {
         const double cx_local = pupil_cx - crop.x;
         const double cy_local = pupil_cy - crop.y;
@@ -413,8 +337,7 @@ int Simple_glint_detect(
         kept.reserve(contours.size());
         for (auto &c : contours) {
             if (passes_half_plane(c, cx_local, cy_local,
-                                  keep_above != 0, keep_below != 0,
-                                  keep_left != 0, keep_right != 0,
+                                  keep_above, keep_below, keep_left, keep_right,
                                   filter_margin_px)) {
                 kept.push_back(std::move(c));
             }
@@ -437,7 +360,7 @@ int Simple_glint_detect(
         accepted.push_back(std::move(cand));
     }
 
-    if (split_widest_for_target != 0
+    if (split_widest_for_target
         && glints_target > 1
         && static_cast<int>(accepted.size()) == glints_target - 1
         && !accepted.empty()) {
@@ -455,46 +378,144 @@ int Simple_glint_detect(
         return cv::boundingRect(a.contour).x < cv::boundingRect(b.contour).x;
     });
 
-    int written = 0;
-    const int stride = 2 * max_contour_points_per_glint;
+    DetectResult result;
+    result.glints.reserve(accepted.size());
+    result.search_mask = std::move(search_canvas);
     for (const Candidate &cand : accepted) {
-        if (written >= max_glints) {
-            break;
-        }
         double cx_local = 0.0;
         double cy_local = 0.0;
-        if (!compute_center(cand, candidates_mask, glint_center_method, cx_local, cy_local)) {
+        if (!compute_center(cand, glint_center_method, cx_local, cy_local)) {
             continue;
         }
-        const double cx = cx_local + crop.x;
-        const double cy = cy_local + crop.y;
-        out_centers_xy[2 * written] = cx;
-        out_centers_xy[2 * written + 1] = cy;
+        Glint g{};
+        g.cx = cx_local + crop.x;
+        g.cy = cy_local + crop.y;
+        g.has_fit = cand.has_fit;
         if (cand.has_fit) {
-            out_ellipse_params[6 * written + 0] = cand.fit.center.x + crop.x;
-            out_ellipse_params[6 * written + 1] = cand.fit.center.y + crop.y;
-            out_ellipse_params[6 * written + 2] = cand.fit.size.width;
-            out_ellipse_params[6 * written + 3] = cand.fit.size.height;
-            out_ellipse_params[6 * written + 4] = cand.fit.angle;
-            out_ellipse_params[6 * written + 5] = 1.0;
-        } else {
-            for (int i = 0; i < 5; ++i) {
-                out_ellipse_params[6 * written + i] = std::numeric_limits<double>::quiet_NaN();
-            }
-            out_ellipse_params[6 * written + 5] = 0.0;
+            g.e_cx = cand.fit.center.x + crop.x;
+            g.e_cy = cand.fit.center.y + crop.y;
+            g.e_w = cand.fit.size.width;
+            g.e_h = cand.fit.size.height;
+            g.e_angle = cand.fit.angle;
         }
-        const int n_pts = std::min(static_cast<int>(cand.contour.size()), max_contour_points_per_glint);
-        out_contour_lengths[written] = n_pts;
-        double *slot = out_contours_xy + static_cast<std::size_t>(written) * stride;
-        for (int i = 0; i < n_pts; ++i) {
-            slot[2 * i] = static_cast<double>(cand.contour[i].x) + crop.x;
-            slot[2 * i + 1] = static_cast<double>(cand.contour[i].y) + crop.y;
+        g.contour.reserve(cand.contour.size());
+        for (const cv::Point &p : cand.contour) {
+            g.contour.emplace_back(p.x + crop.x, p.y + crop.y);
         }
-        ++written;
+        result.glints.push_back(std::move(g));
     }
-    *out_n_glints = written;
-
-    return 1;
+    return result;
 }
 
-}  // extern "C"
+}  // namespace
+}  // namespace cheshm::SimpleGlint
+
+namespace {
+
+// Pack a single glint into the tuple ``(cx, cy, ellipse_or_None, contour)``.
+// ``ellipse_or_None`` is a 5-tuple ``(cx, cy, w, h, angle)`` or ``None``
+// when the contour had fewer than five points. ``contour`` is an
+// ``(N, 2)`` float64 ndarray in full-image coordinates.
+nb::tuple pack_glint(const cheshm::SimpleGlint::Glint &g)
+{
+    const int n_pts = static_cast<int>(g.contour.size());
+    auto contour_owner = std::make_unique<std::vector<double>>(2 * n_pts);
+    for (int i = 0; i < n_pts; ++i) {
+        (*contour_owner)[2 * i] = static_cast<double>(g.contour[i].x);
+        (*contour_owner)[2 * i + 1] = static_cast<double>(g.contour[i].y);
+    }
+    double *contour_data = contour_owner->data();
+    nb::capsule contour_cap(contour_owner.release(),
+                            [](void *p) noexcept { delete static_cast<std::vector<double> *>(p); });
+    const std::size_t contour_shape[2] = {static_cast<std::size_t>(n_pts), 2};
+    nb::ndarray<nb::numpy, double, nb::ndim<2>> contour_arr(
+        contour_data, 2, contour_shape, contour_cap);
+
+    nb::object ellipse_obj;
+    if (g.has_fit) {
+        ellipse_obj = nb::make_tuple(g.e_cx, g.e_cy, g.e_w, g.e_h, g.e_angle);
+    } else {
+        ellipse_obj = nb::none();
+    }
+    return nb::make_tuple(g.cx, g.cy, std::move(ellipse_obj), std::move(contour_arr));
+}
+
+// nanobind binding. Returns ``None`` on error (e.g. ROI fully outside
+// the image), otherwise a 2-tuple ``(list_of_glints, search_mask)``.
+//   list_of_glints: list of glint tuples (possibly empty).
+//   search_mask:    ``(H, W)`` uint8 ndarray with the post-filter mask.
+nb::object detect(
+    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+    int roi_x, int roi_y, int roi_w, int roi_h,
+    int has_pupil,
+    double pupil_cx, double pupil_cy, double pupil_radius,
+    int glint_threshold,
+    double search_radius_factor, int search_radius_max_px,
+    int glint_center_method,
+    int max_area_px,
+    int keep_above, int keep_below, int keep_left, int keep_right,
+    int filter_margin_px,
+    int glints_target,
+    int split_widest_for_target,
+    double min_ellipse_fit_ratio,
+    double min_roundness_ratio)
+{
+    const int height = static_cast<int>(img.shape(0));
+    const int width = static_cast<int>(img.shape(1));
+    const cv::Mat full(height, width, CV_8U,
+                       const_cast<std::uint8_t *>(img.data()));
+
+    auto result = cheshm::SimpleGlint::detect_impl(
+        full,
+        roi_x, roi_y, roi_w, roi_h,
+        has_pupil != 0, pupil_cx, pupil_cy, pupil_radius,
+        glint_threshold,
+        search_radius_factor, search_radius_max_px,
+        glint_center_method,
+        max_area_px,
+        keep_above != 0, keep_below != 0, keep_left != 0, keep_right != 0,
+        filter_margin_px,
+        glints_target,
+        split_widest_for_target != 0,
+        min_ellipse_fit_ratio,
+        min_roundness_ratio);
+    if (!result) {
+        return nb::none();
+    }
+
+    nb::list glint_list;
+    for (const cheshm::SimpleGlint::Glint &g : result->glints) {
+        glint_list.append(pack_glint(g));
+    }
+
+    auto mask_owner = std::make_unique<std::vector<std::uint8_t>>(
+        static_cast<std::size_t>(height) * static_cast<std::size_t>(width));
+    std::memcpy(mask_owner->data(), result->search_mask.data, mask_owner->size());
+    std::uint8_t *mask_data = mask_owner->data();
+    nb::capsule mask_cap(mask_owner.release(),
+                         [](void *p) noexcept { delete static_cast<std::vector<std::uint8_t> *>(p); });
+    const std::size_t mask_shape[2] = {static_cast<std::size_t>(height), static_cast<std::size_t>(width)};
+    nb::ndarray<nb::numpy, std::uint8_t, nb::ndim<2>> mask_arr(
+        mask_data, 2, mask_shape, mask_cap);
+
+    return nb::make_tuple(std::move(glint_list), std::move(mask_arr));
+}
+
+}  // namespace
+
+NB_MODULE(_core, m)
+{
+    m.def("detect", &detect,
+          "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
+          "has_pupil"_a, "pupil_cx"_a, "pupil_cy"_a, "pupil_radius"_a,
+          "glint_threshold"_a,
+          "search_radius_factor"_a, "search_radius_max_px"_a,
+          "glint_center_method"_a,
+          "max_area_px"_a,
+          "keep_above"_a, "keep_below"_a, "keep_left"_a, "keep_right"_a,
+          "filter_margin_px"_a,
+          "glints_target"_a,
+          "split_widest_for_target"_a,
+          "min_ellipse_fit_ratio"_a,
+          "min_roundness_ratio"_a);
+}

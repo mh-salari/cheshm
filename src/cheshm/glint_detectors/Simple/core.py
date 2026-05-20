@@ -1,4 +1,4 @@
-"""Simple glint detector — ctypes binding to the C++ kernel in ``core.dylib``.
+"""Simple glint detector — Python wrapper over the nanobind extension.
 
 Threshold-based detector: bright pixels inside the search disk around
 the pupil centre form the candidate region, contours are filtered by
@@ -7,14 +7,12 @@ has one more LED than contours found, sorted left-to-right, and each
 glint's centre is computed via one of five methods.
 """
 
-import ctypes
-import math
-import pathlib
-import platform
 from typing import Literal
 
 import cv2
 import numpy as np
+
+from . import _core
 
 _OVERLAYS = (
     ("contour", "line"),
@@ -93,47 +91,6 @@ _CENTER_METHOD_CODE = {
 }
 
 
-_LIB_DIR = pathlib.Path(__file__).parent
-_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
-_lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
-_lib.Simple_glint_detect.restype = ctypes.c_int
-_lib.Simple_glint_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),  # img_data
-    ctypes.c_int,                    # width
-    ctypes.c_int,                    # height
-    ctypes.c_int,                    # roi_x
-    ctypes.c_int,                    # roi_y
-    ctypes.c_int,                    # roi_w
-    ctypes.c_int,                    # roi_h
-    ctypes.c_int,                    # has_pupil
-    ctypes.c_double,                 # pupil_cx
-    ctypes.c_double,                 # pupil_cy
-    ctypes.c_double,                 # pupil_radius
-    ctypes.c_int,                    # glint_threshold
-    ctypes.c_double,                 # search_radius_factor
-    ctypes.c_int,                    # search_radius_max_px (-1 = no cap)
-    ctypes.c_int,                    # glint_center_method
-    ctypes.c_int,                    # max_area_px (-1 = no cap)
-    ctypes.c_int,                    # keep_above
-    ctypes.c_int,                    # keep_below
-    ctypes.c_int,                    # keep_left
-    ctypes.c_int,                    # keep_right
-    ctypes.c_int,                    # filter_margin_px
-    ctypes.c_int,                    # glints_target
-    ctypes.c_int,                    # split_widest_for_target
-    ctypes.c_double,                 # min_ellipse_fit_ratio (< 0 = off)
-    ctypes.c_double,                 # min_roundness_ratio   (< 0 = off)
-    ctypes.POINTER(ctypes.c_int),    # out_n_glints
-    ctypes.POINTER(ctypes.c_double), # out_centers_xy (2 * max_glints)
-    ctypes.POINTER(ctypes.c_double), # out_ellipse_params (6 * max_glints)
-    ctypes.POINTER(ctypes.c_int),    # out_contour_lengths (max_glints)
-    ctypes.POINTER(ctypes.c_double), # out_contours_xy (2 * max_glints * max_pts)
-    ctypes.c_int,                    # max_glints
-    ctypes.c_int,                    # max_contour_points_per_glint
-    ctypes.POINTER(ctypes.c_uint8),  # out_search_mask (width * height)
-]
-
-
 def detect_glints(
     img: np.ndarray,
     *,
@@ -160,8 +117,6 @@ def detect_glints(
     split_widest_for_target: bool = False,
     min_ellipse_fit_ratio: float | None = None,
     min_roundness_ratio: float | None = None,
-    max_glints: int = 16,
-    max_contour_points_per_glint: int = 512,
 ) -> dict:
     """Detect bright glint blobs near ``pupil_center``.
 
@@ -209,25 +164,11 @@ def detect_glints(
     cy = float(pupil_center[1]) if has_pupil else 0.0
     pr = float(pupil_radius) if has_pupil else 0.0
 
-    out_n = ctypes.c_int(0)
-    centers_buf = (ctypes.c_double * (2 * max_glints))()
-    ellipse_buf = (ctypes.c_double * (6 * max_glints))()
-    lengths_buf = (ctypes.c_int * max_glints)()
-    contours_buf = (ctypes.c_double * (2 * max_glints * max_contour_points_per_glint))()
-    search_area = np.zeros((height, width), dtype=np.uint8)
-
-    ok = _lib.Simple_glint_detect(
-        img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
-        width,
-        height,
-        roi_x,
-        roi_y,
-        roi_w,
-        roi_h,
+    result = _core.detect(
+        img,
+        roi_x, roi_y, roi_w, roi_h,
         1 if has_pupil else 0,
-        cx,
-        cy,
-        pr,
+        cx, cy, pr,
         glint_threshold,
         float(search_radius_factor),
         -1 if search_radius_max_px is None else int(search_radius_max_px),
@@ -242,36 +183,19 @@ def detect_glints(
         1 if split_widest_for_target else 0,
         -1.0 if min_ellipse_fit_ratio is None else float(min_ellipse_fit_ratio),
         -1.0 if min_roundness_ratio is None else float(min_roundness_ratio),
-        ctypes.byref(out_n),
-        centers_buf,
-        ellipse_buf,
-        lengths_buf,
-        contours_buf,
-        max_glints,
-        max_contour_points_per_glint,
-        search_area.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
     )
-    if not ok:
-        return {"glints": [], "search_area": search_area}
+    if result is None:
+        return {"glints": [], "search_area": np.zeros((height, width), dtype=np.uint8)}
+    glint_tuples, search_area = result
 
-    n = out_n.value
     glints = []
-    stride = 2 * max_contour_points_per_glint
-    for i in range(n):
-        gcx = centers_buf[2 * i]
-        gcy = centers_buf[2 * i + 1]
-        has_fit = ellipse_buf[6 * i + 5] != 0.0
-        if has_fit:
-            ellipse = (
-                (ellipse_buf[6 * i + 0], ellipse_buf[6 * i + 1]),
-                (ellipse_buf[6 * i + 2], ellipse_buf[6 * i + 3]),
-                ellipse_buf[6 * i + 4],
-            )
-        else:
+    for gcx, gcy, ellipse_t, contour_xy in glint_tuples:
+        if ellipse_t is None:
             ellipse = None
-        n_pts = lengths_buf[i]
-        flat = np.array(contours_buf[i * stride : i * stride + 2 * n_pts], dtype=np.float64).reshape(n_pts, 2)
-        contour = flat.astype(np.int32).reshape(-1, 1, 2)
+        else:
+            ecx, ecy, ew, eh, angle = ellipse_t
+            ellipse = ((ecx, ecy), (ew, eh), angle)
+        contour = contour_xy.astype(np.int32).reshape(-1, 1, 2)
         glints.append({"contour": contour, "center": (round(gcx), round(gcy)), "ellipse": ellipse})
 
     return {"glints": glints, "search_area": search_area}
