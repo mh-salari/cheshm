@@ -28,6 +28,16 @@ target_link_libraries(Swirski2D_core_nb
     cheshm_common
 )
 
+nanobind_add_stub(Swirski2D_core_stub
+  MODULE _core
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/_core.pyi
+  PYTHON_PATH $<TARGET_FILE_DIR:Swirski2D_core_nb>
+  DEPENDS Swirski2D_core_nb
+)
+
 install(TARGETS Swirski2D_core_nb
   LIBRARY DESTINATION cheshm/pupil_detectors/Swirski2D
+)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/_core.pyi
+  DESTINATION cheshm/pupil_detectors/Swirski2D
 )

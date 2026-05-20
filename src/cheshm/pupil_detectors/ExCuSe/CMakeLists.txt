@@ -22,6 +22,16 @@ target_link_libraries(ExCuSe_core_nb
     cheshm_common
 )
 
+nanobind_add_stub(ExCuSe_core_stub
+  MODULE _core
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/_core.pyi
+  PYTHON_PATH $<TARGET_FILE_DIR:ExCuSe_core_nb>
+  DEPENDS ExCuSe_core_nb
+)
+
 install(TARGETS ExCuSe_core_nb
   LIBRARY DESTINATION cheshm/pupil_detectors/ExCuSe
+)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/_core.pyi
+  DESTINATION cheshm/pupil_detectors/ExCuSe
 )
