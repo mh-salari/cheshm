@@ -26,3 +26,4 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
 add_subdirectory(src/lavan/limbus_detectors/daugman)
 add_subdirectory(src/lavan/pupil_detectors/starburst)
+add_subdirectory(src/lavan/pupil_detectors/swirski_2d)
