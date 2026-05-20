@@ -68,6 +68,12 @@ class _State:
         # from the union of every detector's declared _OVERLAYS.
         (self.show, self.colors, self.alpha,
          self.thickness) = _initial_overlay_state(self.detectors)
+        # Detection-result cache. Re-runs detection only when the
+        # detection-affecting inputs (image path, active detectors,
+        # detector settings) change — overlay show/colour/alpha/thickness
+        # tweaks just re-render from the cached result.
+        self.last_detection_sig: tuple | None = None
+        self.last_detected: tuple[dict | None, dict | None, dict | None] = (None, None, None)
         self.active: dict[str, str | None] = {
             "pupil": self.by_kind["pupil"][0].id if self.by_kind["pupil"] else None,
             "glint": None,
@@ -100,6 +106,24 @@ def _apply_brightness(img: np.ndarray, beta: int) -> np.ndarray:
     if beta == 0:
         return img
     return cv2.convertScaleAbs(img, alpha=1.0, beta=float(beta))
+
+
+def _detection_signature(state: _State) -> tuple:
+    """Hashable signature of every input that affects detection output.
+
+    Overlay state (show / colour / alpha / thickness) is intentionally
+    excluded — tweaking those should never re-run detection.
+    """
+    values_sig = tuple(
+        (kind, det_id, tuple(sorted(settings.items())))
+        for kind, det_dict in state.values.items()
+        for det_id, settings in sorted(det_dict.items())
+    )
+    return (
+        str(state.current_path),
+        tuple(sorted(state.active.items())),
+        values_sig,
+    )
 
 
 def _run_detections(state: _State, img: np.ndarray) -> tuple[dict | None, dict | None, dict | None]:
@@ -584,7 +608,12 @@ def run(img_dir: str | Path) -> None:
         if img.shape != (canvas_h, canvas_w):
             img = cv2.resize(img, (canvas_w, canvas_h), interpolation=cv2.INTER_AREA)
         # Brightness is display-only; detectors see the raw pixels.
-        pupil, glints, limbus = _run_detections(state, img)
+        # Only re-run detection when the detection-affecting inputs change.
+        sig = _detection_signature(state)
+        if sig != state.last_detection_sig:
+            state.last_detected = _run_detections(state, img)
+            state.last_detection_sig = sig
+        pupil, glints, limbus = state.last_detected
         display = _apply_brightness(img, state.brightness)
         canvas = cv2.cvtColor(display, cv2.COLOR_GRAY2BGR)
         _draw_pupil(canvas, pupil, state)
