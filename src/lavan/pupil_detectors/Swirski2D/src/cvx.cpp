@@ -1,12 +1,12 @@
 // cv2 helper implementations — see cvx.hpp.
 
-#include "swirski_2d/cvx.hpp"
+#include "Swirski2D/cvx.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 void cvx::getROI(const cv::Mat& src, cv::Mat& dst, const cv::Rect& roi, int borderType)
 {
@@ -164,4 +164,4 @@ cv::Vec2f cvx::majorAxis(const cv::RotatedRect& ellipse)
     return cv::Vec2f(ellipse.size.width*std::cos(PI/180*ellipse.angle), ellipse.size.width*std::sin(PI/180*ellipse.angle));
 }
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

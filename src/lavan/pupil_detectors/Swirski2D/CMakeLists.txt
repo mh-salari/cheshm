@@ -2,14 +2,14 @@
 # core.py loads via ctypes. The detector pulls in OpenCV (linked
 # privately) and exposes a single extern "C" entry point.
 
-add_library(swirski_2d_core SHARED
+add_library(Swirski2D_core SHARED
   src/core.cpp
   src/cvx.cpp
   src/pupil_tracker.cpp
   src/utils.cpp
 )
 
-target_include_directories(swirski_2d_core
+target_include_directories(Swirski2D_core
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
@@ -19,13 +19,13 @@ target_include_directories(swirski_2d_core
 # poolSTL needs std::thread / std::mutex; explicit on Linux toolchains.
 find_package(Threads REQUIRED)
 
-target_link_libraries(swirski_2d_core
+target_link_libraries(Swirski2D_core
   PRIVATE
     ${OpenCV_LIBS}
     Threads::Threads
 )
 
-set_target_properties(swirski_2d_core PROPERTIES
+set_target_properties(Swirski2D_core PROPERTIES
   PREFIX ""
   OUTPUT_NAME "core"
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
@@ -34,7 +34,7 @@ set_target_properties(swirski_2d_core PROPERTIES
   WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
 
-install(TARGETS swirski_2d_core
-  LIBRARY DESTINATION lavan/pupil_detectors/swirski_2d
-  RUNTIME DESTINATION lavan/pupil_detectors/swirski_2d
+install(TARGETS Swirski2D_core
+  LIBRARY DESTINATION lavan/pupil_detectors/Swirski2D
+  RUNTIME DESTINATION lavan/pupil_detectors/Swirski2D
 )

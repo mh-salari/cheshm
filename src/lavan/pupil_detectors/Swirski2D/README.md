@@ -20,10 +20,10 @@ see [LICENSE](LICENSE) in this subdirectory.
 ## Pass-1 modernisation
 
 The upstream C++ has been reorganised into lavan's per-detector
-"complex detector" layout (`include/swirski_2d/` + `src/`). Pass-1
+"complex detector" layout (`include/Swirski2D/` + `src/`). Pass-1
 modernisation per [REFACTOR.md](../../../REFACTOR.md):
 
-  - Namespace `pupiltracker` → `lavan::swirski_2d`.
+  - Namespace `pupiltracker` → `lavan::Swirski2D`.
   - Header guards → `#pragma once`.
   - Dropped the upstream `tracker_log` debug helper (with its
     `boost::lexical_cast` dependency) and the matching parameter
@@ -50,8 +50,8 @@ pointers / arrays, smart pointers) and Pass 3 (speed) are pending.
 ## Layout
 
 ```
-swirski_2d/
-├── include/swirski_2d/
+Swirski2D/
+├── include/Swirski2D/
 │   ├── conic_section.hpp      # template ellipse / conic helpers
 │   ├── cvx.hpp                # cv2 helpers (resize, ROI, fitEllipse, ...)
 │   ├── pupil_tracker.hpp      # public C++ API

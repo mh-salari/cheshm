@@ -1,6 +1,6 @@
 // Corneal-reflection removal — see corneal_reflection.hpp.
 
-#include "starburst/corneal_reflection.hpp"
+#include "Starburst/corneal_reflection.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@
 #include <opencv2/imgproc.hpp>
 #include <vector>
 
-namespace lavan::starburst {
+namespace lavan::Starburst {
 namespace {
 
 void locate_corneal_reflection(
@@ -207,4 +207,4 @@ void remove_corneal_reflection(
     interpolate_corneal_reflection(image, crx, cry, crr, sin_array.data(), cos_array.data(), angle_num);
 }
 
-}  // namespace lavan::starburst
+}  // namespace lavan::Starburst

@@ -4,13 +4,13 @@
 // edge points. The loop iterates until the centre-of-mass of the edge
 // points stabilises.
 
-#include "starburst/ransac_ellipse.hpp"
+#include "Starburst/ransac_ellipse.hpp"
 
 #include <cmath>
 #include <cstdint>
 #include <opencv2/core.hpp>
 
-namespace lavan::starburst {
+namespace lavan::Starburst {
 
 int RansacEllipse::starburst_pupil_contour_detection(
     std::uint8_t *pupil_image,
@@ -154,4 +154,4 @@ void RansacEllipse::destroy_edge_point()
 
 RansacEllipse::~RansacEllipse() { destroy_edge_point(); }
 
-}  // namespace lavan::starburst
+}  // namespace lavan::Starburst

@@ -3,11 +3,11 @@
 // unseeded one shares a translation-unit-local ``std::mt19937`` whose
 // state persists across calls within the process.
 
-#include "swirski_2d/utils.hpp"
+#include "Swirski2D/utils.hpp"
 
 #include <random>
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 static std::mt19937 static_gen;
 
@@ -24,4 +24,4 @@ int random(int min, int max, unsigned int seed)
     return distribution(gen);
 }
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

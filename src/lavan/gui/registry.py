@@ -63,8 +63,13 @@ class Detector:
 
 
 def _auto_label(name: str) -> str:
-    """``snake_case`` → ``"Snake case"``. Override via ``_UI[name]["label"]``."""
-    return name.replace("_", " ").strip().capitalize()
+    """``snake_case`` → ``"Snake case"``. Override via ``_UI[name]["label"]``.
+
+    Only the first character is upper-cased; the rest is preserved verbatim
+    so proper-noun detector names like ``Swirski2D`` survive intact.
+    """
+    label = name.replace("_", " ").strip()
+    return label[:1].upper() + label[1:] if label else label
 
 
 def _is_optional(annotation: Any) -> tuple[bool, Any]:

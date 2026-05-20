@@ -1,7 +1,7 @@
 // Public C surface for Swirski 2D — single extern "C" entry point
 // that the Python wrapper loads via ctypes.
 
-#include "swirski_2d/pupil_tracker.hpp"
+#include "Swirski2D/pupil_tracker.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -9,7 +9,7 @@
 
 extern "C" {
 
-// swirski_2d_detect — find the pupil ellipse via Swirski et al. 2012.
+// Swirski2D_detect — find the pupil ellipse via Swirski et al. 2012.
 //
 //  img_data           grayscale uint8 buffer, ``width * height`` bytes,
 //                     row-major (numpy default).
@@ -29,7 +29,7 @@ extern "C" {
 //  max_inliers        capacity of ``inliers_xy`` in points.
 //
 // Returns 1 on success, 0 on failure.
-int swirski_2d_detect(
+int Swirski2D_detect(
     const std::uint8_t *img_data,
     int width,
     int height,
@@ -50,7 +50,7 @@ int swirski_2d_detect(
     double *inliers_xy,
     int max_inliers)
 {
-    using namespace lavan::swirski_2d;  // NOLINT(google-build-using-namespace)
+    using namespace lavan::Swirski2D;  // NOLINT(google-build-using-namespace)
 
     if (img_data == nullptr || width <= 0 || height <= 0) {
         return 0;

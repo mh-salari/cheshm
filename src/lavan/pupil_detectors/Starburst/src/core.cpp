@@ -3,8 +3,8 @@
 // The input image is copied into an internal working buffer so the
 // caller's numpy array is never mutated.
 
-#include "starburst/corneal_reflection.hpp"
-#include "starburst/ransac_ellipse.hpp"
+#include "Starburst/corneal_reflection.hpp"
+#include "Starburst/ransac_ellipse.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -14,7 +14,7 @@
 
 extern "C" {
 
-// starburst_detect — find the pupil ellipse via Starburst.
+// Starburst_detect — find the pupil ellipse via Starburst.
 //
 //  img_data           grayscale uint8 buffer, ``width * height`` bytes,
 //                     row-major (numpy default).
@@ -37,7 +37,7 @@ extern "C" {
 //  max_edge_points    capacity of ``edge_points_xy`` in points (not doubles).
 //
 // Returns 1 on success (ellipse found), 0 on failure.
-int starburst_detect(
+int Starburst_detect(
     const std::uint8_t *img_data,
     int width,
     int height,
@@ -53,7 +53,7 @@ int starburst_detect(
     double *edge_points_xy,
     int max_edge_points)
 {
-    using namespace lavan::starburst;  // NOLINT(google-build-using-namespace)
+    using namespace lavan::Starburst;  // NOLINT(google-build-using-namespace)
 
     if (img_data == nullptr || width <= 0 || height <= 0) {
         return 0;

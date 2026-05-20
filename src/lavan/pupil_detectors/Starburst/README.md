@@ -20,26 +20,26 @@ Licensed under the **GNU General Public License v2 or later**. See
 [LICENSE](LICENSE) in this subdirectory.
 
 The C++ has been reorganised into the lavan per-detector layout
-(`include/starburst/` + `src/`) and put through pass 1 of the
+(`include/Starburst/` + `src/`) and put through pass 1 of the
 [three-pass modernisation](../../../REFACTOR.md): namespaced under
-`lavan::starburst`, macros and raw heap allocations replaced with
+`lavan::Starburst`, macros and raw heap allocations replaced with
 `std::`-equivalents, anonymous-namespace internal helpers, no behaviour
 changes. Deep + speed passes are pending.
 
 ## Distribution note
 
 Because Starburst is GPL, lavan ships it inside the main `lavan` wheel
-during development — `import lavan.pupil_detectors.starburst` works
+during development — `import lavan.pupil_detectors.Starburst` works
 straight off `pip install lavan`. Before lavan v2.0 ships to PyPI, this
-subdir migrates to its own `lavan-starburst` plugin package; the main
-`lavan` wheel stays MIT-only and `pip install lavan[starburst]` opts in
+subdir migrates to its own `lavan-Starburst` plugin package; the main
+`lavan` wheel stays MIT-only and `pip install lavan[Starburst]` opts in
 to the GPL plugin (see Distribution model in `REFACTOR.md`).
 
 ## Layout
 
 ```
-starburst/
-├── include/starburst/
+Starburst/
+├── include/Starburst/
 │   ├── corneal_reflection.hpp   # remove_corneal_reflection
 │   └── ransac_ellipse.hpp       # class RansacEllipse
 ├── src/

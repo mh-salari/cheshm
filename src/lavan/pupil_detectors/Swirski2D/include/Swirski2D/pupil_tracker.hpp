@@ -9,9 +9,9 @@
 #include <opencv2/core/core.hpp>
 #include <vector>
 
-#include "swirski_2d/conic_section.hpp"
+#include "Swirski2D/conic_section.hpp"
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 struct TrackerParams {
     int Radius_Min;
@@ -75,4 +75,4 @@ struct findPupilEllipse_out {
 
 bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEllipse_out &out);
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

@@ -69,8 +69,8 @@ _OVERLAYS = (
 _LIB_DIR = pathlib.Path(__file__).parent
 _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
 _lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
-_lib.starburst_detect.restype = ctypes.c_int
-_lib.starburst_detect.argtypes = [
+_lib.Starburst_detect.restype = ctypes.c_int
+_lib.Starburst_detect.argtypes = [
     ctypes.POINTER(ctypes.c_uint8),
     ctypes.c_int,
     ctypes.c_int,
@@ -158,7 +158,7 @@ def detect_pupil(
     out_n = ctypes.c_int(0)
     edge_buf = (ctypes.c_double * (2 * max_edge_points))()
 
-    ok = _lib.starburst_detect(
+    ok = _lib.Starburst_detect(
         img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
         width,
         height,

@@ -2,14 +2,14 @@
 // Used by ``pupil_fitting_inliers`` to solve the homogeneous conic-fit
 // system in normalised coordinates.
 
-#include "starburst/ransac_ellipse.hpp"
+#include "Starburst/ransac_ellipse.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <vector>
 
-namespace lavan::starburst {
+namespace lavan::Starburst {
 
 double RansacEllipse::radius(double u, double v)
 {
@@ -264,4 +264,4 @@ void RansacEllipse::svd(int m, int n, double **a, double **p, double *d, double 
     }
 }
 
-}  // namespace lavan::starburst
+}  // namespace lavan::Starburst

@@ -6,7 +6,7 @@
 #include <cmath>
 #include <opencv2/core/core.hpp>
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 template<typename T>
 class ConicSection_
@@ -77,4 +77,4 @@ protected:
 };
 typedef ConicSection_<float> ConicSection;
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

@@ -2,7 +2,7 @@
 // pupil_tracker.hpp. Algorithm: Swirski, Bulling, Dodgson 2012.
 // Upstream: Lech Swirski's pupiltracker (MIT, 2014).
 
-#include "swirski_2d/pupil_tracker.hpp"
+#include "Swirski2D/pupil_tracker.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -17,9 +17,9 @@
 #include <vector>
 
 #include "poolstl/poolstl.hpp"
-#include "swirski_2d/cvx.hpp"
+#include "Swirski2D/cvx.hpp"
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 
 
@@ -788,4 +788,4 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
     return false;
 }
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

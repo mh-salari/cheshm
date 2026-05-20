@@ -10,7 +10,7 @@
 #include <opencv2/core/types.hpp>
 #include <vector>
 
-namespace lavan::starburst {
+namespace lavan::Starburst {
 
 class RansacEllipse {
 public:
@@ -60,4 +60,4 @@ private:
     static double radius(double u, double v);
 };
 
-}  // namespace lavan::starburst
+}  // namespace lavan::Starburst

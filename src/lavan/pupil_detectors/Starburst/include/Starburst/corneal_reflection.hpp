@@ -7,7 +7,7 @@
 
 #include <opencv2/core/types.hpp>
 
-namespace lavan::starburst {
+namespace lavan::Starburst {
 
 void remove_corneal_reflection(
     cv::Mat &image,
@@ -19,4 +19,4 @@ void remove_corneal_reflection(
     int &cry,
     int &crr);
 
-}  // namespace lavan::starburst
+}  // namespace lavan::Starburst

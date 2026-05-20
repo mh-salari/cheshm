@@ -8,9 +8,9 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "swirski_2d/utils.hpp"
+#include "Swirski2D/utils.hpp"
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 const double SQRT_2 = std::sqrt(2.0);
 const double PI = CV_PI;
@@ -125,4 +125,4 @@ namespace cvx
     }
 }
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

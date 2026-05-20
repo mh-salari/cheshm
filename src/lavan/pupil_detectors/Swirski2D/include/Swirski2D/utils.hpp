@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-namespace lavan::swirski_2d {
+namespace lavan::Swirski2D {
 
 class MakeString
 {
@@ -90,4 +90,4 @@ std::vector<T> randomSubset(const std::vector<T>& src, typename std::vector<T>::
     return ret;
 }
 
-}  // namespace lavan::swirski_2d
+}  // namespace lavan::Swirski2D

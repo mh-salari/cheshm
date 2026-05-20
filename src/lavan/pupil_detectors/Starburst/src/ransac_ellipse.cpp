@@ -2,7 +2,7 @@
 // normalisation of edge points, and the main RANSAC loop that picks the
 // ellipse with the most inliers.
 
-#include "starburst/ransac_ellipse.hpp"
+#include "Starburst/ransac_ellipse.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -10,7 +10,7 @@
 #include <opencv2/core.hpp>
 #include <vector>
 
-namespace lavan::starburst {
+namespace lavan::Starburst {
 
 void RansacEllipse::get_random_num(int n, int max_num, int *rand_num)
 {
@@ -260,4 +260,4 @@ int *RansacEllipse::pupil_fitting_inliers(
     return max_inliers_index;
 }
 
-}  // namespace lavan::starburst
+}  // namespace lavan::Starburst
