@@ -1,5 +1,7 @@
-// Public C surface for the Starburst pupil detector — a single
-// extern "C" entry point that cheshm's Python wrapper loads via ctypes.
+// Starburst pupil detector — nanobind binding. The algorithm lives in
+// the sibling .cpp files (contour_detection, corneal_reflection,
+// ransac_ellipse, svd); this file marshals numpy ↔ cv::Mat and packs
+// the resulting ellipse and edge-point cloud into Python types.
 
 #include "Starburst/corneal_reflection.hpp"
 #include "Starburst/ransac_ellipse.hpp"
@@ -8,71 +10,47 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/tuple.h>
 #include <opencv2/core.hpp>
+#include <vector>
 
-extern "C" {
+namespace nb = nanobind;
+using namespace nb::literals;
 
-// Starburst_detect — find the pupil ellipse via Starburst.
-//
-//  img_data           grayscale uint8 buffer, ``width * height`` bytes,
-//                     row-major (numpy default).
-//  roi_x, roi_y,      ROI rectangle in full-image coordinates. When
-//  roi_w, roi_h       ``roi_w > 0 && roi_h > 0`` the algorithm runs on
-//                     the cropped sub-image; otherwise it runs on the
-//                     full image. The ROI is clamped to image bounds.
-//  seed_x, seed_y     initial guess for the pupil centre in full-image
-//                     coordinates (e.g. image centre or previous frame).
-//  edge_threshold     intensity-jump threshold for the ray edge test.
-//                     The algorithm adapts this downward to find enough
-//                     candidates.
-//  rays               number of starburst rays (paper notation: N).
-//  min_feature_candidates   minimum candidate count before RANSAC.
-//  cr_window_size     odd integer, side of the CR search window centred
-//                     on (seed_x, seed_y). 0 disables CR removal.
-//  cr_ratio_to_image_height   ``image_height / cr_ratio`` is the largest
-//                     CR radius accepted; 0 disables CR removal.
-//  out_ellipse_params five doubles: ``{a, b, cx, cy, theta_rad}``
-//                     (semi-major, semi-minor, centre, rotation).
-//                     Centre is in full-image coordinates regardless of
-//                     whether an ROI was used.
-//  out_n_edge_points  number of edge points written to ``edge_points_xy``.
-//  edge_points_xy     caller-allocated buffer of ``2 * max_edge_points``
-//                     doubles for ``(x, y)`` pairs in full-image coords.
-//  max_edge_points    capacity of ``edge_points_xy`` in points (not doubles).
-//
-// Returns 1 on success (ellipse found), 0 on failure.
-int Starburst_detect(
-    const std::uint8_t *img_data,
-    int width,
-    int height,
-    int roi_x,
-    int roi_y,
-    int roi_w,
-    int roi_h,
-    double seed_x,
-    double seed_y,
+namespace {
+
+// Returns ``None`` on failure (RANSAC convergence failed, ROI empty)
+// or a 2-tuple ``((a, b, cx, cy, theta_rad), edge_points)`` on success.
+//   ellipse params: semi-major, semi-minor, centre, rotation (radians);
+//                   centre in full-image coords.
+//   edge_points: ``(N, 2)`` float64 ndarray of ray-edge hits in
+//                full-image coords.
+nb::object detect(
+    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+    int roi_x, int roi_y, int roi_w, int roi_h,
+    double seed_x, double seed_y,
     int edge_threshold,
     int rays,
     int min_feature_candidates,
     int cr_window_size,
     int cr_ratio_to_image_height,
-    double *out_ellipse_params,
-    int *out_n_edge_points,
-    double *edge_points_xy,
     int max_edge_points)
 {
     using namespace cheshm::Starburst;  // NOLINT(google-build-using-namespace)
 
-    if (img_data == nullptr || width <= 0 || height <= 0) {
-        return 0;
-    }
+    const int height = static_cast<int>(img.shape(0));
+    const int width = static_cast<int>(img.shape(1));
+    const cv::Mat full(height, width, CV_8U,
+                       const_cast<std::uint8_t *>(img.data()));
 
-    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t *>(img_data));
     cv::Rect crop(0, 0, width, height);
     if (cheshm::roi_is_active(roi_w, roi_h)) {
         crop = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
         if (crop.area() == 0) {
-            return 0;
+            return nb::none();
         }
     }
 
@@ -108,10 +86,7 @@ int Starburst_detect(
         rays,
         min_feature_candidates);
     if (status != 0) {
-        if (out_n_edge_points != nullptr) {
-            *out_n_edge_points = 0;
-        }
-        return 0;
+        return nb::none();
     }
 
     int inliers_num = 0;
@@ -120,31 +95,42 @@ int Starburst_detect(
         if (inliers != nullptr) {
             std::free(inliers);
         }
-        if (out_n_edge_points != nullptr) {
-            *out_n_edge_points = 0;
-        }
-        return 0;
+        return nb::none();
     }
     std::free(inliers);
 
-    // Algorithm output is in crop-local coords; shift centre and edge
-    // points back to full-image coordinates before handing to caller.
-    for (int i = 0; i < 5; i++) {
-        out_ellipse_params[i] = ransac.pupil_param[i];
-    }
-    out_ellipse_params[2] += crop.x;  // cx
-    out_ellipse_params[3] += crop.y;  // cy
+    const double a = ransac.pupil_param[0];
+    const double b = ransac.pupil_param[1];
+    const double cx = ransac.pupil_param[2] + crop.x;
+    const double cy = ransac.pupil_param[3] + crop.y;
+    const double theta_rad = ransac.pupil_param[4];
 
     const int n = std::min(static_cast<int>(ransac.edge_point.size()), max_edge_points);
-    for (int i = 0; i < n; i++) {
-        edge_points_xy[2 * i] = ransac.edge_point[i]->x + crop.x;
-        edge_points_xy[2 * i + 1] = ransac.edge_point[i]->y + crop.y;
+    auto edge_owner = std::make_unique<std::vector<double>>(2 * n);
+    for (int i = 0; i < n; ++i) {
+        (*edge_owner)[2 * i] = ransac.edge_point[i]->x + crop.x;
+        (*edge_owner)[2 * i + 1] = ransac.edge_point[i]->y + crop.y;
     }
-    if (out_n_edge_points != nullptr) {
-        *out_n_edge_points = n;
-    }
+    double *edge_data = edge_owner->data();
+    nb::capsule edge_cap(edge_owner.release(),
+                         [](void *p) noexcept { delete static_cast<std::vector<double> *>(p); });
+    const std::size_t edge_shape[2] = {static_cast<std::size_t>(n), 2};
+    nb::ndarray<nb::numpy, double, nb::ndim<2>> edge_arr(
+        edge_data, 2, edge_shape, edge_cap);
 
-    return 1;
+    return nb::make_tuple(
+        nb::make_tuple(a, b, cx, cy, theta_rad),
+        std::move(edge_arr));
 }
 
-}  // extern "C"
+}  // namespace
+
+NB_MODULE(_core, m)
+{
+    m.def("detect", &detect,
+          "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
+          "seed_x"_a, "seed_y"_a,
+          "edge_threshold"_a, "rays"_a, "min_feature_candidates"_a,
+          "cr_window_size"_a, "cr_ratio_to_image_height"_a,
+          "max_edge_points"_a);
+}

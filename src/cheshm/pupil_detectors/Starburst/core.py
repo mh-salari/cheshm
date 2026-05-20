@@ -1,4 +1,4 @@
-"""Starburst pupil detector — ctypes binding to the C++ kernel in ``core.dylib``.
+"""Starburst pupil detector — Python wrapper over the nanobind extension.
 
 Reference: Li, D., Winfield, D., Parkhurst, D.J. (2005). "Starburst: A
 hybrid algorithm for video-based eye tracking combining feature-based
@@ -10,13 +10,10 @@ seed is either supplied by the caller or auto-derived from the image
 centroid of pixels below a threshold (a rough dark-blob centre).
 """
 
-import ctypes
-import pathlib
-import platform
-from typing import Literal
-
 import cv2
 import numpy as np
+
+from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
 _UI = {
@@ -70,32 +67,6 @@ _OVERLAYS = (
     ("ellipse", "line"),
     ("center", "point"),
 )
-
-
-_LIB_DIR = pathlib.Path(__file__).parent
-_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
-_lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
-_lib.Starburst_detect.restype = ctypes.c_int
-_lib.Starburst_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),  # img_data
-    ctypes.c_int,                    # width
-    ctypes.c_int,                    # height
-    ctypes.c_int,                    # roi_x
-    ctypes.c_int,                    # roi_y
-    ctypes.c_int,                    # roi_w  (<= 0 = no ROI)
-    ctypes.c_int,                    # roi_h
-    ctypes.c_double,                 # seed_x
-    ctypes.c_double,                 # seed_y
-    ctypes.c_int,                    # edge_threshold
-    ctypes.c_int,                    # rays
-    ctypes.c_int,                    # min_feature_candidates
-    ctypes.c_int,                    # cr_window_size
-    ctypes.c_int,                    # cr_ratio_to_image_height
-    ctypes.POINTER(ctypes.c_double), # out_ellipse_params[5]
-    ctypes.POINTER(ctypes.c_int),    # out_n_edge_points
-    ctypes.POINTER(ctypes.c_double), # edge_points_xy
-    ctypes.c_int,                    # max_edge_points
-]
 
 
 def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
@@ -161,7 +132,6 @@ def detect_pupil(
     if img.ndim != 2:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = np.ascontiguousarray(img, dtype=np.uint8)
-    height, width = img.shape
 
     if pupil_center is None:
         seed_x, seed_y = _auto_seed(img, seed_threshold)
@@ -173,40 +143,22 @@ def detect_pupil(
     else:
         roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
-    out_params = (ctypes.c_double * 5)()
-    out_n = ctypes.c_int(0)
-    edge_buf = (ctypes.c_double * (2 * max_edge_points))()
-
-    ok = _lib.Starburst_detect(
-        img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
-        width,
-        height,
-        roi_x,
-        roi_y,
-        roi_w,
-        roi_h,
-        seed_x,
-        seed_y,
+    result = _core.detect(
+        img,
+        roi_x, roi_y, roi_w, roi_h,
+        seed_x, seed_y,
         edge_threshold,
         rays,
         min_feature_candidates,
         corneal_reflection_window,
         corneal_reflection_ratio,
-        out_params,
-        ctypes.byref(out_n),
-        edge_buf,
         max_edge_points,
     )
-    if not ok:
+    if result is None:
         return None
-
-    a, b, cx, cy, theta_rad = out_params[0], out_params[1], out_params[2], out_params[3], out_params[4]
+    (a, b, cx, cy, theta_rad), edge_xy = result
     angle_deg = float(np.degrees(theta_rad))
-
-    n = out_n.value
-    pts = np.array(edge_buf[: 2 * n], dtype=np.float64).reshape(n, 2)
-    contour = pts.astype(np.int32).reshape(-1, 1, 2)
-
+    contour = edge_xy.astype(np.int32).reshape(-1, 1, 2)
     return {
         "contour": contour,
         "center": (round(cx), round(cy)),
