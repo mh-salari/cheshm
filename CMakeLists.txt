@@ -41,6 +41,7 @@ add_library(cheshm_common INTERFACE)
 target_include_directories(cheshm_common INTERFACE cpp/common/include)
 
 add_subdirectory(src/cheshm/limbus_detectors/daugman)
+add_subdirectory(src/cheshm/pupil_detectors/ElSe)
 add_subdirectory(src/cheshm/pupil_detectors/ExCuSe)
 add_subdirectory(src/cheshm/pupil_detectors/Simple)
 add_subdirectory(src/cheshm/pupil_detectors/Starburst)

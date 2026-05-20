@@ -20,6 +20,7 @@ Cheshm's framework code is MIT-licensed (see [`LICENSE`](LICENSE)). Each detecto
 | Starburst | `src/cheshm/pupil_detectors/Starburst/` | GPL (Li, Winfield, Parkhurst 2005 — cvEyeTracker / openEyes ToolKit) |
 | Swirski2D | `src/cheshm/pupil_detectors/Swirski2D/` | MIT (Świrski, Bulling, Dodgson 2012 — pupiltracker by Lech Świrski) |
 | ExCuSe | `src/cheshm/pupil_detectors/ExCuSe/` | Non-commercial (Fuhl et al. 2015, University of Tübingen) |
+| ElSe | `src/cheshm/pupil_detectors/ElSe/` | Non-commercial (Fuhl et al. 2016, University of Tübingen) |
 | Simple (glint) | `src/cheshm/glint_detectors/Simple/` | MIT |
 | Daugman integro-differential operator | `src/cheshm/limbus_detectors/daugman/integro_differential/` | MIT (© 2023 Fatih BAŞATEMUR — carried from his MIT port) |
 | Daugman 2007 active contour | `src/cheshm/limbus_detectors/daugman/active_contour/` | MIT |
@@ -31,6 +32,7 @@ Each detector is imported explicitly — the licence of the detectors you import
 from cheshm.pupil_detectors.Simple import detect_pupil       # MIT
 from cheshm.pupil_detectors.Starburst import detect_pupil    # GPL
 from cheshm.pupil_detectors.ExCuSe import detect_pupil       # non-commercial
+from cheshm.pupil_detectors.ElSe import detect_pupil         # non-commercial
 from cheshm.glint_detectors.Simple import detect_glints      # MIT
 from cheshm.limbus_detectors.daugman.integro_differential import detect_limbus  # MIT
 ```

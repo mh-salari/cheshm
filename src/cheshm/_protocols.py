@@ -25,10 +25,18 @@ Ellipse = tuple[tuple[float, float], tuple[float, float], float]
 
 
 class PupilResult(TypedDict):
-    """One-shot pupil detection result."""
+    """One-shot pupil detection result.
+
+    ``center`` is the only key every detector sets. ``ellipse`` is
+    present whenever the detector produced a fit. ``method`` is set by
+    detectors with more than one detection path (e.g. ElSe distinguishes
+    its primary ellipse path from a blob-position fallback); other
+    detectors omit it.
+    """
 
     center: tuple[int, int]
-    ellipse: Ellipse
+    ellipse: NotRequired[Ellipse]
+    method: NotRequired[str]
     contour: NotRequired[np.ndarray]
     mask: NotRequired[np.ndarray]
 
