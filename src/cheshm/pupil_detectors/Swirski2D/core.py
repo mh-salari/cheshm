@@ -1,4 +1,4 @@
-"""Swirski 2D pupil detector — ctypes binding to the C++ kernel in ``core.dylib``.
+"""Swirski 2D pupil detector — Python wrapper over the nanobind extension.
 
 Reference: Swirski, L., Bulling, A., Dodgson, N. (2012). "Robust
 real-time pupil tracking in highly off-axis images." *ETRA 2012*.
@@ -11,12 +11,10 @@ points, and a RANSAC ellipse fit with image-aware support produces the
 final pupil ellipse.
 """
 
-import ctypes
-import pathlib
-import platform
-
 import cv2
 import numpy as np
+
+from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
 _UI = {
@@ -97,37 +95,6 @@ _OVERLAYS = (
 )
 
 
-_LIB_DIR = pathlib.Path(__file__).parent
-_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
-_lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
-_lib.Swirski2D_detect.restype = ctypes.c_int
-_lib.Swirski2D_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),  # img_data
-    ctypes.c_int,                    # width
-    ctypes.c_int,                    # height
-    ctypes.c_int,                    # roi_x
-    ctypes.c_int,                    # roi_y
-    ctypes.c_int,                    # roi_w  (<= 0 = no ROI)
-    ctypes.c_int,                    # roi_h
-    ctypes.c_int,                    # radius_min
-    ctypes.c_int,                    # radius_max
-    ctypes.c_double,                 # canny_blur
-    ctypes.c_double,                 # canny_threshold_1
-    ctypes.c_double,                 # canny_threshold_2
-    ctypes.c_int,                    # starburst_points
-    ctypes.c_int,                    # percentage_inliers
-    ctypes.c_int,                    # inlier_iterations
-    ctypes.c_int,                    # image_aware_support
-    ctypes.c_int,                    # early_termination_percentage
-    ctypes.c_int,                    # early_rejection
-    ctypes.c_int,                    # seed
-    ctypes.POINTER(ctypes.c_double), # out_ellipse_params[5]
-    ctypes.POINTER(ctypes.c_int),    # out_n_inliers
-    ctypes.POINTER(ctypes.c_double), # inliers_xy
-    ctypes.c_int,                    # max_inliers
-]
-
-
 def detect_pupil(
     img: np.ndarray,
     pupil_roi: tuple[int, int, int, int] | None = None,
@@ -165,51 +132,28 @@ def detect_pupil(
     if img.ndim != 2:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = np.ascontiguousarray(img, dtype=np.uint8)
-    height, width = img.shape
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0
     else:
         roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
-    out_params = (ctypes.c_double * 5)()
-    out_n = ctypes.c_int(0)
-    inliers_buf = (ctypes.c_double * (2 * max_inliers))()
-
-    ok = _lib.Swirski2D_detect(
-        img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
-        width,
-        height,
-        roi_x,
-        roi_y,
-        roi_w,
-        roi_h,
-        radius_min,
-        radius_max,
-        canny_blur,
-        canny_threshold_1,
-        canny_threshold_2,
+    result = _core.detect(
+        img,
+        roi_x, roi_y, roi_w, roi_h,
+        radius_min, radius_max,
+        canny_blur, canny_threshold_1, canny_threshold_2,
         starburst_points,
-        percentage_inliers,
-        inlier_iterations,
+        percentage_inliers, inlier_iterations,
         int(image_aware_support),
-        early_termination_percentage,
-        int(early_rejection),
+        early_termination_percentage, int(early_rejection),
         seed,
-        out_params,
-        ctypes.byref(out_n),
-        inliers_buf,
         max_inliers,
     )
-    if not ok:
+    if result is None:
         return None
-
-    cx, cy, w, h, angle_deg = out_params[0], out_params[1], out_params[2], out_params[3], out_params[4]
-
-    n = out_n.value
-    pts = np.array(inliers_buf[: 2 * n], dtype=np.float64).reshape(n, 2)
-    contour = pts.astype(np.int32).reshape(-1, 1, 2)
-
+    (cx, cy, w, h, angle_deg), inliers_xy = result
+    contour = inliers_xy.astype(np.int32).reshape(-1, 1, 2)
     return {
         "contour": contour,
         "center": (round(cx), round(cy)),
