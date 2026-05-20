@@ -20,6 +20,12 @@ import numpy as np
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
 _UI = {
+    "pupil_roi": {
+        "widget": "roi",
+        "label": "Pupil ROI",
+        "help": "Optional (x, y, w, h) rectangle. None = whole image.",
+        "hidden": True,
+    },
     "radius_min": {
         "min": 1,
         "max": 1024,
@@ -96,30 +102,35 @@ _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.syst
 _lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
 _lib.Swirski2D_detect.restype = ctypes.c_int
 _lib.Swirski2D_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_double,
-    ctypes.c_double,
-    ctypes.c_double,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.POINTER(ctypes.c_double),
-    ctypes.POINTER(ctypes.c_int),
-    ctypes.POINTER(ctypes.c_double),
-    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_uint8),  # img_data
+    ctypes.c_int,                    # width
+    ctypes.c_int,                    # height
+    ctypes.c_int,                    # roi_x
+    ctypes.c_int,                    # roi_y
+    ctypes.c_int,                    # roi_w  (<= 0 = no ROI)
+    ctypes.c_int,                    # roi_h
+    ctypes.c_int,                    # radius_min
+    ctypes.c_int,                    # radius_max
+    ctypes.c_double,                 # canny_blur
+    ctypes.c_double,                 # canny_threshold_1
+    ctypes.c_double,                 # canny_threshold_2
+    ctypes.c_int,                    # starburst_points
+    ctypes.c_int,                    # percentage_inliers
+    ctypes.c_int,                    # inlier_iterations
+    ctypes.c_int,                    # image_aware_support
+    ctypes.c_int,                    # early_termination_percentage
+    ctypes.c_int,                    # early_rejection
+    ctypes.c_int,                    # seed
+    ctypes.POINTER(ctypes.c_double), # out_ellipse_params[5]
+    ctypes.POINTER(ctypes.c_int),    # out_n_inliers
+    ctypes.POINTER(ctypes.c_double), # inliers_xy
+    ctypes.c_int,                    # max_inliers
 ]
 
 
 def detect_pupil(
     img: np.ndarray,
+    pupil_roi: tuple[int, int, int, int] | None = None,
     *,
     radius_min: int = 20,
     radius_max: int = 80,
@@ -147,11 +158,19 @@ def detect_pupil(
 
     No seed point is needed — the Haar feature step localises the
     pupil automatically before the RANSAC fit kicks in.
+    ``pupil_roi=(x, y, w, h)`` runs the algorithm on the cropped
+    sub-image; the crop and all coordinate translations happen in the
+    C++ kernel so the caller always sees full-image coordinates.
     """
     if img.ndim != 2:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = np.ascontiguousarray(img, dtype=np.uint8)
     height, width = img.shape
+
+    if pupil_roi is None:
+        roi_x = roi_y = roi_w = roi_h = 0
+    else:
+        roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
     out_params = (ctypes.c_double * 5)()
     out_n = ctypes.c_int(0)
@@ -161,6 +180,10 @@ def detect_pupil(
         img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
         width,
         height,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         radius_min,
         radius_max,
         canny_blur,

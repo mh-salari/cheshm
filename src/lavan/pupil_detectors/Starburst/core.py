@@ -20,6 +20,12 @@ import numpy as np
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
 _UI = {
+    "pupil_roi": {
+        "widget": "roi",
+        "label": "Pupil ROI",
+        "help": "Optional (x, y, w, h) rectangle. None = whole image.",
+        "hidden": True,
+    },
     "edge_threshold": {
         "min": 5,
         "max": 100,
@@ -71,20 +77,24 @@ _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.syst
 _lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
 _lib.Starburst_detect.restype = ctypes.c_int
 _lib.Starburst_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_double,
-    ctypes.c_double,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.POINTER(ctypes.c_double),
-    ctypes.POINTER(ctypes.c_int),
-    ctypes.POINTER(ctypes.c_double),
-    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_uint8),  # img_data
+    ctypes.c_int,                    # width
+    ctypes.c_int,                    # height
+    ctypes.c_int,                    # roi_x
+    ctypes.c_int,                    # roi_y
+    ctypes.c_int,                    # roi_w  (<= 0 = no ROI)
+    ctypes.c_int,                    # roi_h
+    ctypes.c_double,                 # seed_x
+    ctypes.c_double,                 # seed_y
+    ctypes.c_int,                    # edge_threshold
+    ctypes.c_int,                    # rays
+    ctypes.c_int,                    # min_feature_candidates
+    ctypes.c_int,                    # cr_window_size
+    ctypes.c_int,                    # cr_ratio_to_image_height
+    ctypes.POINTER(ctypes.c_double), # out_ellipse_params[5]
+    ctypes.POINTER(ctypes.c_int),    # out_n_edge_points
+    ctypes.POINTER(ctypes.c_double), # edge_points_xy
+    ctypes.c_int,                    # max_edge_points
 ]
 
 
@@ -118,6 +128,7 @@ def _auto_seed(img: np.ndarray, seed_threshold: int) -> tuple[float, float]:
 def detect_pupil(
     img: np.ndarray,
     pupil_center: tuple[float, float] | None = None,
+    pupil_roi: tuple[int, int, int, int] | None = None,
     *,
     edge_threshold: int = 16,
     rays: int = 18,
@@ -140,9 +151,12 @@ def detect_pupil(
 
     ``pupil_center`` is optional. When omitted, a seed is auto-derived
     by thresholding the image at ``seed_threshold`` and taking the
-    centroid of the dark region. Set to ``corneal_reflection_window=0``
-    to skip the corneal-reflection pre-pass (faster, less robust on
-    bright glints).
+    centroid of the dark region. ``pupil_roi=(x, y, w, h)`` runs the
+    algorithm on the cropped sub-image; the crop and all coordinate
+    translations happen in the C++ kernel so the caller always sees
+    full-image coordinates. Set ``corneal_reflection_window=0`` to skip
+    the corneal-reflection pre-pass (faster, less robust on bright
+    glints).
     """
     if img.ndim != 2:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -154,6 +168,11 @@ def detect_pupil(
     else:
         seed_x, seed_y = float(pupil_center[0]), float(pupil_center[1])
 
+    if pupil_roi is None:
+        roi_x = roi_y = roi_w = roi_h = 0
+    else:
+        roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
+
     out_params = (ctypes.c_double * 5)()
     out_n = ctypes.c_int(0)
     edge_buf = (ctypes.c_double * (2 * max_edge_points))()
@@ -162,6 +181,10 @@ def detect_pupil(
         img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
         width,
         height,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         seed_x,
         seed_y,
         edge_threshold,

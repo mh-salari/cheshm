@@ -19,6 +19,7 @@ target_include_directories(Starburst_core
 target_link_libraries(Starburst_core
   PRIVATE
     ${OpenCV_LIBS}
+    lavan_common
 )
 
 set_target_properties(Starburst_core PROPERTIES

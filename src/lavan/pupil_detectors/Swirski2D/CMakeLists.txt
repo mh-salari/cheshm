@@ -23,6 +23,7 @@ target_link_libraries(Swirski2D_core
   PRIVATE
     ${OpenCV_LIBS}
     Threads::Threads
+    lavan_common
 )
 
 set_target_properties(Swirski2D_core PROPERTIES

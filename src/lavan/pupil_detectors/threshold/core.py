@@ -11,7 +11,12 @@ from typing import Literal
 import cv2
 import numpy as np
 
-from lavan._common import _contour_center, _passes_shape_quality, _roi_mask
+from lavan._common import (
+    _contour_center,
+    _crop_to_roi,
+    _passes_shape_quality,
+    _translate_pupil_result,
+)
 
 from ..centers import fit_convex_hull_spline, pupil_center_of_mass
 
@@ -61,65 +66,21 @@ def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
     return x == 0 or y == 0 or x + cw == w or y + ch == h
 
 
-def detect_pupil(
+def _detect_in_view(
     img: np.ndarray,
-    pupil_threshold: int = 30,
-    pupil_center_method: Literal[
-        "convex_hull_centroid",
-        "center_of_mass",
-        "ellipse_fit_center",
-        "min_area_rect_center",
-    ] = "convex_hull_centroid",
-    pupil_roi: tuple[int, int, int, int] | None = None,
     *,
-    min_ellipse_fit_ratio: float | None = None,
-    min_roundness_ratio: float | None = None,
+    pupil_threshold: int,
+    pupil_center_method: str,
+    min_ellipse_fit_ratio: float | None,
+    min_roundness_ratio: float | None,
+    accept_border_contours: bool,
 ) -> dict | None:
-    """Detect the pupil contour, centre, and fitted ellipse in a grayscale image.
-
-    Returns ``{contour, center, ellipse, mask}`` on success, or ``None``
-    when no pupil can be produced at the current parameters (no candidate
-    contour, hull with fewer than 5 points, zero-mass mask, etc.).
-
-    ``ellipse`` is ``((cx, cy), (w, h), angle)`` from ``cv2.fitEllipse``
-    on the convex hull of the pupil contour. The pupil centre is chosen
-    by ``pupil_center_method``; see :func:`lavan._common._contour_center`
-    for the four contour-based methods, plus ``"center_of_mass"`` which
-    uses :func:`lavan.pupil_detectors.centers.pupil_center_of_mass` (the
-    glint hole stays cut out) and ``"convex_hull_centroid"`` which uses
-    the spline centroid for sub-pixel stability.
-
-    Border-touching dark contours are rejected so the pupil is always an
-    interior region — unless ``pupil_roi`` is set, in which case the
-    largest contour inside the ROI is accepted regardless of border
-    contact (an explicit ROI is treated as "the pupil is here").
-
-    Two optional post-fit shape-quality gates reject detections that
-    don't look pupil-shaped:
-
-    - ``min_ellipse_fit_ratio`` (0..1): ``contour_area /
-      fitted_ellipse_area``. Catches detections whose contour is
-      fragmented or under-fills its fit (irregular blobs, multi-component
-      masks).
-    - ``min_roundness_ratio`` (0..1): ``4·π·area / perimeter²``, the
-      isoperimetric quotient. ``1.0`` = perfect circle. Catches
-      jagged or elongated contours; only useful when the camera views
-      the eye on-axis (off-axis pupils are legitimately elliptical and
-      score well below 1.0).
-
-    Both gates default to ``None`` (off). When either is set, candidate
-    contours are walked from largest to smallest and the first one that
-    satisfies both active gates is chosen. ``None`` is returned only if
-    every candidate fails. With both gates off, behaviour matches the
-    no-gate baseline: the largest contour wins without any shape check.
-    """
     _, pupil_mask = cv2.threshold(img, pupil_threshold, 255, cv2.THRESH_BINARY_INV)
-    if pupil_roi is not None:
-        pupil_mask = cv2.bitwise_and(pupil_mask, _roi_mask(img.shape, pupil_roi))
     contours, _ = cv2.findContours(pupil_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if pupil_roi is not None:
-        # An explicit ROI overrides the border-rejection filter — the
-        # filter only makes sense to guard against frame vignette.
+    if accept_border_contours:
+        # An explicit ROI is treated as "the pupil is here", so contours
+        # touching the crop edge are legitimate. Without an ROI the same
+        # contours are likely frame vignette and get rejected below.
         candidates = [c for c in contours if cv2.contourArea(c) > 0]
     else:
         candidates = [c for c in contours if not _touches_border(c, img.shape)]
@@ -165,3 +126,77 @@ def detect_pupil(
         "ellipse": ((cx, cy), (w, h), angle),
         "mask": pupil_mask,
     }
+
+
+def detect_pupil(
+    img: np.ndarray,
+    pupil_threshold: int = 30,
+    pupil_center_method: Literal[
+        "convex_hull_centroid",
+        "center_of_mass",
+        "ellipse_fit_center",
+        "min_area_rect_center",
+    ] = "convex_hull_centroid",
+    pupil_roi: tuple[int, int, int, int] | None = None,
+    *,
+    min_ellipse_fit_ratio: float | None = None,
+    min_roundness_ratio: float | None = None,
+) -> dict | None:
+    """Detect the pupil contour, centre, and fitted ellipse in a grayscale image.
+
+    Returns ``{contour, center, ellipse, mask}`` on success, or ``None``
+    when no pupil can be produced at the current parameters (no candidate
+    contour, hull with fewer than 5 points, zero-mass mask, etc.).
+
+    ``ellipse`` is ``((cx, cy), (w, h), angle)`` from ``cv2.fitEllipse``
+    on the convex hull of the pupil contour. The pupil centre is chosen
+    by ``pupil_center_method``; see :func:`lavan._common._contour_center`
+    for the four contour-based methods, plus ``"center_of_mass"`` which
+    uses :func:`lavan.pupil_detectors.centers.pupil_center_of_mass` (the
+    glint hole stays cut out) and ``"convex_hull_centroid"`` which uses
+    the spline centroid for sub-pixel stability.
+
+    Border-touching dark contours are rejected so the pupil is always an
+    interior region — unless ``pupil_roi=(x, y, w, h)`` is set, in which
+    case the detector runs on the cropped sub-image and contours touching
+    the crop edge are accepted (an explicit ROI is treated as "the pupil
+    is here"). Output coordinates are always in full-image space.
+
+    Two optional post-fit shape-quality gates reject detections that
+    don't look pupil-shaped:
+
+    - ``min_ellipse_fit_ratio`` (0..1): ``contour_area /
+      fitted_ellipse_area``. Catches detections whose contour is
+      fragmented or under-fills its fit (irregular blobs, multi-component
+      masks).
+    - ``min_roundness_ratio`` (0..1): ``4·π·area / perimeter²``, the
+      isoperimetric quotient. ``1.0`` = perfect circle. Catches
+      jagged or elongated contours; only useful when the camera views
+      the eye on-axis (off-axis pupils are legitimately elliptical and
+      score well below 1.0).
+
+    Both gates default to ``None`` (off). When either is set, candidate
+    contours are walked from largest to smallest and the first one that
+    satisfies both active gates is chosen. ``None`` is returned only if
+    every candidate fails. With both gates off, behaviour matches the
+    no-gate baseline: the largest contour wins without any shape check.
+    """
+    if pupil_roi is None:
+        return _detect_in_view(
+            img,
+            pupil_threshold=pupil_threshold,
+            pupil_center_method=pupil_center_method,
+            min_ellipse_fit_ratio=min_ellipse_fit_ratio,
+            min_roundness_ratio=min_roundness_ratio,
+            accept_border_contours=False,
+        )
+    cropped, (x0, y0) = _crop_to_roi(img, pupil_roi)
+    result = _detect_in_view(
+        cropped,
+        pupil_threshold=pupil_threshold,
+        pupil_center_method=pupil_center_method,
+        min_ellipse_fit_ratio=min_ellipse_fit_ratio,
+        min_roundness_ratio=min_roundness_ratio,
+        accept_border_contours=True,
+    )
+    return _translate_pupil_result(result, x0, y0, img.shape)

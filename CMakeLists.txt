@@ -24,6 +24,11 @@ endif()
 # and `opencv_imgproc`; .dylib/.so/.dll linked per-detector.
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
+# Shared C++ helpers (ROI cropping, etc.) consumed by every C-backed
+# detector via `target_link_libraries(... lavan_common)`. Header-only.
+add_library(lavan_common INTERFACE)
+target_include_directories(lavan_common INTERFACE cpp/common/include)
+
 add_subdirectory(src/lavan/limbus_detectors/daugman)
 add_subdirectory(src/lavan/pupil_detectors/Starburst)
 add_subdirectory(src/lavan/pupil_detectors/Swirski2D)
