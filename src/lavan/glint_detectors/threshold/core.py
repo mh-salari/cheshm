@@ -12,22 +12,102 @@ convenience wrapper that chains pupil + glint; callers compose the two
 explicitly so the cost of each pass is visible at the call site.
 """
 
+from typing import Literal
+
 import cv2
 import numpy as np
 
-from .utils import _contour_center, _passes_shape_quality, _roi_mask
+from lavan._common import _contour_center, _passes_shape_quality, _roi_mask
+
+# GUI metadata. Defaults / types / choices come from the function
+# signature; this dict carries slider bounds, per-param help, widget
+# hints, and label overrides where the auto-derived label would be
+# wrong (acronyms, units in parens, UK English).
+# Overlays this detector produces.
+_OVERLAYS = (
+    ("contour", "line"),
+    ("center", "point"),
+    ("mask", "fill"),
+)
+
+_UI = {
+    "pupil_center": {"hidden": True},
+    "pupil_radius": {"hidden": True},
+    "glint_threshold": {
+        "min": 0,
+        "max": 255,
+        "help": "Intensity above which a pixel is considered glint.",
+    },
+    "search_radius_factor": {
+        "min": 0.1,
+        "max": 10.0,
+        "help": "Multiplied by pupil_radius to define the glint search disk. Ignored when pupil_center / pupil_radius are not supplied.",
+    },
+    "search_radius_max_px": {
+        "min": 1,
+        "max": 4096,
+        "label": "Search radius max (px)",
+        "help": "Optional upper bound on the search disk radius. None = no cap.",
+    },
+    "glint_roi": {
+        "widget": "roi",
+        "label": "Glint ROI",
+        "help": "Optional (x, y, w, h) rectangle. Intersected with the search disk.",
+        "hidden": True,
+    },
+    "glint_center_method": {"label": "Centre method"},
+    "max_area_px": {
+        "min": 1,
+        "max": 100000,
+        "label": "Max area (px)",
+        "help": "Reject glint blobs larger than this. None = no cap.",
+    },
+    "keep_above": {"label": "Keep above pupil"},
+    "keep_below": {"label": "Keep below pupil"},
+    "keep_left": {"label": "Keep left of pupil"},
+    "keep_right": {"label": "Keep right of pupil"},
+    "filter_margin_px": {
+        "min": 0,
+        "max": 100,
+        "label": "Half-plane margin (px)",
+    },
+    "glints_target": {
+        "min": 1,
+        "max": 8,
+        "label": "Target glint count",
+        "help": "Number of IR LEDs expected.",
+    },
+    "split_widest_for_target": {
+        "label": "Split widest blob",
+        "help": "When the target count is N but only one blob is found, split it into N along its long axis.",
+    },
+    "min_ellipse_fit_ratio": {
+        "min": 0.0,
+        "max": 1.0,
+        "label": "Min ellipse-fit ratio",
+    },
+    "min_roundness_ratio": {
+        "min": 0.0,
+        "max": 1.0,
+    },
+}
 
 
 def detect_glints(
     img: np.ndarray,
-    pupil_center: tuple[float, float],
-    pupil_radius: float,
     *,
+    pupil_center: tuple[float, float] | None = None,
+    pupil_radius: float | None = None,
     glint_threshold: int = 240,
     search_radius_factor: float = 2.0,
     search_radius_max_px: int | None = None,
     glint_roi: tuple[int, int, int, int] | None = None,
-    glint_center_method: str = "min_area_rect_center",
+    glint_center_method: Literal[
+        "convex_hull_centroid",
+        "center_of_mass",
+        "ellipse_fit_center",
+        "min_area_rect_center",
+    ] = "min_area_rect_center",
     max_area_px: int | None = None,
     keep_above: bool = True,
     keep_below: bool = True,
@@ -75,21 +155,26 @@ def detect_glints(
     payload is the post-filter (threshold ∧ search) image — useful as a
     live overlay for tuning.
     """
-    # 1+2: bright pixels inside the pupil-centred disk, optionally
-    # intersected with a user-supplied rectangle (``glint_roi``).
+    # 1+2: bright pixels inside the candidate region. The candidate
+    # region is the intersection of (a) the pupil-centred disk when
+    # ``pupil_center`` and ``pupil_radius`` are both supplied, otherwise
+    # the whole image, and (b) ``glint_roi`` when supplied.
     _, glint_mask = cv2.threshold(img, glint_threshold, 255, cv2.THRESH_BINARY)
-    radius = search_radius_factor * pupil_radius
-    if search_radius_max_px is not None:
-        radius = min(radius, float(search_radius_max_px))
-    radius_int = max(round(radius), 0)
-    search_mask = np.zeros_like(glint_mask)
-    cv2.circle(
-        search_mask,
-        (round(pupil_center[0]), round(pupil_center[1])),
-        radius_int,
-        255,
-        thickness=-1,
-    )
+    if pupil_center is not None and pupil_radius is not None:
+        radius = search_radius_factor * pupil_radius
+        if search_radius_max_px is not None:
+            radius = min(radius, float(search_radius_max_px))
+        radius_int = max(round(radius), 0)
+        search_mask = np.zeros_like(glint_mask)
+        cv2.circle(
+            search_mask,
+            (round(pupil_center[0]), round(pupil_center[1])),
+            radius_int,
+            255,
+            thickness=-1,
+        )
+    else:
+        search_mask = np.full_like(glint_mask, 255)
     if glint_roi is not None:
         search_mask = cv2.bitwise_and(search_mask, _roi_mask(img.shape, glint_roi))
     candidates_mask = cv2.bitwise_and(glint_mask, search_mask)
@@ -100,8 +185,10 @@ def detect_glints(
     if max_area_px is not None:
         contours = [c for c in contours if cv2.contourArea(c) <= max_area_px]
 
-    # 4: half-plane filter on each contour's moments centroid.
-    if not (keep_above and keep_below and keep_left and keep_right):
+    # 4: half-plane filter on each contour's moments centroid. The
+    # filter is anchored at ``pupil_center``, so it is a no-op when no
+    # pupil centre is supplied.
+    if pupil_center is not None and not (keep_above and keep_below and keep_left and keep_right):
         contours = [
             c
             for c in contours

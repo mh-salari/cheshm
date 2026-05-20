@@ -1,15 +1,10 @@
-"""Shared internal helpers used by both the pupil and glint detectors.
-
-These are the small primitives the per-target modules build on:
+"""Shared internal helpers used by the lavan detector modules.
 
   - :func:`_roi_mask` — build a binary mask from a rectangle.
   - :func:`_contour_center` — four ways to take a contour's centre.
   - :func:`_passes_shape_quality` — two opt-in gates (ellipse-fit ratio
     and isoperimetric roundness) used to reject contours whose shape
     doesn't match a clean pupil / glint blob.
-
-All names here are underscore-prefixed and internal to ``lavan.detect``;
-nothing in this module is part of the public surface.
 """
 
 import math

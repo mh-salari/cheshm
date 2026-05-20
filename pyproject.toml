@@ -1,7 +1,6 @@
 [build-system]
 requires = [
     "scikit-build-core >=0.10",
-    "cython >=3.0",
     "setuptools_scm >=8",
     "numpy",
 ]
@@ -13,7 +12,7 @@ dynamic = ["version"]
 description = "Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of two eye images."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "LGPL-3.0-or-later"}
+license = {text = "MIT"}
 authors = [
     {name = "Mohammadhossein Salari", email = "mohammadhossein.salari@gmail.com"},
 ]
@@ -30,8 +29,7 @@ keywords = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
-    "Programming Language :: C++",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
@@ -43,7 +41,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 dependencies = [
-    "matplotlib",
+    "dearpygui",
     "numba",
     "numpy",
     "opencv-python",
@@ -57,50 +55,38 @@ dev = [
 ]
 
 [project.scripts]
-lavan-detect = "lavan.detect.cli:main"
+lavan-detect = "lavan.cli:main"
+lavan-gui = "lavan.gui.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/mh-salari/lavan"
 Repository = "https://github.com/mh-salari/lavan"
 Issues = "https://github.com/mh-salari/lavan/issues"
 
-# scikit-build-core drives the CMake build; the top-level CMakeLists.txt
-# compiles the 3 plain-C kernels (loaded via ctypes) and the vendored
-# pupil-detectors 2D C++/Cython extension. Wheels are tagged with the
-# native platform so PyPI delivers the right binary per OS/arch.
+# scikit-build-core drives the CMake build, which compiles the daugman
+# family's C kernels (loaded via ctypes). Wheels are tagged with the
+# native platform so PyPI delivers the right binary per OS / arch.
 [tool.scikit-build]
 minimum-version = "0.10"
 build-dir = "build/{wheel_tag}"
 wheel.packages = ["src/lavan"]
-sdist.include = ["src/lavan/**", "CMakeLists.txt", "README.md", "NOTICE.md", "LICENSE", "LICENSE.GPL"]
-# Version is read from VCS via setuptools_scm and substituted into CMake's
-# ${SKBUILD_PROJECT_VERSION} so we don't repeat it in two places.
+sdist.include = ["src/lavan/**", "CMakeLists.txt", "README.md", "LICENSE"]
 metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+# Daugman C kernels are loaded via ctypes from `Path(__file__).parent`,
+# which only works if the compiled libs sit next to their .py. The
+# default editable "redirect" mode keeps artifacts in the build dir.
+editable.mode = "inplace"
 
 [tool.setuptools_scm]
 
 # Cross-OS wheel builds via cibuildwheel. The GitHub Actions matrix in
-# .github/workflows/wheels.yml drives one job per (os, arch) and picks
-# the right per-platform section below for system-dep install + wheel
-# repair. macOS / Linux let cibuildwheel auto-run delocate / auditwheel
-# to bundle OpenCV's C++ shared libs into the wheel; Windows needs an
-# explicit delvewheel command because cibuildwheel's auto-repair on
-# Windows is opt-in.
+# .github/workflows/wheels.yml drives one job per (os, arch).
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-*"
 skip = "*-musllinux*"
 build-verbosity = 1
-# Wheel-load test skipped on x86_64 because newer scipy/numba dropped
-# prebuilt wheels there (scipy >=1.17 manylinux2014, numba >=0.65 macOS
-# x86_64), and sdist fallback needs LLVM / OpenBLAS in the test env.
-test-skip = "*-macosx_x86_64 *-manylinux_x86_64"
-test-command = 'python -c "from lavan.pupil_detector_2d import Detector2D; from lavan.boundary.pupil_guided_contour import _lib; print(\"smoke ok:\", Detector2D, _lib._name)"'
 
-[tool.cibuildwheel.macos]
-before-all = "brew install eigen opencv"
-
-# Match the deployment target to the runner's brew dylibs. macos-14 arm64 brew
-# ships dylibs with min target 14.0; macos-15-intel ships them with min 15.0.
+# Match the deployment target to the runner's macOS SDK.
 [[tool.cibuildwheel.overrides]]
 select = "*macosx_arm64"
 environment.MACOSX_DEPLOYMENT_TARGET = "14.0"
@@ -110,19 +96,12 @@ select = "*macosx_x86_64"
 environment.MACOSX_DEPLOYMENT_TARGET = "15.0"
 
 [tool.cibuildwheel.linux]
-before-all = ["yum install -y eigen3-devel", "bash scripts/manylinux-before-all.sh"]
 manylinux-x86_64-image = "manylinux2014"
-
-[tool.cibuildwheel.windows]
-before-all = "choco install -y eigen opencv"
-environment = { OpenCV_DIR = "C:/tools/opencv/build" }
-before-build = "pip install delvewheel"
-repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --add-path C:/tools/opencv/build/x64/vc16/bin"
 
 [tool.ruff]
 line-length = 119
 preview = true
-extend-exclude = ["src/lavan/pupil_detector_2d"]
+extend-exclude = ["references"]
 
 # RUFF DEFAULTS
 # (These are all the default groups, even if you don't currently select them)

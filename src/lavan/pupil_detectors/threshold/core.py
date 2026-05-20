@@ -1,91 +1,58 @@
-"""Pupil detection on grayscale eye images.
-
-Public surface:
+"""Threshold-based pupil detector.
 
   - :func:`detect_pupil` — pupil contour, center, fitted ellipse, mask.
-  - :func:`fit_convex_hull_spline` — periodic cubic B-spline through the
-    convex hull of a contour, with centroid + equivalent diameter. Used
-    internally by ``detect_pupil`` and exposed standalone.
-  - :func:`pupil_center_of_mass` — moments centroid of the thresholded
-    pupil region with the glint hole preserved.
 
-The detector is intentionally one-shot and stateless: no temporal
-tracking, no calibration, no model fitting across frames. See
-:mod:`lavan.detect.glint` for the bright-blob glint detector that
-consumes ``detect_pupil``'s centre + radius.
+One-shot and stateless: no temporal tracking, no calibration, no model
+fitting across frames.
 """
+
+from typing import Literal
 
 import cv2
 import numpy as np
-from scipy.interpolate import splev, splprep
 
-from .utils import _contour_center, _passes_shape_quality, _roi_mask
+from lavan._common import _contour_center, _passes_shape_quality, _roi_mask
 
+from ..centers import fit_convex_hull_spline, pupil_center_of_mass
 
-def fit_convex_hull_spline(contour: np.ndarray, n_points: int = 200) -> dict:
-    """Fit a smooth closed cubic B-spline to the convex hull of a contour.
+# GUI metadata. Defaults / types / choices come from the function
+# signature; this dict carries the bits that don't fit in Python's type
+# system (slider bounds, per-param help, widget hints, label overrides
+# where the auto-derived label would be wrong).
+_UI = {
+    "pupil_threshold": {
+        "min": 0,
+        "max": 255,
+        "help": "Intensity below which a pixel is considered pupil.",
+    },
+    "pupil_center_method": {"label": "Centre method"},
+    "pupil_roi": {
+        "widget": "roi",
+        "label": "Pupil ROI",
+        "help": "Optional (x, y, w, h) rectangle. None = whole image.",
+        "hidden": True,
+    },
+    "min_ellipse_fit_ratio": {
+        "min": 0.0,
+        "max": 1.0,
+        "label": "Min ellipse-fit ratio",
+        "help": "Reject pupils whose contour-to-ellipse area ratio is below this. None = off.",
+    },
+    "min_roundness_ratio": {
+        "min": 0.0,
+        "max": 1.0,
+        "help": "Reject pupils with 4·π·area / perimeter² below this. None = off.",
+    },
+}
 
-    Steps:
-      1. Take the convex hull of the input contour points.
-      2. Fit a periodic cubic B-spline through the hull vertices.
-      3. Sample `n_points` evenly along the spline.
-      4. Compute the enclosed area and centroid via Green's theorem on the
-         sampled curve.
-
-    Returns:
-        points: (n_points, 2) sampled spline boundary.
-        center: (cx, cy) centroid of the enclosed region.
-        equiv_diam: diameter of a circle with the same enclosed area.
-
-    """
-    hull_indices = cv2.convexHull(contour, returnPoints=False).squeeze()
-    hull_pts = contour.squeeze()[np.sort(hull_indices)]
-
-    pts = np.vstack([hull_pts, hull_pts[0]])
-    x, y = pts[:, 0].astype(float), pts[:, 1].astype(float)
-
-    tck, _ = splprep([x, y], s=0, per=True, k=3)
-    t = np.linspace(0, 1, n_points)
-    sx, sy = splev(t, tck)
-
-    sx_c = np.append(sx, sx[0])
-    sy_c = np.append(sy, sy[0])
-    cross = sx_c[:-1] * sy_c[1:] - sx_c[1:] * sy_c[:-1]
-    signed_area = 0.5 * np.sum(cross)
-    area = abs(signed_area)
-    if signed_area != 0:
-        cx = np.sum((sx_c[:-1] + sx_c[1:]) * cross) / (6 * signed_area)
-        cy = np.sum((sy_c[:-1] + sy_c[1:]) * cross) / (6 * signed_area)
-    else:
-        cx, cy = float(np.mean(sx)), float(np.mean(sy))
-
-    equiv_diam = 2 * np.sqrt(area / np.pi)
-    return {
-        "points": np.column_stack([sx, sy]),
-        "center": (float(cx), float(cy)),
-        "equiv_diam": float(equiv_diam),
-    }
-
-
-def pupil_center_of_mass(
-    pupil_mask: np.ndarray,
-    pupil_contour: np.ndarray,
-) -> tuple[float, float] | None:
-    """Centre-of-mass of the thresholded pupil area, with glint cutouts preserved.
-
-    The glint creates a hole in the dark pupil region; that hole biases the
-    centroid away from the glint side. A convex-hull-based centroid fills the
-    hole in and therefore lands somewhere different.
-
-    Returns ``None`` if the pupil mass is zero (degenerate input).
-    """
-    contour_mask = np.zeros_like(pupil_mask)
-    cv2.drawContours(contour_mask, [pupil_contour], -1, 255, thickness=cv2.FILLED)
-    pupil_only = cv2.bitwise_and(pupil_mask, contour_mask)
-    m = cv2.moments(pupil_only, binaryImage=True)
-    if m["m00"] == 0:
-        return None
-    return (m["m10"] / m["m00"], m["m01"] / m["m00"])
+# Overlay elements this detector produces. Each tuple is (key_in_result, element_type).
+# element_type ∈ {"line", "point", "fill"} drives the per-element widget set.
+_OVERLAYS = (
+    ("contour", "line"),
+    ("ellipse", "line"),
+    ("center", "point"),
+    ("mask", "fill"),
+)
 
 
 def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
@@ -97,7 +64,12 @@ def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
 def detect_pupil(
     img: np.ndarray,
     pupil_threshold: int = 30,
-    pupil_center_method: str = "convex_hull_centroid",
+    pupil_center_method: Literal[
+        "convex_hull_centroid",
+        "center_of_mass",
+        "ellipse_fit_center",
+        "min_area_rect_center",
+    ] = "convex_hull_centroid",
     pupil_roi: tuple[int, int, int, int] | None = None,
     *,
     min_ellipse_fit_ratio: float | None = None,
@@ -111,11 +83,11 @@ def detect_pupil(
 
     ``ellipse`` is ``((cx, cy), (w, h), angle)`` from ``cv2.fitEllipse``
     on the convex hull of the pupil contour. The pupil centre is chosen
-    by ``pupil_center_method``; see :func:`._contour_center` for the four
-    contour-based methods, plus ``"center_of_mass"`` which uses
-    :func:`pupil_center_of_mass` (the glint hole stays cut out) and
-    ``"convex_hull_centroid"`` which uses the spline centroid for
-    sub-pixel stability.
+    by ``pupil_center_method``; see :func:`lavan._common._contour_center`
+    for the four contour-based methods, plus ``"center_of_mass"`` which
+    uses :func:`lavan.pupil_detectors.centers.pupil_center_of_mass` (the
+    glint hole stays cut out) and ``"convex_hull_centroid"`` which uses
+    the spline centroid for sub-pixel stability.
 
     Border-touching dark contours are rejected so the pupil is always an
     interior region — unless ``pupil_roi`` is set, in which case the
@@ -153,9 +125,6 @@ def detect_pupil(
         candidates = [c for c in contours if not _touches_border(c, img.shape)]
     if not candidates:
         return None
-    # Walk candidates largest -> smallest; with shape gates active, skip
-    # contours that fail the gates and try the next one. Without gates,
-    # the first iteration matches the prior "max by area" pick.
     candidates.sort(key=cv2.contourArea, reverse=True)
     pupil_contour = None
     ellipse_fit = None

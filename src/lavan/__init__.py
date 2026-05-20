@@ -1,22 +1,20 @@
-"""Lavan — eye-image primitives for pupil, limbus, glint, and alignment.
+"""Lavan — eye-image primitives for pupil, glint, limbus, and alignment.
 
-Three sub-packages, each owning its own surface:
+Every public function operates on a **single eye per image**.
 
-- :mod:`lavan.boundary` — Daugman-derived boundary detectors. C-accelerated
-  integro-differential operator (circular fit) plus Fourier-series active
-  contour and pupil-guided variant (non-circular fits).
-- :mod:`lavan.detect` — pupil + glint + limbus detection on grayscale eye
-  images. ``detect_pupil`` and ``detect_glints`` are independent entry points;
-  ``detect_limbus`` wraps the integro-differential operator.
-- :mod:`lavan.align` — iris-texture rigid alignment of a target eye image
-  onto a reference eye image, given pupil + limbus geometry on each. Returns
-  ``(dx, dy, theta)``.
+Sub-packages, each owning its own surface:
 
-Typical use::
+- :mod:`lavan.pupil_detectors` — pupil detectors (``detect_pupil``)
+  and shared pupil-center methods (``pupil_center_of_mass``,
+  ``fit_convex_hull_spline``).
+- :mod:`lavan.glint_detectors` — glint detectors (``detect_glints``).
+- :mod:`lavan.limbus_detectors` — limbus / iris boundary detectors,
+  currently the Daugman family (``IntegroDifferentialOperator``,
+  ``DaugmanActiveContour``, ``PupilGuidedContour``).
+- :mod:`lavan.align` — iris-texture rigid alignment of a target eye
+  image onto a reference. Returns ``(dx, dy, theta)``.
+- :mod:`lavan.viz` — cv2 image-save helpers (diff heatmap, alignment
+  comparison + overlay, detection overlay).
 
-    from lavan.detect import detect_pupil, detect_glints, detect_limbus
-    from lavan.align import align_eye_images
-
-The three names refer to islands in the Persian Gulf; ``lavan`` is the one
-this package borrows.
+Lavan (لاوان) is an island in the Persian Gulf.
 """
