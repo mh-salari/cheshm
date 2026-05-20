@@ -1,4 +1,4 @@
-# `cheshm`
+# <img src="src/cheshm/gui/icon.png" alt="" width="48"> `cheshm`
 
 [![PyPI version](https://img.shields.io/pypi/v/cheshm)](https://pypi.org/project/cheshm/)
 [![Downloads](https://static.pepy.tech/badge/cheshm)](https://pepy.tech/project/cheshm)
@@ -23,6 +23,10 @@ Cheshm's core code is MIT-licensed (see [`LICENSE`](LICENSE)). Each detector shi
 ## Name
 
 In Persian (Farsi), Cheshm (چشم) literally means "eye".
+
+## Logo
+
+The nazar / cheshm amulet image is from [pngegg](https://www.pngegg.com/en/png-klwpz).
 
 ## Acknowledgments
 

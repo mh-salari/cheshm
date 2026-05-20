@@ -717,7 +717,8 @@ def run(img_dir: str | Path) -> None:
             dpg.add_theme_color(dpg.mvThemeCol_Border, [120, 140, 170])
     dpg.bind_item_theme("settings_panel", settings_theme)
 
-    dpg.create_viewport(title="cheshm", width=1400, height=900)
+    icon_path = str(Path(__file__).parent / "icon.png")
+    dpg.create_viewport(title="cheshm", width=1400, height=900, small_icon=icon_path, large_icon=icon_path)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.set_primary_window("main_window", True)
