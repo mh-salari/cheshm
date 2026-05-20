@@ -1,0 +1,47 @@
+ExCuSe pupil detector
+=====================
+
+Algorithm and original source: Wolfgang Fuhl, Thiago C. Kübler, Klaus
+Sippel, Wolfgang Rosenstiel, Enkelejda Kasneci, University of Tübingen.
+
+Reference: Fuhl, W., Kübler, T., Sippel, K., Rosenstiel, W., Kasneci, E.
+(2015). "ExCuSe: Robust Pupil Detection in Real-World Scenarios."
+*CAIP 2015*, 39-51.
+
+License header from the upstream source (ExCuSe.h):
+
+  Version 1.0, 08.06.2015, Copyright University of Tübingen.
+  The code and the algorithm are for non-commercial use only.
+
+The supporting Pupil / PupilDetectionMethod scaffolding around the
+upstream distribution is © 2018 Thiago Santini / University of
+Tübingen, distributed under the following terms (carried for the
+algorithm files used here, even though lavan's port no longer
+includes the scaffolding classes themselves):
+
+  Permission is hereby granted, free of charge, to any person obtaining
+  a copy of this software, source code, and associated documentation
+  files (the "Software") to use, copy, and modify the Software for
+  academic use, subject to the following conditions:
+
+  1) The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+
+  2) Modifications to the source code should be made available under
+  free-for-academic-usage licenses.
+
+  For commercial use, please contact the authors.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+Per lavan's distribution model, this detector eventually ships as the
+separate ``lavan-ExCuSe`` plugin package so the main ``lavan`` wheel
+stays MIT-only. While the port is in flight it lives in-tree under
+``lavan.pupil_detectors.ExCuSe``.
