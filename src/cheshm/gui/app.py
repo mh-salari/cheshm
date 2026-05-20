@@ -639,13 +639,9 @@ def run(img_dir: str | Path | None = None) -> None:
                                 tag="image_texture")
 
     def _rebuild_texture_for_current() -> None:
-        """Recreate ``image_texture`` to match the current image's dimensions.
-
-        Dear PyGui textures are fixed-size at creation; loading a folder
-        whose images have a different size than the placeholder (or the
-        previous load) needs a fresh texture. The widget that displays
-        the texture re-binds by tag.
-        """
+        """Recreate the texture + image widget to match the current
+        image's dimensions; Dear PyGui binds an image widget's texture
+        at creation, so swapping the texture alone won't take effect."""
         if not state.images:
             return
         img = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
@@ -655,12 +651,17 @@ def run(img_dir: str | Path | None = None) -> None:
         if new_w == state.canvas_w and new_h == state.canvas_h:
             return
         state.canvas_h, state.canvas_w = new_h, new_w
-        dpg.delete_item("image_texture")
+        if dpg.does_item_exist("image_widget"):
+            dpg.delete_item("image_widget")
+        if dpg.does_item_exist("image_texture"):
+            dpg.delete_item("image_texture")
         with dpg.texture_registry():
             dpg.add_dynamic_texture(state.canvas_w, state.canvas_h,
                                     _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)),
                                     tag="image_texture")
-        dpg.configure_item("image_widget", texture_tag="image_texture")
+        dpg.add_image("image_texture", tag="image_widget",
+                      width=state.canvas_w, height=state.canvas_h,
+                      parent="image_panel")
 
     def redraw() -> None:
         if not state.images:
@@ -861,11 +862,13 @@ def run(img_dir: str | Path | None = None) -> None:
     dpg.bind_item_theme("settings_panel", settings_theme)
 
     icon_path = str(Path(__file__).parent / "icon.png")
-    _set_macos_dock_icon(icon_path)
     dpg.create_viewport(title="cheshm", width=1400, height=900, small_icon=icon_path, large_icon=icon_path)
     dpg.setup_dearpygui()
     dpg.show_viewport()
     dpg.set_primary_window("main_window", True)
+    # Called after viewport init; NSApplication calls before GLFW init
+    # break event dispatch on Cocoa.
+    _set_macos_dock_icon(icon_path)
     # Re-centre + refit the image whenever the viewport resizes (e.g.,
     # entering full-screen). Without this, the image stays put until
     # the next redraw is triggered by something else.
