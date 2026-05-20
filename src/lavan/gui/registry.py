@@ -27,6 +27,7 @@ _CATEGORIES = {
     "pupil": ("lavan.pupil_detectors", "detect_pupil"),
     "glint": ("lavan.glint_detectors", "detect_glints"),
     "limbus": ("lavan.limbus_detectors", "detect_limbus"),
+    "eyelid": ("lavan.eyelid_detectors", "detect_eyelid"),
 }
 
 
