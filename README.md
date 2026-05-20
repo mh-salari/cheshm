@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/cheshm)](https://pypi.org/project/cheshm/)
 [![Downloads](https://static.pepy.tech/badge/cheshm)](https://pepy.tech/project/cheshm)
 [![License](https://img.shields.io/pypi/l/cheshm)](https://github.com/mh-salari/cheshm/blob/main/LICENSE)
-[![DOI](https://zenodo.org/badge/1242928603.svg)](https://doi.org/10.5281/zenodo.20293526)
+[![DOI](https://zenodo.org/badge/1242928603.svg)](https://doi.org/10.5281/zenodo.20308209)
 
 
 ## Single-eye contract
