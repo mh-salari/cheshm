@@ -13,6 +13,7 @@ __pycache__/
 *.so
 *.dylib
 *.dll
+*.a
 
 # CMake configure-time artefacts. Anywhere in the tree — sometimes the
 # build is mistakenly invoked at the repo root or inside a detector

@@ -1,20 +1,19 @@
-"""Simple pupil detector — ctypes binding to the C++ kernel in ``core.dylib``.
+"""Simple pupil detector — Python wrapper over the nanobind extension.
 
 Threshold-based detector: pixels below ``pupil_threshold`` form the
 candidate mask, ``cv::findContours`` walks the dark regions, a shape-
 quality filter picks the first that looks pupil-shaped, ``cv::fitEllipse``
-runs on the convex hull, and the pupil centre comes from one of four
+runs on the convex hull, and the pupil centre comes from one of five
 methods (default: periodic interpolating cubic spline through the convex
 hull, with Green's-theorem centroid of the enclosed area).
 """
 
-import ctypes
-import pathlib
-import platform
 from typing import Literal
 
 import cv2
 import numpy as np
+
+from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
 _UI = {
@@ -57,31 +56,6 @@ _CENTER_METHOD_CODE = {
     "min_area_rect_center": 3,
     "hull_moments_centroid": 4,
 }
-
-
-_LIB_DIR = pathlib.Path(__file__).parent
-_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
-_lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
-_lib.Simple_detect.restype = ctypes.c_int
-_lib.Simple_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),  # img_data
-    ctypes.c_int,                    # width
-    ctypes.c_int,                    # height
-    ctypes.c_int,                    # roi_x
-    ctypes.c_int,                    # roi_y
-    ctypes.c_int,                    # roi_w  (<= 0 = no ROI)
-    ctypes.c_int,                    # roi_h
-    ctypes.c_int,                    # pupil_threshold
-    ctypes.c_int,                    # pupil_center_method
-    ctypes.c_double,                 # min_ellipse_fit_ratio (< 0 = off)
-    ctypes.c_double,                 # min_roundness_ratio   (< 0 = off)
-    ctypes.POINTER(ctypes.c_double), # out_center_xy[2]
-    ctypes.POINTER(ctypes.c_double), # out_ellipse_params[5]
-    ctypes.POINTER(ctypes.c_int),    # out_n_contour_points
-    ctypes.POINTER(ctypes.c_double), # contour_xy
-    ctypes.c_int,                    # max_contour_points
-    ctypes.POINTER(ctypes.c_uint8),  # out_mask (height * width)
-]
 
 
 def detect_pupil(
@@ -143,47 +117,26 @@ def detect_pupil(
     if img.ndim != 2:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = np.ascontiguousarray(img, dtype=np.uint8)
-    height, width = img.shape
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0
     else:
         roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
-    out_center = (ctypes.c_double * 2)()
-    out_ellipse = (ctypes.c_double * 5)()
-    out_n = ctypes.c_int(0)
-    contour_buf = (ctypes.c_double * (2 * max_contour_points))()
-    mask = np.zeros((height, width), dtype=np.uint8)
-
-    ok = _lib.Simple_detect(
-        img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
-        width,
-        height,
-        roi_x,
-        roi_y,
-        roi_w,
-        roi_h,
+    result = _core.detect(
+        img,
+        roi_x, roi_y, roi_w, roi_h,
         pupil_threshold,
         _CENTER_METHOD_CODE[pupil_center_method],
         -1.0 if min_ellipse_fit_ratio is None else float(min_ellipse_fit_ratio),
         -1.0 if min_roundness_ratio is None else float(min_roundness_ratio),
-        out_center,
-        out_ellipse,
-        ctypes.byref(out_n),
-        contour_buf,
         max_contour_points,
-        mask.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
     )
-    if not ok:
+    if result is None:
         return None
+    (cx, cy), (ecx, ecy, ew, eh, angle), contour_xy, mask = result
 
-    cx, cy = out_center[0], out_center[1]
-    ecx, ecy, ew, eh, angle = (out_ellipse[i] for i in range(5))
-
-    n = out_n.value
-    pts = np.array(contour_buf[: 2 * n], dtype=np.float64).reshape(n, 2)
-    contour = pts.astype(np.int32).reshape(-1, 1, 2)
+    contour = contour_xy.astype(np.int32).reshape(-1, 1, 2)
 
     return {
         "contour": contour,

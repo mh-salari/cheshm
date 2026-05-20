@@ -24,6 +24,17 @@ endif()
 # and `opencv_imgproc`; .dylib/.so/.dll linked per-detector.
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
+# nanobind for C++ → Python bindings. Located via the installed
+# nanobind package's helper command (works under scikit-build-core
+# because nanobind is in build-system.requires).
+find_package(Python 3.10 COMPONENTS Interpreter Development.Module REQUIRED)
+execute_process(
+  COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  OUTPUT_VARIABLE NB_DIR)
+list(APPEND CMAKE_PREFIX_PATH "${NB_DIR}")
+find_package(nanobind CONFIG REQUIRED)
+
 # Shared C++ helpers (ROI cropping, etc.) consumed by every C-backed
 # detector via `target_link_libraries(... cheshm_common)`. Header-only.
 add_library(cheshm_common INTERFACE)

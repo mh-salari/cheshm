@@ -1,8 +1,7 @@
-// Public C surface for the Simple pupil detector — a single extern "C"
-// entry point that cheshm's Python wrapper loads via ctypes. Threshold
-// → contour-find → border / area filter → shape-quality walk →
-// convex-hull-ellipse fit → centre via the requested method. ROI is
-// applied as a zero-copy view via the shared cpp/common helpers.
+// Simple pupil detector — nanobind extension. Threshold → contour-find
+// → border / area filter → shape-quality walk → convex-hull-ellipse fit
+// → centre via the requested method. ROI is applied as a zero-copy view
+// via the shared cpp/common helpers.
 
 #include "cheshm/roi.hpp"
 #include "cheshm/spline.hpp"
@@ -10,10 +9,17 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
+#include <memory>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/optional.h>
+#include <nanobind/stl/tuple.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <vector>
+
+namespace nb = nanobind;
+using namespace nb::literals;
 
 namespace cheshm::Simple {
 namespace {
@@ -62,9 +68,9 @@ bool passes_shape_quality(
     return true;
 }
 
-// Returns the convex hull of `contour` as points, walked in the source
-// contour's traversal order. This anchors the spline parameter origin
-// at the contour's starting vertex.
+// Convex hull walked in source-contour traversal order. Anchors the
+// periodic-spline parameterisation at the contour's starting vertex,
+// matching the scipy reference exactly.
 std::vector<cv::Point> hull_in_contour_order(const std::vector<cv::Point> &contour)
 {
     std::vector<int> indices;
@@ -78,100 +84,40 @@ std::vector<cv::Point> hull_in_contour_order(const std::vector<cv::Point> &conto
     return hull;
 }
 
-}  // namespace
-}  // namespace cheshm::Simple
+struct DetectResult {
+    double cx;       // centre, full-image coords, from the chosen method
+    double cy;
+    double e_w;      // ellipse width / height / angle from cv::fitEllipse
+    double e_h;
+    double e_angle;
+    std::vector<cv::Point> contour;  // crop-local; caller shifts by crop.tl()
+    cv::Mat mask;                    // full-image canvas, ROI region populated
+    cv::Point crop_tl;
+};
 
-extern "C" {
-
-// Simple_detect — threshold-based pupil detection.
-//
-//  img_data                 grayscale uint8 buffer, ``width * height``
-//                           bytes, row-major.
-//  roi_x, roi_y,            ROI rectangle in full-image coordinates.
-//  roi_w, roi_h             When ``roi_w > 0 && roi_h > 0`` the algorithm
-//                           runs on the cropped sub-image and contours
-//                           touching the crop edge are accepted (an
-//                           explicit ROI means "the pupil is here");
-//                           otherwise the full frame is processed and
-//                           border-touching contours are rejected.
-//  pupil_threshold          Pixels below this intensity become pupil.
-//  pupil_center_method      0=convex_hull_centroid (periodic cubic
-//                           spline through the hull + Green's-theorem
-//                           centroid of the sampled curve),
-//                           1=center_of_mass (moments of the contour-
-//                           masked pupil region with glint cut-outs
-//                           preserved), 2=ellipse_fit_center,
-//                           3=min_area_rect_center, 4=hull_moments_
-//                           centroid (moments of the filled convex
-//                           hull polygon, no spline).
-//  min_ellipse_fit_ratio    Reject candidates whose contour-to-fitted-
-//                           ellipse area ratio is below this. Negative
-//                           = gate off.
-//  min_roundness_ratio      Reject candidates whose isoperimetric
-//                           quotient ``4 pi area / perimeter^2`` is
-//                           below this. Negative = gate off.
-//  out_center_xy            Two doubles: the pupil centre in full-image
-//                           coordinates.
-//  out_ellipse_params       Five doubles: centre from the chosen
-//                           centring method, width / height / angle
-//                           from ``cv::fitEllipse`` on the convex hull.
-//                           Centre is in full-image coordinates.
-//  out_n_contour_points     Number of contour points written.
-//  contour_xy               Caller-allocated buffer of
-//                           ``2 * max_contour_points`` doubles for
-//                           ``(x, y)`` pairs in full-image coordinates.
-//  max_contour_points       Capacity of ``contour_xy`` in points.
-//  out_mask                 Caller-allocated ``width * height`` uint8
-//                           buffer. Receives the thresholded binary
-//                           mask (255 = pupil). When the ROI path is
-//                           taken, regions outside the ROI are zeroed.
-//
-// Returns 1 on success, 0 on failure.
-int Simple_detect(
-    const std::uint8_t *img_data,
-    int width,
-    int height,
-    int roi_x,
-    int roi_y,
-    int roi_w,
-    int roi_h,
+std::optional<DetectResult> detect_impl(
+    const cv::Mat &full,
+    int roi_x, int roi_y, int roi_w, int roi_h,
     int pupil_threshold,
     int pupil_center_method,
     double min_ellipse_fit_ratio,
-    double min_roundness_ratio,
-    double *out_center_xy,
-    double *out_ellipse_params,
-    int *out_n_contour_points,
-    double *contour_xy,
-    int max_contour_points,
-    std::uint8_t *out_mask)
+    double min_roundness_ratio)
 {
-    using namespace cheshm::Simple;  // NOLINT(google-build-using-namespace)
+    const int width = full.cols;
+    const int height = full.rows;
 
-    if (img_data == nullptr || width <= 0 || height <= 0 || out_mask == nullptr) {
-        if (out_n_contour_points != nullptr) {
-            *out_n_contour_points = 0;
-        }
-        return 0;
-    }
-
-    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t *>(img_data));
     cv::Rect crop(0, 0, width, height);
     bool roi_active = false;
     if (cheshm::roi_is_active(roi_w, roi_h)) {
         crop = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
         if (crop.area() == 0) {
-            *out_n_contour_points = 0;
-            return 0;
+            return std::nullopt;
         }
         roi_active = true;
     }
     const cv::Mat view = full(crop);
 
-    if (roi_active) {
-        std::memset(out_mask, 0, static_cast<size_t>(width) * static_cast<size_t>(height));
-    }
-    cv::Mat mask_canvas(height, width, CV_8U, out_mask);
+    cv::Mat mask_canvas = cv::Mat::zeros(height, width, CV_8U);
     cv::Mat pupil_mask = mask_canvas(crop);
     cv::threshold(view, pupil_mask, pupil_threshold, 255, cv::THRESH_BINARY_INV);
 
@@ -190,8 +136,7 @@ int Simple_detect(
         indices.push_back(i);
     }
     if (indices.empty()) {
-        *out_n_contour_points = 0;
-        return 0;
+        return std::nullopt;
     }
 
     std::sort(indices.begin(), indices.end(), [&](int a, int b) {
@@ -216,8 +161,7 @@ int Simple_detect(
         break;
     }
     if (winning < 0) {
-        *out_n_contour_points = 0;
-        return 0;
+        return std::nullopt;
     }
 
     const std::vector<cv::Point> &pupil_contour = contours[winning];
@@ -228,8 +172,7 @@ int Simple_detect(
         case CENTER_CONVEX_HULL_CENTROID: {
             const cheshm::SplineCentroid sc = cheshm::spline_polygon_centroid(hull, 200);
             if (sc.area == 0.0) {
-                *out_n_contour_points = 0;
-                return 0;
+                return std::nullopt;
             }
             cx_local = sc.cx;
             cy_local = sc.cy;
@@ -242,8 +185,7 @@ int Simple_detect(
             cv::bitwise_and(pupil_mask, contour_mask, pupil_only);
             const cv::Moments m = cv::moments(pupil_only, true);
             if (m.m00 == 0.0) {
-                *out_n_contour_points = 0;
-                return 0;
+                return std::nullopt;
             }
             cx_local = m.m10 / m.m00;
             cy_local = m.m01 / m.m00;
@@ -262,36 +204,104 @@ int Simple_detect(
         case CENTER_HULL_MOMENTS: {
             const cv::Moments m = cv::moments(hull);
             if (m.m00 == 0.0) {
-                *out_n_contour_points = 0;
-                return 0;
+                return std::nullopt;
             }
             cx_local = m.m10 / m.m00;
             cy_local = m.m01 / m.m00;
             break;
         }
         default:
-            *out_n_contour_points = 0;
-            return 0;
+            return std::nullopt;
     }
 
-    // The ellipse tuple's centre comes from the selected centring method;
-    // its size and angle come from cv::fitEllipse on the convex hull.
-    out_ellipse_params[0] = cx_local + crop.x;
-    out_ellipse_params[1] = cy_local + crop.y;
-    out_ellipse_params[2] = ellipse_fit.size.width;
-    out_ellipse_params[3] = ellipse_fit.size.height;
-    out_ellipse_params[4] = ellipse_fit.angle;
-    out_center_xy[0] = cx_local + crop.x;
-    out_center_xy[1] = cy_local + crop.y;
-
-    const int n = std::min(static_cast<int>(pupil_contour.size()), max_contour_points);
-    for (int i = 0; i < n; ++i) {
-        contour_xy[2 * i] = static_cast<double>(pupil_contour[i].x) + crop.x;
-        contour_xy[2 * i + 1] = static_cast<double>(pupil_contour[i].y) + crop.y;
-    }
-    *out_n_contour_points = n;
-
-    return 1;
+    return DetectResult{
+        .cx = cx_local + crop.x,
+        .cy = cy_local + crop.y,
+        .e_w = ellipse_fit.size.width,
+        .e_h = ellipse_fit.size.height,
+        .e_angle = ellipse_fit.angle,
+        .contour = pupil_contour,
+        .mask = mask_canvas,
+        .crop_tl = crop.tl(),
+    };
 }
 
-}  // extern "C"
+}  // namespace
+}  // namespace cheshm::Simple
+
+namespace {
+
+// nanobind binding. Returns ``None`` on failure or a 4-tuple on
+// success: ``((cx, cy), (e_cx, e_cy, e_w, e_h, e_angle), contour, mask)``.
+//   contour: ``(N, 2)`` float64 ndarray, full-image coords.
+//   mask:    ``(H, W)`` uint8 ndarray, full-image canvas with non-ROI zeroed.
+nb::object detect(
+    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+    int roi_x, int roi_y, int roi_w, int roi_h,
+    int pupil_threshold,
+    int pupil_center_method,
+    double min_ellipse_fit_ratio,
+    double min_roundness_ratio,
+    int max_contour_points)
+{
+    const int height = static_cast<int>(img.shape(0));
+    const int width = static_cast<int>(img.shape(1));
+    const cv::Mat full(height, width, CV_8U,
+                       const_cast<std::uint8_t *>(img.data()));
+
+    auto result = cheshm::Simple::detect_impl(
+        full,
+        roi_x, roi_y, roi_w, roi_h,
+        pupil_threshold,
+        pupil_center_method,
+        min_ellipse_fit_ratio,
+        min_roundness_ratio);
+    if (!result) {
+        return nb::none();
+    }
+
+    // contour: copy crop-local int points into a fresh contiguous double
+    // buffer in full-image coords; wrap as numpy with capsule-managed
+    // ownership so Python frees the buffer on GC.
+    const int n_pts = std::min(static_cast<int>(result->contour.size()), max_contour_points);
+    auto contour_owner = std::make_unique<std::vector<double>>(2 * n_pts);
+    for (int i = 0; i < n_pts; ++i) {
+        (*contour_owner)[2 * i] = static_cast<double>(result->contour[i].x) + result->crop_tl.x;
+        (*contour_owner)[2 * i + 1] = static_cast<double>(result->contour[i].y) + result->crop_tl.y;
+    }
+    double *contour_data = contour_owner->data();
+    nb::capsule contour_cap(contour_owner.release(),
+                            [](void *p) noexcept { delete static_cast<std::vector<double> *>(p); });
+    const std::size_t contour_shape[2] = {static_cast<std::size_t>(n_pts), 2};
+    nb::ndarray<nb::numpy, double, nb::ndim<2>> contour_arr(
+        contour_data, 2, contour_shape, contour_cap);
+
+    // mask: clone into a fresh buffer so the cv::Mat (which owns the
+    // memory) can drop here. Same capsule pattern.
+    auto mask_owner = std::make_unique<std::vector<std::uint8_t>>(
+        static_cast<std::size_t>(height) * static_cast<std::size_t>(width));
+    std::memcpy(mask_owner->data(), result->mask.data, mask_owner->size());
+    std::uint8_t *mask_data = mask_owner->data();
+    nb::capsule mask_cap(mask_owner.release(),
+                         [](void *p) noexcept { delete static_cast<std::vector<std::uint8_t> *>(p); });
+    const std::size_t mask_shape[2] = {static_cast<std::size_t>(height), static_cast<std::size_t>(width)};
+    nb::ndarray<nb::numpy, std::uint8_t, nb::ndim<2>> mask_arr(
+        mask_data, 2, mask_shape, mask_cap);
+
+    return nb::make_tuple(
+        nb::make_tuple(result->cx, result->cy),
+        nb::make_tuple(result->cx, result->cy, result->e_w, result->e_h, result->e_angle),
+        std::move(contour_arr),
+        std::move(mask_arr));
+}
+
+}  // namespace
+
+NB_MODULE(_core, m)
+{
+    m.def("detect", &detect,
+          "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
+          "pupil_threshold"_a, "pupil_center_method"_a,
+          "min_ellipse_fit_ratio"_a, "min_roundness_ratio"_a,
+          "max_contour_points"_a);
+}
