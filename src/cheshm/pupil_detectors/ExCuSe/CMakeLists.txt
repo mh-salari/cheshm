@@ -1,34 +1,27 @@
-# ExCuSe pupil detector — compiles a "core" shared library that
-# core.py loads via ctypes. Edge-based detection with adaptive
-# thresholding, ray-based contour collection, and ellipse fitting.
+# ExCuSe pupil detector — nanobind extension `_core`. core.py loads it
+# directly with `from . import _core`. Algorithm body lives in
+# `src/excuse.cpp`; `src/core.cpp` is the binding.
 
-add_library(ExCuSe_core SHARED
+nanobind_add_module(ExCuSe_core_nb
+  STABLE_ABI
+  NB_STATIC
   src/core.cpp
   src/excuse.cpp
 )
+set_target_properties(ExCuSe_core_nb PROPERTIES OUTPUT_NAME "_core")
 
-target_include_directories(ExCuSe_core
+target_include_directories(ExCuSe_core_nb
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
 )
 
-target_link_libraries(ExCuSe_core
+target_link_libraries(ExCuSe_core_nb
   PRIVATE
     ${OpenCV_LIBS}
     cheshm_common
 )
 
-set_target_properties(ExCuSe_core PROPERTIES
-  PREFIX ""
-  OUTPUT_NAME "core"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  POSITION_INDEPENDENT_CODE ON
-  WINDOWS_EXPORT_ALL_SYMBOLS ON
-)
-
-install(TARGETS ExCuSe_core
+install(TARGETS ExCuSe_core_nb
   LIBRARY DESTINATION cheshm/pupil_detectors/ExCuSe
-  RUNTIME DESTINATION cheshm/pupil_detectors/ExCuSe
 )

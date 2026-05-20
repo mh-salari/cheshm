@@ -1,4 +1,4 @@
-"""ExCuSe pupil detector — ctypes binding to the C++ kernel in ``core.dylib``.
+"""ExCuSe pupil detector — Python wrapper over the nanobind extension.
 
 Reference: Fuhl, W., Kübler, T., Sippel, K., Rosenstiel, W., Kasneci, E.
 (2015). "ExCuSe: Robust Pupil Detection in Real-World Scenarios."
@@ -9,12 +9,10 @@ coarse pupil seed, custom Canny edge detection, ray-based contour
 collection, and ellipse fitting with quality validation.
 """
 
-import ctypes
-import pathlib
-import platform
-
 import cv2
 import numpy as np
+
+from . import _core
 
 # GUI metadata. Defaults / types come from `detect_pupil`'s signature.
 _UI = {
@@ -44,24 +42,6 @@ _OVERLAYS = (
 )
 
 
-_LIB_DIR = pathlib.Path(__file__).parent
-_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
-_lib = ctypes.CDLL(str(_LIB_DIR / f"core{_lib_ext}"))
-_lib.ExCuSe_detect.restype = ctypes.c_int
-_lib.ExCuSe_detect.argtypes = [
-    ctypes.POINTER(ctypes.c_uint8),  # img_data
-    ctypes.c_int,                    # width
-    ctypes.c_int,                    # height
-    ctypes.c_int,                    # roi_x
-    ctypes.c_int,                    # roi_y
-    ctypes.c_int,                    # roi_w  (<= 0 = no ROI)
-    ctypes.c_int,                    # roi_h
-    ctypes.c_int,                    # max_ellipse_radi
-    ctypes.c_int,                    # good_ellipse_threshold
-    ctypes.POINTER(ctypes.c_double), # out_ellipse_params[5]
-]
-
-
 def detect_pupil(
     img: np.ndarray,
     pupil_roi: tuple[int, int, int, int] | None = None,
@@ -83,33 +63,21 @@ def detect_pupil(
     if img.ndim != 2:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = np.ascontiguousarray(img, dtype=np.uint8)
-    height, width = img.shape
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0
     else:
         roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
-    out_params = (ctypes.c_double * 5)()
-
-    ok = _lib.ExCuSe_detect(
-        img.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
-        width,
-        height,
-        roi_x,
-        roi_y,
-        roi_w,
-        roi_h,
+    result = _core.detect(
+        img,
+        roi_x, roi_y, roi_w, roi_h,
         max_ellipse_radi,
         good_ellipse_threshold,
-        out_params,
     )
-    if not ok:
+    if result is None:
         return None
-
-    cx, cy, w, h, angle_deg = out_params[0], out_params[1], out_params[2], out_params[3], out_params[4]
-    if cx == 0.0 and cy == 0.0 and w == 0.0 and h == 0.0:
-        return None
+    cx, cy, w, h, angle_deg = result
     return {
         "center": (round(cx), round(cy)),
         "ellipse": ((cx, cy), (w, h), angle_deg),

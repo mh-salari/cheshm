@@ -1,55 +1,39 @@
-// Public C surface for the ExCuSe pupil detector — a single extern "C"
-// entry point that cheshm's Python wrapper loads via ctypes. The crop
-// for ``pupil_roi`` is taken as a zero-copy view via the shared
-// ``cpp/common`` helpers; the algorithm body itself never mutates the
-// caller's buffer.
+// ExCuSe pupil detector — nanobind binding. The algorithm itself lives
+// in `excuse.cpp`; this file just marshals numpy ↔ cv::Mat and packs
+// the resulting ellipse into a Python tuple.
 
 #include "ExCuSe/excuse.hpp"
 #include "cheshm/roi.hpp"
 
 #include <cstdint>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/tuple.h>
 #include <opencv2/core.hpp>
 
-extern "C" {
+namespace nb = nanobind;
+using namespace nb::literals;
 
-// ExCuSe_detect — find the pupil ellipse via ExCuSe.
-//
-//  img_data           grayscale uint8 buffer, ``width * height`` bytes,
-//                     row-major (numpy default).
-//  roi_x, roi_y,      ROI rectangle in full-image coordinates. When
-//  roi_w, roi_h       ``roi_w > 0 && roi_h > 0`` the algorithm runs on
-//                     the cropped sub-image; otherwise the full image.
-//  max_ellipse_radi   Upper bound on accepted ellipse semi-axis length
-//                     (paper notation). Drives the quality validation.
-//  good_ellipse_threshold   Pixel-count threshold for the goodness
-//                     test on the candidate ellipse.
-//  out_ellipse_params five doubles: ``{cx, cy, w, h, angle_deg}`` from
-//                     ``cv::RotatedRect``. Centre is in full-image
-//                     coordinates regardless of whether an ROI was used.
-//
-// Returns 1 on success, 0 on error.
-int ExCuSe_detect(
-    const std::uint8_t *img_data,
-    int width,
-    int height,
-    int roi_x,
-    int roi_y,
-    int roi_w,
-    int roi_h,
+namespace {
+
+// Returns ``(cx, cy, w, h, angle_deg)`` on success, or ``None`` when
+// the ROI clamps to zero area. ``cx, cy`` are in full-image coords.
+nb::object detect(
+    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+    int roi_x, int roi_y, int roi_w, int roi_h,
     int max_ellipse_radi,
-    int good_ellipse_threshold,
-    double *out_ellipse_params)
+    int good_ellipse_threshold)
 {
-    if (img_data == nullptr || width <= 0 || height <= 0 || out_ellipse_params == nullptr) {
-        return 0;
-    }
+    const int height = static_cast<int>(img.shape(0));
+    const int width = static_cast<int>(img.shape(1));
+    const cv::Mat full(height, width, CV_8U,
+                       const_cast<std::uint8_t *>(img.data()));
 
-    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t *>(img_data));
     cv::Rect crop(0, 0, width, height);
     if (cheshm::roi_is_active(roi_w, roi_h)) {
         crop = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
         if (crop.area() == 0) {
-            return 0;
+            return nb::none();
         }
     }
     const cv::Mat view = full(crop);
@@ -57,12 +41,25 @@ int ExCuSe_detect(
     const cv::RotatedRect ellipse =
         cheshm::ExCuSe::findPupilEllipse(view, max_ellipse_radi, good_ellipse_threshold);
 
-    out_ellipse_params[0] = ellipse.center.x + crop.x;
-    out_ellipse_params[1] = ellipse.center.y + crop.y;
-    out_ellipse_params[2] = ellipse.size.width;
-    out_ellipse_params[3] = ellipse.size.height;
-    out_ellipse_params[4] = ellipse.angle;
-    return 1;
+    const double cx = static_cast<double>(ellipse.center.x) + crop.x;
+    const double cy = static_cast<double>(ellipse.center.y) + crop.y;
+    const double w = ellipse.size.width;
+    const double h = ellipse.size.height;
+    const double angle = ellipse.angle;
+
+    if (cx == crop.x && cy == crop.y && w == 0.0 && h == 0.0) {
+        // findPupilEllipse returns a zero RotatedRect when no good
+        // ellipse is found; surface that as None to the caller.
+        return nb::none();
+    }
+    return nb::make_tuple(cx, cy, w, h, angle);
 }
 
-}  // extern "C"
+}  // namespace
+
+NB_MODULE(_core, m)
+{
+    m.def("detect", &detect,
+          "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
+          "max_ellipse_radi"_a, "good_ellipse_threshold"_a);
+}
