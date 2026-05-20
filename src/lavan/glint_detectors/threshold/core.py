@@ -104,6 +104,7 @@ def detect_glints(
     glint_roi: tuple[int, int, int, int] | None = None,
     glint_center_method: Literal[
         "convex_hull_centroid",
+        "hull_moments_centroid",
         "center_of_mass",
         "ellipse_fit_center",
         "min_area_rect_center",

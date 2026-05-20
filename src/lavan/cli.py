@@ -12,10 +12,11 @@ from pathlib import Path
 import cv2
 
 from lavan.glint_detectors.threshold import detect_glints
-from lavan.pupil_detectors.threshold import detect_pupil
+from lavan.pupil_detectors.Simple import detect_pupil
 
 CENTER_METHOD_CHOICES = (
     "convex_hull_centroid",
+    "hull_moments_centroid",
     "center_of_mass",
     "ellipse_fit_center",
     "min_area_rect_center",

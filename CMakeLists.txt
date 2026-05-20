@@ -30,5 +30,6 @@ add_library(lavan_common INTERFACE)
 target_include_directories(lavan_common INTERFACE cpp/common/include)
 
 add_subdirectory(src/lavan/limbus_detectors/daugman)
+add_subdirectory(src/lavan/pupil_detectors/Simple)
 add_subdirectory(src/lavan/pupil_detectors/Starburst)
 add_subdirectory(src/lavan/pupil_detectors/Swirski2D)

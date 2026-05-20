@@ -3,7 +3,10 @@
   - :func:`_roi_mask` — build a binary mask from a rectangle.
   - :func:`_crop_to_roi` / :func:`_translate_pupil_result` — the crop +
     shift-back pair every pupil detector uses to honour ``pupil_roi``.
-  - :func:`_contour_center` — four ways to take a contour's centre.
+  - :func:`_fit_convex_hull_spline` — periodic interpolating cubic
+    spline through a contour's convex hull, with Green's-theorem
+    centroid of the enclosed region.
+  - :func:`_contour_center` — five ways to take a contour's centre.
   - :func:`_passes_shape_quality` — two opt-in gates (ellipse-fit ratio
     and isoperimetric roundness) used to reject contours whose shape
     doesn't match a clean pupil / glint blob.
@@ -13,6 +16,7 @@ import math
 
 import cv2
 import numpy as np
+from scipy.interpolate import splev, splprep
 
 
 def _roi_mask(shape: tuple[int, ...], roi: tuple[int, int, int, int]) -> np.ndarray:
@@ -90,21 +94,74 @@ def _translate_pupil_result(
     return out
 
 
+def _fit_convex_hull_spline(contour: np.ndarray, n_points: int = 200) -> dict:
+    """Periodic interpolating cubic spline through a contour's convex hull.
+
+    Steps:
+      1. Take the convex hull of the input contour, walked in the
+         original contour's traversal order.
+      2. Fit a periodic cubic B-spline through the hull vertices using
+         chord-length parameterisation.
+      3. Sample ``n_points`` evenly along the spline.
+      4. Compute the enclosed area and centroid via Green's theorem on
+         the sampled curve.
+
+    Returns ``{points, center, equiv_diam}`` where ``points`` is the
+    ``(n_points, 2)`` sampled boundary, ``center`` is the centroid of
+    the enclosed region, and ``equiv_diam`` is the diameter of a circle
+    with the same enclosed area.
+    """
+    hull_indices = cv2.convexHull(contour, returnPoints=False).squeeze()
+    hull_pts = contour.squeeze()[np.sort(hull_indices)]
+
+    pts = np.vstack([hull_pts, hull_pts[0]])
+    x, y = pts[:, 0].astype(float), pts[:, 1].astype(float)
+
+    tck, _ = splprep([x, y], s=0, per=True, k=3)
+    t = np.linspace(0, 1, n_points)
+    sx, sy = splev(t, tck)
+
+    sx_c = np.append(sx, sx[0])
+    sy_c = np.append(sy, sy[0])
+    cross = sx_c[:-1] * sy_c[1:] - sx_c[1:] * sy_c[:-1]
+    signed_area = 0.5 * np.sum(cross)
+    area = abs(signed_area)
+    if signed_area != 0:
+        cx = np.sum((sx_c[:-1] + sx_c[1:]) * cross) / (6 * signed_area)
+        cy = np.sum((sy_c[:-1] + sy_c[1:]) * cross) / (6 * signed_area)
+    else:
+        cx, cy = float(np.mean(sx)), float(np.mean(sy))
+
+    equiv_diam = 2 * np.sqrt(area / np.pi)
+    return {
+        "points": np.column_stack([sx, sy]),
+        "center": (float(cx), float(cy)),
+        "equiv_diam": float(equiv_diam),
+    }
+
+
 def _contour_center(contour: np.ndarray, method: str) -> tuple[float, float]:
     """Geometric centre of ``contour`` chosen by ``method``.
 
     Methods:
-      - ``convex_hull_centroid``: moments centroid of the filled convex hull.
+      - ``convex_hull_centroid``: periodic interpolating cubic spline
+        through the convex hull, sampled at 200 points, Green's-theorem
+        centroid of the enclosed region.
+      - ``hull_moments_centroid``: moments centroid of the filled
+        convex-hull polygon (no spline). Cheaper but less sub-pixel-
+        stable than ``convex_hull_centroid``.
       - ``center_of_mass``: moments centroid of the contour itself.
       - ``ellipse_fit_center``: centre of ``cv2.fitEllipse`` (needs >= 5 points).
       - ``min_area_rect_center``: centre of the minimum-area rotated rect.
 
     """
     if method == "convex_hull_centroid":
+        return _fit_convex_hull_spline(contour)["center"]
+    if method == "hull_moments_centroid":
         hull = cv2.convexHull(contour)
         m = cv2.moments(hull)
         if m["m00"] <= 0:
-            raise ValueError("convex_hull_centroid: zero-area hull")
+            raise ValueError("hull_moments_centroid: zero-area hull")
         return (m["m10"] / m["m00"], m["m01"] / m["m00"])
     if method == "center_of_mass":
         m = cv2.moments(contour)
@@ -121,7 +178,8 @@ def _contour_center(contour: np.ndarray, method: str) -> tuple[float, float]:
         return (cx, cy)
     raise ValueError(
         f"unknown center method {method!r}; expected one of "
-        "'convex_hull_centroid', 'center_of_mass', 'ellipse_fit_center', 'min_area_rect_center'",
+        "'convex_hull_centroid', 'hull_moments_centroid', 'center_of_mass', "
+        "'ellipse_fit_center', 'min_area_rect_center'",
     )
 
 

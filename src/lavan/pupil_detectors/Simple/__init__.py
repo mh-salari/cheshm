@@ -1,4 +1,4 @@
-"""Threshold-based pupil detector."""
+"""Simple threshold-based pupil detector."""
 
 from .core import detect_pupil
 
