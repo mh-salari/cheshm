@@ -14,6 +14,26 @@ __pycache__/
 *.dylib
 *.dll
 
+# CMake configure-time artefacts. Anywhere in the tree — sometimes the
+# build is mistakenly invoked at the repo root or inside a detector
+# subdir instead of build/.
+CMakeFiles/
+CMakeCache.txt
+CMakeInit.txt
+CMakeScratch/
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+*.cmake
+!CMakeLists.txt
+
+# Ninja + scikit-build configure-time outputs (same scenario as the
+# CMake artefacts above).
+*.ninja
+.ninja_deps
+.ninja_log
+.skbuild-info.json
+
 # Virtual environments
 .venv/
 .venv-*/
