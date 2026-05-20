@@ -45,6 +45,9 @@ dependencies = [
     "numba",
     "numpy",
     "opencv-python",
+    # macOS dock icon: GLFW intentionally ignores window icons on Cocoa,
+    # so the GUI calls NSApplication.setApplicationIconImage_ directly.
+    "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]

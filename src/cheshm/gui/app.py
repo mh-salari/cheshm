@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,25 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 
 from .registry import Detector, Setting, discover_detectors
+
+
+def _set_macos_dock_icon(icon_path: str) -> None:
+    """Replace the dock / app-switcher icon with ``icon_path`` on macOS.
+
+    GLFW's ``glfwSetWindowIcon`` is a no-op on Cocoa, so Dear PyGui's
+    ``small_icon`` / ``large_icon`` viewport parameters don't reach the
+    dock. The Cocoa API call below does, provided pyobjc is installed
+    (declared as a macOS-only runtime dependency in ``pyproject.toml``).
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from AppKit import NSApplication, NSImage  # noqa: PLC0415
+    except ImportError:
+        return
+    image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+    if image is not None:
+        NSApplication.sharedApplication().setApplicationIconImage_(image)
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
@@ -718,6 +738,7 @@ def run(img_dir: str | Path) -> None:
     dpg.bind_item_theme("settings_panel", settings_theme)
 
     icon_path = str(Path(__file__).parent / "icon.png")
+    _set_macos_dock_icon(icon_path)
     dpg.create_viewport(title="cheshm", width=1400, height=900, small_icon=icon_path, large_icon=icon_path)
     dpg.setup_dearpygui()
     dpg.show_viewport()
