@@ -1,4 +1,4 @@
-# <img src="src/cheshm/gui/icon.png" alt="" width="48"> `cheshm`
+# <img src="https://raw.githubusercontent.com/mh-salari/cheshm/main/src/cheshm/gui/icon.png" alt="" width="48"> `cheshm`
 
 [![PyPI version](https://img.shields.io/pypi/v/cheshm)](https://pypi.org/project/cheshm/)
 [![Downloads](https://static.pepy.tech/badge/cheshm)](https://pepy.tech/project/cheshm)
