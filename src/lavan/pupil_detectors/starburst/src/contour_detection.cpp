@@ -3,8 +3,6 @@
 // ray (``locate_edge_points``), then re-shoots return rays from those
 // edge points. The loop iterates until the centre-of-mass of the edge
 // points stabilises.
-//
-// Algorithm: cvEyeTracker / openEyes ToolKit (2004-2006), GPL.
 
 #include "starburst/ransac_ellipse.hpp"
 

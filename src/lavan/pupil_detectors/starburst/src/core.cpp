@@ -1,12 +1,7 @@
 // Public C surface for the Starburst pupil detector — a single
 // extern "C" entry point that lavan's Python wrapper loads via ctypes.
-//
-// All in-tree C++ machinery (CR removal, RANSAC + SVD, ray-based contour
-// detection) is invoked from one place here. The input image is copied
-// into an internal working buffer so the caller's numpy array is never
-// mutated.
-//
-// Algorithm: cvEyeTracker / openEyes ToolKit (2004-2006), GPL.
+// The input image is copied into an internal working buffer so the
+// caller's numpy array is never mutated.
 
 #include "starburst/corneal_reflection.hpp"
 #include "starburst/ransac_ellipse.hpp"

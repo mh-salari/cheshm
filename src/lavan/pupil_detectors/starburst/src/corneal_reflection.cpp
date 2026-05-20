@@ -1,9 +1,4 @@
 // Corneal-reflection removal — see corneal_reflection.hpp.
-//
-// Algorithm: cvEyeTracker 1.2.5 / openEyes ToolKit (2004-2006),
-// distributed under GPL. The original source-level functions are kept
-// here under the lavan::starburst namespace; internal helpers are
-// hidden in an anonymous namespace.
 
 #include "starburst/corneal_reflection.hpp"
 

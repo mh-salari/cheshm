@@ -1,17 +1,8 @@
-// Starburst's ellipse fitter — finds candidate pupil-edge points by
-// shooting rays from a seed centre, then RANSAC-fits an ellipse to
-// those points using a normalised conic fit.
-//
-// Public surface:
-//
-//   - ``starburst_pupil_contour_detection`` populates ``edge_point`` with
-//     candidate pupil-boundary points (rays + intensity-jump test).
-//   - ``pupil_fitting_inliers`` runs RANSAC over ``edge_point`` and
-//     leaves the ellipse parameters in ``pupil_param``
-//     ``= {a, b, cx, cy, theta_rad}``.
-//
-// Original algorithm: cvEyeTracker / openEyes ToolKit, 2004-2006. See
-// LICENSE (GPL) in this subdirectory.
+// Starburst ellipse fitter — ``starburst_pupil_contour_detection``
+// collects candidate pupil-edge points by shooting rays from a seed
+// centre and detecting intensity jumps. ``pupil_fitting_inliers`` runs
+// RANSAC over those points and leaves the ellipse parameters in
+// ``pupil_param = {a, b, cx, cy, theta_rad}``.
 
 #pragma once
 

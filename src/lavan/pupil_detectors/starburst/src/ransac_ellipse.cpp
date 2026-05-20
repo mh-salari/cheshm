@@ -1,8 +1,6 @@
 // RANSAC ellipse-fit helpers — random sampling, conic-to-ellipse solve,
 // normalisation of edge points, and the main RANSAC loop that picks the
 // ellipse with the most inliers.
-//
-// Algorithm: cvEyeTracker / openEyes ToolKit (2004-2006), GPL.
 
 #include "starburst/ransac_ellipse.hpp"
 
