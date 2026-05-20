@@ -7,7 +7,7 @@ requires = [
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "lavan"
+name = "cheshm"
 dynamic = ["version"]
 description = "Pupil, glint, and limbus detection on grayscale eye images, plus iris-texture rigid alignment of two eye images."
 readme = "README.md"
@@ -54,13 +54,13 @@ dev = [
 ]
 
 [project.scripts]
-lavan-detect = "lavan.cli:main"
-lavan-gui = "lavan.gui.cli:main"
+cheshm-detect = "cheshm.cli:main"
+cheshm-gui = "cheshm.gui.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/mh-salari/lavan"
-Repository = "https://github.com/mh-salari/lavan"
-Issues = "https://github.com/mh-salari/lavan/issues"
+Homepage = "https://github.com/mh-salari/cheshm"
+Repository = "https://github.com/mh-salari/cheshm"
+Issues = "https://github.com/mh-salari/cheshm/issues"
 
 # scikit-build-core drives the CMake build, which compiles the daugman
 # family's C kernels (loaded via ctypes). Wheels are tagged with the
@@ -68,8 +68,8 @@ Issues = "https://github.com/mh-salari/lavan/issues"
 [tool.scikit-build]
 minimum-version = "0.10"
 build-dir = "build/{wheel_tag}"
-wheel.packages = ["src/lavan"]
-sdist.include = ["src/lavan/**", "CMakeLists.txt", "README.md", "LICENSE"]
+wheel.packages = ["src/cheshm"]
+sdist.include = ["src/cheshm/**", "CMakeLists.txt", "README.md", "LICENSE"]
 metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
 # Daugman C kernels are loaded via ctypes from `Path(__file__).parent`,
 # which only works if the compiled libs sit next to their .py. The

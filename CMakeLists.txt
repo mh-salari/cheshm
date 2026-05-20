@@ -25,13 +25,13 @@ endif()
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
 # Shared C++ helpers (ROI cropping, etc.) consumed by every C-backed
-# detector via `target_link_libraries(... lavan_common)`. Header-only.
-add_library(lavan_common INTERFACE)
-target_include_directories(lavan_common INTERFACE cpp/common/include)
+# detector via `target_link_libraries(... cheshm_common)`. Header-only.
+add_library(cheshm_common INTERFACE)
+target_include_directories(cheshm_common INTERFACE cpp/common/include)
 
-add_subdirectory(src/lavan/limbus_detectors/daugman)
-add_subdirectory(src/lavan/pupil_detectors/ExCuSe)
-add_subdirectory(src/lavan/pupil_detectors/Simple)
-add_subdirectory(src/lavan/pupil_detectors/Starburst)
-add_subdirectory(src/lavan/pupil_detectors/Swirski2D)
-add_subdirectory(src/lavan/glint_detectors/Simple)
+add_subdirectory(src/cheshm/limbus_detectors/daugman)
+add_subdirectory(src/cheshm/pupil_detectors/ExCuSe)
+add_subdirectory(src/cheshm/pupil_detectors/Simple)
+add_subdirectory(src/cheshm/pupil_detectors/Starburst)
+add_subdirectory(src/cheshm/pupil_detectors/Swirski2D)
+add_subdirectory(src/cheshm/glint_detectors/Simple)
