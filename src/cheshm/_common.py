@@ -1,9 +1,8 @@
-"""Shared internal helpers used by the cheshm detector modules.
+"""Shared helpers used by cheshm's Python pupil detectors.
 
   - :func:`_crop_to_roi` / :func:`_translate_pupil_result` — the crop +
     shift-back pair every Python pupil detector uses to honour
-    ``pupil_roi``. C-backed detectors crop and shift inside their
-    kernels via ``cpp/common/include/cheshm/roi.hpp``.
+    ``pupil_roi``.
 """
 
 import numpy as np

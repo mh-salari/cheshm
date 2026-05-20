@@ -1,4 +1,4 @@
-// ExCuSe algorithm body. Public surface is in include/ExCuSe/excuse.hpp.
+// ExCuSe pupil detector algorithm body.
 
 #include "ExCuSe/excuse.hpp"
 

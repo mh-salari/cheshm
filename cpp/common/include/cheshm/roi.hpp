@@ -1,11 +1,4 @@
-// Shared ROI helpers for cheshm C++ pupil/glint/limbus detectors.
-// Header-only — pulled in via the `cheshm_common` CMake INTERFACE target.
-//
-// The pair `clamp_roi` + `crop_view` is the C++ equivalent of the
-// Python `_crop_to_roi` helper in `cheshm._common`. Same clamping rules,
-// same integer-pixel coordinates, so a detector running on the cropped
-// view produces bit-identical output to the same detector running on
-// the equivalent Python crop.
+// Shared ROI helpers for cheshm C++ detectors.
 
 #pragma once
 

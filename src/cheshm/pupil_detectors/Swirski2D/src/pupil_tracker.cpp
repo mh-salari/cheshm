@@ -1,6 +1,5 @@
-// Swirski 2D pupil detector implementation. Public surface is in
-// pupil_tracker.hpp. Algorithm: Swirski, Bulling, Dodgson 2012.
-// Upstream: Lech Swirski's pupiltracker (MIT, 2014).
+// Swirski 2D pupil detector algorithm body.
+// Reference: Swirski, Bulling, Dodgson (2012).
 
 #include "Swirski2D/pupil_tracker.hpp"
 

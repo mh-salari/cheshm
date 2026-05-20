@@ -1,4 +1,4 @@
-// ExCuSe pupil detector. Public C++ surface: ``findPupilEllipse``.
+// ExCuSe pupil detector.
 //
 // Reference: Fuhl, W., Kübler, T., Sippel, K., Rosenstiel, W., Kasneci, E.
 // (2015). "ExCuSe: Robust Pupil Detection in Real-World Scenarios."

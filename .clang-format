@@ -62,7 +62,7 @@ SortIncludes: CaseSensitive
 IncludeBlocks: Regroup
 IncludeCategories:
   # Project headers first.
-  - Regex:    '^"lavan/'
+  - Regex:    '^"cheshm/'
     Priority: 1
   - Regex:    '^"'
     Priority: 2

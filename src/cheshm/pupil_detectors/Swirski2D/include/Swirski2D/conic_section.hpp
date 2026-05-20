@@ -1,5 +1,4 @@
-// Algebraic conic-section / ellipse helpers used by the Swirski 2D
-// RANSAC step. Header-only.
+// Algebraic conic-section / ellipse helpers.
 
 #pragma once
 

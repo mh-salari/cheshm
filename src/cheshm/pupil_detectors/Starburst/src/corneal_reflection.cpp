@@ -1,4 +1,4 @@
-// Corneal-reflection removal — see corneal_reflection.hpp.
+// Corneal-reflection removal.
 
 #include "Starburst/corneal_reflection.hpp"
 

@@ -1,8 +1,6 @@
 """CLI entry point: ``detect`` — run pupil + glint detection on one image.
 
-Prints the combined JSON-serialisable result. Only the most-used knobs
-are surfaced as flags; advanced refiners keep their library defaults —
-callers who need them invoke the API directly.
+Prints the combined JSON-serialisable result.
 """
 
 import argparse

@@ -6,10 +6,6 @@ warps the target onto the reference. The cost function is the mean
 absolute intensity difference inside a barrel-shaped iris mask (top and
 bottom eyelid zones excluded), so the alignment is driven by iris texture
 rather than by eyelashes or specular glints.
-
-Visualisation helpers (``plot_diff``, ``plot_blend``, ``plot_mask_overlay``,
-``save_aligned_pair_images``, ``save_diff_heatmap``) live in
-:mod:`cheshm.viz`.
 """
 
 from .core import (

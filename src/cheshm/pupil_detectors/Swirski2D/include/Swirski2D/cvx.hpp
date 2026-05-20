@@ -53,17 +53,6 @@ namespace cvx
         cvx::line(img, centre + cv::Point2f(-radius, 0), centre + cv::Point2f(radius, 0), colour, thickness, lineType, shift);
     }
 
-    /*inline void cross(cv::Mat& img, cv::Point centre, int radius, const cv::Scalar& colour, int thickness = 1, int lineType = 8, int shift = 0)
-    {
-        cv::line(img, centre + cv::Point(-radius, -radius), centre + cv::Point(radius, radius), colour, thickness, lineType, shift);
-        cv::line(img, centre + cv::Point(-radius, radius), centre + cv::Point(radius, -radius), colour, thickness, lineType, shift);
-    }
-    inline void plus(cv::Mat& img, cv::Point centre, int radius, const cv::Scalar& colour, int thickness = 1, int lineType = 8, int shift = 0)
-    {
-        cv::line(img, centre + cv::Point(0, -radius), centre + cv::Point(0, radius), colour, thickness, lineType, shift);
-        cv::line(img, centre + cv::Point(-radius, 0), centre + cv::Point(radius, 0), colour, thickness, lineType, shift);
-    }*/
-
     inline cv::Rect boundingBox(const cv::Mat& img)
     {
         return cv::Rect(0,0,img.cols,img.rows);

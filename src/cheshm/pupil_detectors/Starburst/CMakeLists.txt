@@ -1,6 +1,3 @@
-# Starburst pupil detector — nanobind extension `_core`. core.py loads
-# it directly with `from . import _core`.
-
 nanobind_add_module(Starburst_core_nb
   STABLE_ABI
   NB_STATIC

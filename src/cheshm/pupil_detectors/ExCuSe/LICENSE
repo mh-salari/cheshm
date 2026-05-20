@@ -13,11 +13,9 @@ License header from the upstream source (ExCuSe.h):
   Version 1.0, 08.06.2015, Copyright University of Tübingen.
   The code and the algorithm are for non-commercial use only.
 
-The supporting Pupil / PupilDetectionMethod scaffolding around the
-upstream distribution is © 2018 Thiago Santini / University of
-Tübingen, distributed under the following terms (carried for the
-algorithm files used here, even though lavan's port no longer
-includes the scaffolding classes themselves):
+The supporting Pupil / PupilDetectionMethod scaffolding distributed
+alongside the original source is © 2018 Thiago Santini / University
+of Tübingen, distributed under the following terms:
 
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software, source code, and associated documentation
@@ -41,7 +39,3 @@ includes the scaffolding classes themselves):
   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
 
-Per lavan's distribution model, this detector eventually ships as the
-separate ``lavan-ExCuSe`` plugin package so the main ``lavan`` wheel
-stays MIT-only. While the port is in flight it lives in-tree under
-``lavan.pupil_detectors.ExCuSe``.

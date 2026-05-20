@@ -1,7 +1,4 @@
-// Starburst pupil detector — nanobind binding. The algorithm lives in
-// the sibling .cpp files (contour_detection, corneal_reflection,
-// ransac_ellipse, svd); this file marshals numpy ↔ cv::Mat and packs
-// the resulting ellipse and edge-point cloud into Python types.
+// Starburst pupil detector — Python binding.
 
 #include "Starburst/corneal_reflection.hpp"
 #include "Starburst/ransac_ellipse.hpp"

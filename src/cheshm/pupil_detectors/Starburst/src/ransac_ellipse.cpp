@@ -124,10 +124,7 @@ int *RansacEllipse::pupil_fitting_inliers(
         return_max_inliers_num = 0;
         return nullptr;
     }
-    // Deterministic RANSAC sampling: with the same image + settings the
-    // detector returns the same ellipse. (The original cvEyeTracker used
-    // an unseeded ``rand()`` which produced different results across
-    // runs; surprising during GUI tuning.)
+    // Deterministic RANSAC sampling: same image + settings → same ellipse.
     std::srand(42);
 
     cv::Point2d nor_center;

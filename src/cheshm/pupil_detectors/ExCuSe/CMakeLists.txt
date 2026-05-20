@@ -1,7 +1,3 @@
-# ExCuSe pupil detector — nanobind extension `_core`. core.py loads it
-# directly with `from . import _core`. Algorithm body lives in
-# `src/excuse.cpp`; `src/core.cpp` is the binding.
-
 nanobind_add_module(ExCuSe_core_nb
   STABLE_ABI
   NB_STATIC

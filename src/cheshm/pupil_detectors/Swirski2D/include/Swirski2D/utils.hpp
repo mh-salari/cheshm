@@ -1,8 +1,5 @@
-// Small utilities used by the Swirski 2D pupil detector — string
-// builder, integer helpers, and a deterministic random + random-subset.
-//
-// Header-only except for the two ``random`` functions implemented in
-// ``utils.cpp`` (they own a static ``std::mt19937``).
+// Swirski 2D utilities — string builder, integer helpers, deterministic
+// random + random-subset.
 
 #pragma once
 

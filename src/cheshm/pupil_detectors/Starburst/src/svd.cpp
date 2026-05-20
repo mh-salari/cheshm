@@ -1,6 +1,4 @@
 // Singular Value Decomposition — Householder reduction + QR iteration.
-// Used by ``pupil_fitting_inliers`` to solve the homogeneous conic-fit
-// system in normalised coordinates.
 
 #include "Starburst/ransac_ellipse.hpp"
 

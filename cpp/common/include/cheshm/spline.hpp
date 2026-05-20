@@ -5,8 +5,7 @@
 //
 // The exported helper samples the spline at ``n_samples`` evenly spaced
 // parameter values and returns the centroid of the enclosed polygon
-// via Green's theorem. Header-only so any detector can include it
-// through the ``cheshm_common`` CMake INTERFACE target.
+// via Green's theorem.
 //
 // Second-derivative formulation: for each interval [u_i, u_{i+1}] of
 // width h_i, the cubic spline is determined by the second derivatives
@@ -130,7 +129,7 @@ inline double evaluate_segment(double t, double u_i, double u_ip1, double h, dou
 inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &points, int n_samples)
 {
     // Periodic cubic spline degree is 3, so the algorithm needs at
-    // least four distinct knots; matches scipy's FITPACK m > k gate.
+    // least four distinct knots.
     const int K = static_cast<int>(points.size());
     if (K < 4 || n_samples < 3) {
         return {0.0, 0.0, 0.0};

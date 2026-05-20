@@ -35,19 +35,6 @@ The Python implementation was adapted from Fatih BAŞATEMUR's MIT-licensed
 reference port at
 <https://github.com/fbasatemur/daugman_iris_detection>.
 
-**What we changed relative to the upstream implementation:**
-
-- Rewrote the per-`(x₀, y₀)` integral-of-mean-around-the-circle and its
-  Gaussian-smoothed `∂/∂r` derivative in C (`integro_differential/core.c`)
-  for roughly a 100× speed-up. The Python class is now a thin `ctypes`
-  wrapper around `integro_differential_operator_search` plus the
-  morphological-open preprocessing and the coarse-to-fine search wrapper
-  (`result`).
-- Dropped the notebook scaffolding; kept the algorithmic core only.
-- Renamed from the upstream `DIED` (acronym) to the paper's term.
-- `_DISK3` inlined as a NumPy array instead of importing
-  `skimage.morphology.disk`.
-
 ## 2. `DaugmanActiveContour` — Fourier-series active contour (2007)
 
 A generalisation of the integro-differential operator that drops the

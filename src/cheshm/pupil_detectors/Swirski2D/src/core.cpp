@@ -1,7 +1,4 @@
-// Swirski 2D pupil detector — nanobind binding. The algorithm lives in
-// `pupil_tracker.cpp` (Haar feature → adaptive threshold → Canny →
-// RANSAC ellipse fit); this file marshals numpy ↔ cv::Mat and packs the
-// resulting ellipse and inliers into Python types.
+// Swirski 2D pupil detector — Python binding.
 
 #include "Swirski2D/pupil_tracker.hpp"
 #include "cheshm/roi.hpp"

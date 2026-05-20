@@ -7,18 +7,11 @@ mean absolute intensity difference inside a barrel-shaped iris mask (top
 and bottom eyelid zones excluded), so the alignment is driven by iris
 texture rather than by eyelashes or specular glints.
 
-Two equivalent implementations are exposed:
-
-  - :func:`align_by_min_diff` (Numba-accelerated, default).
-  - :func:`align_by_min_diff_plain` (pure Python triple loop, ~4x slower).
-
-Both take the same mask, search-range, and rotation-centre arguments and
-return ``((dx, dy, theta), best_score)``. A separate :func:`apply_transform`
-helper applies the returned parameters to an image, and
-:func:`align_by_translation` returns the pure-translation that places one
-reference point (e.g. a glint centroid, a pupil centre, an iris centre)
-on top of another — useful as a pre-alignment step before the image-diff
-refinement.
+  - :func:`align_by_min_diff` — Numba-accelerated grid search.
+  - :func:`align_by_min_diff_plain` — pure-Python grid search.
+  - :func:`align_by_translation` — pure-translation alignment between two
+    reference points (e.g. glint centroid, pupil centre, iris centre).
+  - :func:`apply_transform` — apply ``(dx, dy, theta)`` to an image.
 """
 
 from collections.abc import Iterable
@@ -80,7 +73,7 @@ def make_barrel_mask(
 
 
 # =============================================================================
-# Plain Python alignment (simple, no dependencies beyond OpenCV + NumPy)
+# Plain Python alignment
 # =============================================================================
 
 
@@ -127,8 +120,6 @@ def align_by_min_diff_plain(
 ) -> tuple[tuple[float, float, float], float]:
     """Plain Python alignment: coarse integer search + fine sub-pixel refinement.
 
-    Straightforward triple loop — easy to read but slow (~4x slower than the Numba version).
-
     `rotation_center` is the (cx, cy) point around which the candidate rotations are applied.
     Must match whatever rotation center is later used to apply the returned transform, or the
     final alignment will differ from the one that minimized the search cost. Defaults to the
@@ -167,7 +158,7 @@ def align_by_min_diff_plain(
 
 
 # =============================================================================
-# Numba-accelerated alignment (same logic, ~4x faster)
+# Numba-accelerated alignment
 # One warpAffine per theta, Numba searches all (dx, dy) via bilinear interpolation.
 # =============================================================================
 

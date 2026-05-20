@@ -1,4 +1,4 @@
-// cv2 helper implementations — see cvx.hpp.
+// cv2 helper implementations.
 
 #include "Swirski2D/cvx.hpp"
 

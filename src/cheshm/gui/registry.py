@@ -7,9 +7,6 @@ Walks ``cheshm.{pupil,glint,limbus}_detectors`` and produces a list of
     :func:`inspect.signature` and :func:`typing.get_type_hints`,
   - per-parameter UI metadata read from the module's ``_UI`` dict
     (slider bounds, help text, widget hints, label overrides).
-
-Nothing here is hand-registered — adding a new detector module is the
-only step needed to surface it in the GUI.
 """
 
 from __future__ import annotations
@@ -158,8 +155,7 @@ def discover_detectors() -> list[Detector]:
 
     Only packages are considered (``ispkg=True``), matching cheshm's
     convention that every detector is a subpackage with ``__init__.py``
-    re-exporting from ``core.py``. ``_UI`` metadata is read from the
-    ``core`` submodule, where it lives next to the function definition.
+    re-exporting from ``core.py``.
     """
     detectors: list[Detector] = []
     for kind, (parent_pkg, fn_name) in _CATEGORIES.items():

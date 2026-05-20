@@ -1,5 +1,5 @@
 // Swirski 2D pupil detector — Haar feature → adaptive threshold →
-// Canny edges → RANSAC ellipse fit. Public surface: ``findPupilEllipse``.
+// Canny edges → RANSAC ellipse fit.
 //
 // Swirski, L., Bulling, A., Dodgson, N. (2012). "Robust real-time pupil
 // tracking in highly off-axis images." ETRA.

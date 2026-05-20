@@ -1,6 +1,6 @@
-// Simple glint detector — nanobind extension. Threshold → pupil-centred
-// search disk → ROI / half-plane filtering → shape-quality walk →
-// optional widest-blob split → centre per glint.
+// Simple glint detector. Threshold → pupil-centred search disk →
+// ROI / half-plane filtering → shape-quality walk → optional
+// widest-blob split → centre per glint.
 
 #include "cheshm/roi.hpp"
 #include "cheshm/spline.hpp"
@@ -440,10 +440,9 @@ nb::tuple pack_glint(const cheshm::SimpleGlint::Glint &g)
     return nb::make_tuple(g.cx, g.cy, std::move(ellipse_obj), std::move(contour_arr));
 }
 
-// nanobind binding. Returns ``None`` on error (e.g. ROI fully outside
-// the image), otherwise a 2-tuple ``(list_of_glints, search_mask)``.
-//   list_of_glints: list of glint tuples (possibly empty).
-//   search_mask:    ``(H, W)`` uint8 ndarray with the post-filter mask.
+// Returns ``None`` on error (e.g. ROI fully outside the image),
+// otherwise a 2-tuple ``(list_of_glints, search_mask)`` where
+// search_mask is ``(H, W)`` uint8 with the post-filter mask.
 nb::object detect(
     nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
     int roi_x, int roi_y, int roi_w, int roi_h,

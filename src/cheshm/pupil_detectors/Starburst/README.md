@@ -19,22 +19,6 @@ by Dongheng Li, Derrick Parkhurst, Jason Babcock, David Winfield.
 Licensed under the **GNU General Public License v2 or later**. See
 [LICENSE](LICENSE) in this subdirectory.
 
-The C++ has been reorganised into the cheshm per-detector layout
-(`include/Starburst/` + `src/`) and put through pass 1 of the
-[three-pass modernisation](../../../REFACTOR.md): namespaced under
-`cheshm::Starburst`, macros and raw heap allocations replaced with
-`std::`-equivalents, anonymous-namespace internal helpers, no behaviour
-changes. Deep + speed passes are pending.
-
-## Distribution note
-
-Because Starburst is GPL, cheshm ships it inside the main `cheshm` wheel
-during development — `import cheshm.pupil_detectors.Starburst` works
-straight off `pip install cheshm`. Before cheshm v2.0 ships to PyPI, this
-subdir migrates to its own `cheshm-Starburst` plugin package; the main
-`cheshm` wheel stays MIT-only and `pip install cheshm[Starburst]` opts in
-to the GPL plugin (see Distribution model in `REFACTOR.md`).
-
 ## Layout
 
 ```
@@ -43,12 +27,12 @@ Starburst/
 │   ├── corneal_reflection.hpp   # remove_corneal_reflection
 │   └── ransac_ellipse.hpp       # class RansacEllipse
 ├── src/
-│   ├── core.cpp                 # extern "C" public surface
+│   ├── core.cpp                 # nanobind binding
 │   ├── corneal_reflection.cpp   # CR removal (locate/fit/interpolate)
 │   ├── contour_detection.cpp    # ray search + edge accumulation
 │   ├── ransac_ellipse.cpp       # RANSAC + conic-to-ellipse solve
 │   └── svd.cpp                  # Householder reduction + QR iteration
-├── core.py                      # ctypes wrapper, declares _UI and _OVERLAYS
+├── core.py                      # Python wrapper, declares _UI and _OVERLAYS
 ├── CMakeLists.txt
 ├── __init__.py                  # re-exports detect_pupil
 ├── LICENSE                      # upstream GPLv2-or-later

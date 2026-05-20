@@ -13,7 +13,7 @@ openEyes ToolKit — http://hcvl.hci.iastate.edu/openEyes
 Later C++ port and packaging adjustments: Moritz Lode (2020), Pupil-EXT
 contributors.
 
-Reorganisation, pass-1 modernisation, and ctypes-binding for lavan:
+Reorganisation, modernisation, and Python binding for cheshm:
   Copyright (c) 2026 Mohammadhossein Salari
 
 Licence
@@ -40,5 +40,5 @@ with cvEyeTracker; if not, write to the Free Software Foundation, Inc.,
 The full text of the GPL v2 is available at:
 https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
-The licence applies only to this subdirectory. The rest of lavan is
+The licence applies only to this subdirectory. The rest of cheshm is
 distributed under the MIT licence (see the project root LICENSE).

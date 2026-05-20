@@ -1,8 +1,7 @@
-// Starburst ray-based contour detection. ``starburst_pupil_contour_detection``
-// shoots rays from a seed, finds the first strong intensity rise on each
-// ray (``locate_edge_points``), then re-shoots return rays from those
-// edge points. The loop iterates until the centre-of-mass of the edge
-// points stabilises.
+// Starburst ray-based contour detection. Shoots rays from a seed,
+// finds the first strong intensity rise on each ray, then re-shoots
+// return rays from those edge points and iterates until the
+// centre-of-mass of the edge points stabilises.
 
 #include "Starburst/ransac_ellipse.hpp"
 

@@ -1,6 +1,3 @@
-# Simple glint detector — nanobind extension `_core`. core.py loads it
-# directly with `from . import _core` and provides the public Python API.
-
 nanobind_add_module(Simple_glint_core_nb
   STABLE_ABI
   NB_STATIC

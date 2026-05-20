@@ -1,7 +1,6 @@
-// Simple pupil detector — nanobind extension. Threshold → contour-find
-// → border / area filter → shape-quality walk → convex-hull-ellipse fit
-// → centre via the requested method. ROI is applied as a zero-copy view
-// via the shared cpp/common helpers.
+// Simple pupil detector. Threshold → contour-find → border / area
+// filter → shape-quality walk → convex-hull-ellipse fit → centre via
+// the requested method.
 
 #include "cheshm/roi.hpp"
 #include "cheshm/spline.hpp"
@@ -69,8 +68,7 @@ bool passes_shape_quality(
 }
 
 // Convex hull walked in source-contour traversal order. Anchors the
-// periodic-spline parameterisation at the contour's starting vertex,
-// matching the scipy reference exactly.
+// periodic-spline parameterisation at the contour's starting vertex.
 std::vector<cv::Point> hull_in_contour_order(const std::vector<cv::Point> &contour)
 {
     std::vector<int> indices;
@@ -231,10 +229,10 @@ std::optional<DetectResult> detect_impl(
 
 namespace {
 
-// nanobind binding. Returns ``None`` on failure or a 4-tuple on
-// success: ``((cx, cy), (e_cx, e_cy, e_w, e_h, e_angle), contour, mask)``.
-//   contour: ``(N, 2)`` float64 ndarray, full-image coords.
-//   mask:    ``(H, W)`` uint8 ndarray, full-image canvas with non-ROI zeroed.
+// Returns ``None`` on failure or a 4-tuple on success:
+//   ``((cx, cy), (e_cx, e_cy, e_w, e_h, e_angle), contour, mask)``
+// where contour is ``(N, 2)`` float64 in full-image coords and mask is
+// ``(H, W)`` uint8 with non-ROI zeroed.
 nb::object detect(
     nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
     int roi_x, int roi_y, int roi_w, int roi_h,

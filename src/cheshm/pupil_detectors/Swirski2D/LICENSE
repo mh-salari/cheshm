@@ -22,9 +22,9 @@ SOFTWARE.
 
 ----------------------------------------------------------------------
 
-Reorganisation into lavan's per-detector C++ layout, pass-1
-modernisation (drop Boost / TBB / OpenCV-HighGUI dependencies, namespace
-under `lavan::swirski_2d`), and the ctypes binding:
+Reorganisation into cheshm's per-detector C++ layout, modernisation
+(drop Boost / TBB / OpenCV-HighGUI dependencies, namespace under
+`cheshm::Swirski2D`), and the Python binding:
 
   Copyright (c) 2026 Mohammadhossein Salari
 

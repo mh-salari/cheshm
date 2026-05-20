@@ -52,7 +52,7 @@ Checks: >
   -readability-uppercase-literal-suffix
 
 WarningsAsErrors: ''
-HeaderFilterRegex: 'src/lavan/.*'
+HeaderFilterRegex: 'src/cheshm/.*'
 FormatStyle: file
 UseColor: true
 

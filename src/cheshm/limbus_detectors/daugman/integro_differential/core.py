@@ -5,9 +5,6 @@ Circuits and Systems for Video Technology, 14(1), 21-30, eq. (1). The same
 operator was introduced in Daugman, J. (1993). "High Confidence Visual
 Recognition of Persons by a Test of Statistical Independence." IEEE Trans.
 PAMI, 15(11), 1148-1161.
-
-The Python wrapper here is a thin ``ctypes`` binding around the C kernel in
-``core.c``.
 """
 
 import ctypes
@@ -59,7 +56,7 @@ _UI = {
     },
 }
 
-# Equivalent of skimage.morphology.disk(3); avoids the skimage dependency.
+# Radius-3 disk structuring element for the morphological-open preprocess.
 _DISK3 = np.array(
     [
         [0, 0, 0, 1, 0, 0, 0],

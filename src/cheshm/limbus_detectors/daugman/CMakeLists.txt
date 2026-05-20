@@ -1,13 +1,10 @@
-# Each detector ships a self-contained C kernel built as a "core" shared
-# library, sitting next to the matching core.py that loads it via ctypes.
-
-set(LAVAN_DAUGMAN_DETECTORS
+set(CHESHM_DAUGMAN_DETECTORS
   active_contour
   integro_differential
   pupil_guided
 )
 
-foreach(detector ${LAVAN_DAUGMAN_DETECTORS})
+foreach(detector ${CHESHM_DAUGMAN_DETECTORS})
   set(target "${detector}_core")
   add_library(${target} SHARED ${detector}/core.c)
   set_target_properties(${target} PROPERTIES

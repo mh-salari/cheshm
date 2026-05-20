@@ -1,6 +1,4 @@
-// ExCuSe pupil detector — nanobind binding. The algorithm itself lives
-// in `excuse.cpp`; this file just marshals numpy ↔ cv::Mat and packs
-// the resulting ellipse into a Python tuple.
+// ExCuSe pupil detector — Python binding.
 
 #include "ExCuSe/excuse.hpp"
 #include "cheshm/roi.hpp"
