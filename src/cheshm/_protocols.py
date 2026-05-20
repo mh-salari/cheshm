@@ -37,6 +37,7 @@ class PupilResult(TypedDict):
     center: tuple[int, int]
     ellipse: NotRequired[Ellipse]
     method: NotRequired[str]
+    confidence: NotRequired[float]
     contour: NotRequired[np.ndarray]
     mask: NotRequired[np.ndarray]
 
