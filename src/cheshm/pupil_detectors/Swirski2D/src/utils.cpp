@@ -7,7 +7,8 @@
 
 #include <random>
 
-namespace cheshm::Swirski2D {
+namespace cheshm::Swirski2D
+{
 
 static std::mt19937 static_gen;
 
@@ -24,4 +25,4 @@ int random(int min, int max, unsigned int seed)
     return distribution(gen);
 }
 
-}  // namespace cheshm::Swirski2D
+} // namespace cheshm::Swirski2D

@@ -23,45 +23,48 @@
 #include <opencv2/core.hpp>
 #include <vector>
 
-namespace cheshm {
+namespace cheshm
+{
 
-struct SplineCentroid {
+struct SplineCentroid
+{
     double cx;
     double cy;
     double area;
 };
 
-namespace detail {
+namespace detail
+{
 
-inline void thomas_solve(
-    const std::vector<double> &a,
-    std::vector<double> b,
-    const std::vector<double> &c,
-    const std::vector<double> &r,
-    std::vector<double> &x)
+inline void thomas_solve(const std::vector<double>& a,
+                         std::vector<double> b,
+                         const std::vector<double>& c,
+                         const std::vector<double>& r,
+                         std::vector<double>& x)
 {
     const int n = static_cast<int>(b.size());
     std::vector<double> rr(r);
-    for (int i = 1; i < n; ++i) {
+    for (int i = 1; i < n; ++i)
+    {
         const double m = a[i] / b[i - 1];
         b[i] -= m * c[i - 1];
         rr[i] -= m * rr[i - 1];
     }
     x.assign(n, 0.0);
     x[n - 1] = rr[n - 1] / b[n - 1];
-    for (int i = n - 2; i >= 0; --i) {
+    for (int i = n - 2; i >= 0; --i)
+    {
         x[i] = (rr[i] - c[i] * x[i + 1]) / b[i];
     }
 }
 
-inline void cyclic_tridiag_solve(
-    const std::vector<double> &a,
-    const std::vector<double> &b,
-    const std::vector<double> &c,
-    double alpha,
-    double beta,
-    const std::vector<double> &r,
-    std::vector<double> &x)
+inline void cyclic_tridiag_solve(const std::vector<double>& a,
+                                 const std::vector<double>& b,
+                                 const std::vector<double>& c,
+                                 double alpha,
+                                 double beta,
+                                 const std::vector<double>& r,
+                                 std::vector<double>& x)
 {
     const int n = static_cast<int>(b.size());
     const double gamma = -b[0];
@@ -78,28 +81,28 @@ inline void cyclic_tridiag_solve(
     std::vector<double> z;
     thomas_solve(a, bb, c, u, z);
 
-    const double fact = (y[0] + beta * y[n - 1] / gamma)
-                      / (1.0 + z[0] + beta * z[n - 1] / gamma);
+    const double fact = (y[0] + beta * y[n - 1] / gamma) / (1.0 + z[0] + beta * z[n - 1] / gamma);
     x.assign(n, 0.0);
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; ++i)
+    {
         x[i] = y[i] - fact * z[i];
     }
 }
 
-inline void periodic_cubic_second_derivs(
-    const std::vector<double> &u,
-    const std::vector<double> &y,
-    std::vector<double> &M)
+inline void
+periodic_cubic_second_derivs(const std::vector<double>& u, const std::vector<double>& y, std::vector<double>& M)
 {
     const int K = static_cast<int>(y.size());
     std::vector<double> h(K);
-    for (int i = 0; i < K - 1; ++i) {
+    for (int i = 0; i < K - 1; ++i)
+    {
         h[i] = u[i + 1] - u[i];
     }
     h[K - 1] = 1.0 - u[K - 1];
 
     std::vector<double> a(K), bb(K), c(K), r(K);
-    for (int i = 0; i < K; ++i) {
+    for (int i = 0; i < K; ++i)
+    {
         const int prev = (i + K - 1) % K;
         const double h_prev = h[prev];
         const double h_curr = h[i];
@@ -115,49 +118,54 @@ inline void periodic_cubic_second_derivs(
     cyclic_tridiag_solve(a, bb, c, alpha, beta, r, M);
 }
 
-inline double evaluate_segment(double t, double u_i, double u_ip1, double h, double y_i, double y_ip1, double M_i, double M_ip1)
+inline double
+evaluate_segment(double t, double u_i, double u_ip1, double h, double y_i, double y_ip1, double M_i, double M_ip1)
 {
     const double a = u_ip1 - t;
     const double b = t - u_i;
-    return (a * a * a * M_i + b * b * b * M_ip1) / (6.0 * h)
-         + (y_i / h - M_i * h / 6.0) * a
-         + (y_ip1 / h - M_ip1 * h / 6.0) * b;
+    return (a * a * a * M_i + b * b * b * M_ip1) / (6.0 * h) + (y_i / h - M_i * h / 6.0) * a +
+           (y_ip1 / h - M_ip1 * h / 6.0) * b;
 }
 
-}  // namespace detail
+} // namespace detail
 
-inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &points, int n_samples)
+inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point>& points, int n_samples)
 {
     // Periodic cubic spline degree is 3, so the algorithm needs at
     // least four distinct knots.
     const int K = static_cast<int>(points.size());
-    if (K < 4 || n_samples < 3) {
+    if (K < 4 || n_samples < 3)
+    {
         return {0.0, 0.0, 0.0};
     }
 
     std::vector<double> chord(K);
     double total = 0.0;
-    for (int i = 0; i < K; ++i) {
+    for (int i = 0; i < K; ++i)
+    {
         const int next = (i + 1) % K;
         const double dx = static_cast<double>(points[next].x) - points[i].x;
         const double dy = static_cast<double>(points[next].y) - points[i].y;
         chord[i] = std::sqrt(dx * dx + dy * dy);
         total += chord[i];
     }
-    if (total <= 0.0) {
+    if (total <= 0.0)
+    {
         return {0.0, 0.0, 0.0};
     }
 
     std::vector<double> u(K);
     u[0] = 0.0;
     double acc = 0.0;
-    for (int i = 1; i < K; ++i) {
+    for (int i = 1; i < K; ++i)
+    {
         acc += chord[i - 1];
         u[i] = acc / total;
     }
 
     std::vector<double> x(K), y(K);
-    for (int i = 0; i < K; ++i) {
+    for (int i = 0; i < K; ++i)
+    {
         x[i] = static_cast<double>(points[i].x);
         y[i] = static_cast<double>(points[i].y);
     }
@@ -167,16 +175,19 @@ inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &poin
     detail::periodic_cubic_second_derivs(u, y, My);
 
     std::vector<double> h(K);
-    for (int i = 0; i < K - 1; ++i) {
+    for (int i = 0; i < K - 1; ++i)
+    {
         h[i] = u[i + 1] - u[i];
     }
     h[K - 1] = 1.0 - u[K - 1];
 
     std::vector<double> sx(n_samples), sy(n_samples);
     int seg = 0;
-    for (int j = 0; j < n_samples; ++j) {
+    for (int j = 0; j < n_samples; ++j)
+    {
         const double t = (n_samples == 1) ? 0.0 : static_cast<double>(j) / static_cast<double>(n_samples - 1);
-        while (seg < K - 1 && t > u[seg + 1]) {
+        while (seg < K - 1 && t > u[seg + 1])
+        {
             ++seg;
         }
         const int next = (seg + 1) % K;
@@ -189,7 +200,8 @@ inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &poin
     double signed_area = 0.0;
     double cx = 0.0;
     double cy = 0.0;
-    for (int j = 0; j < n_samples; ++j) {
+    for (int j = 0; j < n_samples; ++j)
+    {
         const int k = (j + 1) % n_samples;
         const double cross = sx[j] * sy[k] - sx[k] * sy[j];
         signed_area += cross;
@@ -197,10 +209,12 @@ inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &poin
         cy += (sy[j] + sy[k]) * cross;
     }
     signed_area *= 0.5;
-    if (signed_area == 0.0) {
+    if (signed_area == 0.0)
+    {
         double mean_x = 0.0;
         double mean_y = 0.0;
-        for (int j = 0; j < n_samples; ++j) {
+        for (int j = 0; j < n_samples; ++j)
+        {
             mean_x += sx[j];
             mean_y += sy[j];
         }
@@ -211,4 +225,4 @@ inline SplineCentroid spline_polygon_centroid(const std::vector<cv::Point> &poin
     return {cx, cy, std::fabs(signed_area)};
 }
 
-}  // namespace cheshm
+} // namespace cheshm

@@ -16,7 +16,8 @@
 #include <opencv2/imgproc.hpp>
 #include <vector>
 
-namespace cheshm {
+namespace cheshm
+{
 
 // Returns the binary edge map. ``image`` is grayscale; any depth is
 // accepted and converted to float internally without mutating the
@@ -25,32 +26,53 @@ namespace cheshm {
 // count exceeds this value becomes ``high_th = (i + 1) / bins``.
 // ``magnitude_out``, when non-null, receives the normalised float
 // magnitude image.
-inline cv::Mat canny_gaussian16(
-    const cv::Mat &image,
-    int non_edge_pixel_count,
-    int bins,
-    cv::Mat *magnitude_out = nullptr)
+inline cv::Mat
+canny_gaussian16(const cv::Mat& image, int non_edge_pixel_count, int bins, cv::Mat* magnitude_out = nullptr)
 {
     constexpr int k_sz = 16;
 
     static const float gau[k_sz] = {
-        0.000000220358050f, 0.000007297256405f, 0.000146569312970f, 0.001785579770079f,
-        0.013193749090229f, 0.059130281094460f, 0.160732768610747f, 0.265003534507060f,
-        0.265003534507060f, 0.160732768610747f, 0.059130281094460f, 0.013193749090229f,
-        0.001785579770079f, 0.000146569312970f, 0.000007297256405f, 0.000000220358050f,
+        0.000000220358050f,
+        0.000007297256405f,
+        0.000146569312970f,
+        0.001785579770079f,
+        0.013193749090229f,
+        0.059130281094460f,
+        0.160732768610747f,
+        0.265003534507060f,
+        0.265003534507060f,
+        0.160732768610747f,
+        0.059130281094460f,
+        0.013193749090229f,
+        0.001785579770079f,
+        0.000146569312970f,
+        0.000007297256405f,
+        0.000000220358050f,
     };
     static const float deriv_gau[k_sz] = {
-        -0.000026704586264f, -0.000276122963398f, -0.003355163265098f, -0.024616683775044f,
-        -0.108194751875585f, -0.278368310241814f, -0.388430056419619f, -0.196732206873178f,
-         0.196732206873178f,  0.388430056419619f,  0.278368310241814f,  0.108194751875585f,
-         0.024616683775044f,  0.003355163265098f,  0.000276122963398f,  0.000026704586264f,
+        -0.000026704586264f,
+        -0.000276122963398f,
+        -0.003355163265098f,
+        -0.024616683775044f,
+        -0.108194751875585f,
+        -0.278368310241814f,
+        -0.388430056419619f,
+        -0.196732206873178f,
+        0.196732206873178f,
+        0.388430056419619f,
+        0.278368310241814f,
+        0.108194751875585f,
+        0.024616683775044f,
+        0.003355163265098f,
+        0.000276122963398f,
+        0.000026704586264f,
     };
 
     cv::Mat work;
     image.convertTo(work, CV_32FC1);
 
-    const cv::Mat gau_x(1, k_sz, CV_32FC1, const_cast<float *>(gau));
-    const cv::Mat deriv_gau_x(1, k_sz, CV_32FC1, const_cast<float *>(deriv_gau));
+    const cv::Mat gau_x(1, k_sz, CV_32FC1, const_cast<float*>(gau));
+    const cv::Mat deriv_gau_x(1, k_sz, CV_32FC1, const_cast<float*>(deriv_gau));
 
     const cv::Point anchor(-1, -1);
     const int ddepth = -1;
@@ -70,11 +92,13 @@ inline cv::Mat canny_gaussian16(
     cv::transpose(res_y, res_y);
 
     cv::Mat magnitude = cv::Mat::zeros(work.rows, work.cols, CV_32FC1);
-    for (int i = 0; i < magnitude.rows; ++i) {
-        const float *p_x = res_x.ptr<float>(i);
-        const float *p_y = res_y.ptr<float>(i);
-        float *p_res = magnitude.ptr<float>(i);
-        for (int j = 0; j < magnitude.cols; ++j) {
+    for (int i = 0; i < magnitude.rows; ++i)
+    {
+        const float* p_x = res_x.ptr<float>(i);
+        const float* p_y = res_y.ptr<float>(i);
+        float* p_res = magnitude.ptr<float>(i);
+        for (int j = 0; j < magnitude.cols; ++j)
+        {
             p_res[j] = std::hypot(p_x[j], p_y[j]);
         }
     }
@@ -84,18 +108,22 @@ inline cv::Mat canny_gaussian16(
     cv::normalize(magnitude, res_idx, 0, bins - 1, cv::NORM_MINMAX, CV_32S);
 
     std::vector<int> hist(bins, 0);
-    for (int i = 0; i < magnitude.rows; ++i) {
-        const int *p = res_idx.ptr<int>(i);
-        for (int j = 0; j < magnitude.cols; ++j) {
+    for (int i = 0; i < magnitude.rows; ++i)
+    {
+        const int* p = res_idx.ptr<int>(i);
+        for (int j = 0; j < magnitude.cols; ++j)
+        {
             ++hist[p[j]];
         }
     }
 
     float high_th = 0.0f;
     int sum = 0;
-    for (int i = 0; i < bins; ++i) {
+    for (int i = 0; i < bins; ++i)
+    {
         sum += hist[i];
-        if (sum > non_edge_pixel_count) {
+        if (sum > non_edge_pixel_count)
+        {
             high_th = static_cast<float>(i + 1) / static_cast<float>(bins);
             break;
         }
@@ -104,69 +132,84 @@ inline cv::Mat canny_gaussian16(
     cv::Mat non_ms = cv::Mat::zeros(work.rows, work.cols, CV_8U);
     cv::Mat non_ms_hth = cv::Mat::zeros(work.rows, work.cols, CV_8U);
 
-    for (int i = 1; i < magnitude.rows - 1; ++i) {
-        char *p_non_ms = non_ms.ptr<char>(i);
-        char *p_non_ms_hth = non_ms_hth.ptr<char>(i);
+    for (int i = 1; i < magnitude.rows - 1; ++i)
+    {
+        char* p_non_ms = non_ms.ptr<char>(i);
+        char* p_non_ms_hth = non_ms_hth.ptr<char>(i);
 
-        const float *p_res = magnitude.ptr<float>(i);
-        const float *p_res_t = magnitude.ptr<float>(i - 1);
-        const float *p_res_b = magnitude.ptr<float>(i + 1);
+        const float* p_res = magnitude.ptr<float>(i);
+        const float* p_res_t = magnitude.ptr<float>(i - 1);
+        const float* p_res_b = magnitude.ptr<float>(i + 1);
 
-        const float *p_x = res_x.ptr<float>(i);
-        const float *p_y = res_y.ptr<float>(i);
+        const float* p_x = res_x.ptr<float>(i);
+        const float* p_y = res_y.ptr<float>(i);
 
-        for (int j = 1; j < magnitude.cols - 1; ++j) {
+        for (int j = 1; j < magnitude.cols - 1; ++j)
+        {
             const float iy = p_y[j];
             const float ix = p_x[j];
             float grad1 = 0.0f;
             float grad2 = 0.0f;
             float d = 0.0f;
 
-            if ((iy <= 0 && ix > -iy) || (iy >= 0 && ix < -iy)) {
+            if ((iy <= 0 && ix > -iy) || (iy >= 0 && ix < -iy))
+            {
                 d = std::abs(iy / ix);
                 grad1 = (p_res[j + 1] * (1 - d)) + (p_res_t[j + 1] * d);
                 grad2 = (p_res[j - 1] * (1 - d)) + (p_res_b[j - 1] * d);
-                if (p_res[j] >= grad1 && p_res[j] >= grad2) {
+                if (p_res[j] >= grad1 && p_res[j] >= grad2)
+                {
                     p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th) p_non_ms_hth[j] = static_cast<char>(255);
+                    if (p_res[j] > high_th)
+                        p_non_ms_hth[j] = static_cast<char>(255);
                 }
             }
 
-            if ((ix > 0 && -iy >= ix) || (ix < 0 && -iy <= ix)) {
+            if ((ix > 0 && -iy >= ix) || (ix < 0 && -iy <= ix))
+            {
                 d = std::abs(ix / iy);
                 grad1 = (p_res_t[j] * (1 - d)) + (p_res_t[j + 1] * d);
                 grad2 = (p_res_b[j] * (1 - d)) + (p_res_b[j - 1] * d);
-                if (p_res[j] >= grad1 && p_res[j] >= grad2) {
+                if (p_res[j] >= grad1 && p_res[j] >= grad2)
+                {
                     p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th) p_non_ms_hth[j] = static_cast<char>(255);
+                    if (p_res[j] > high_th)
+                        p_non_ms_hth[j] = static_cast<char>(255);
                 }
             }
 
-            if ((ix <= 0 && ix > iy) || (ix >= 0 && ix < iy)) {
+            if ((ix <= 0 && ix > iy) || (ix >= 0 && ix < iy))
+            {
                 d = std::abs(ix / iy);
                 grad1 = (p_res_t[j] * (1 - d)) + (p_res_t[j - 1] * d);
                 grad2 = (p_res_b[j] * (1 - d)) + (p_res_b[j + 1] * d);
-                if (p_res[j] >= grad1 && p_res[j] >= grad2) {
+                if (p_res[j] >= grad1 && p_res[j] >= grad2)
+                {
                     p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th) p_non_ms_hth[j] = static_cast<char>(255);
+                    if (p_res[j] > high_th)
+                        p_non_ms_hth[j] = static_cast<char>(255);
                 }
             }
 
-            if ((iy < 0 && ix <= iy) || (iy > 0 && ix >= iy)) {
+            if ((iy < 0 && ix <= iy) || (iy > 0 && ix >= iy))
+            {
                 d = std::abs(iy / ix);
                 grad1 = (p_res[j - 1] * (1 - d)) + (p_res_t[j - 1] * d);
                 grad2 = (p_res[j + 1] * (1 - d)) + (p_res_b[j + 1] * d);
-                if (p_res[j] >= grad1 && p_res[j] >= grad2) {
+                if (p_res[j] >= grad1 && p_res[j] >= grad2)
+                {
                     p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th) p_non_ms_hth[j] = static_cast<char>(255);
+                    if (p_res[j] > high_th)
+                        p_non_ms_hth[j] = static_cast<char>(255);
                 }
             }
         }
     }
 
-    if (magnitude_out) *magnitude_out = magnitude;
+    if (magnitude_out)
+        *magnitude_out = magnitude;
 
     return hysteresis_flood_fill(non_ms_hth, non_ms);
 }
 
-}  // namespace cheshm
+} // namespace cheshm

@@ -2,7 +2,8 @@
 
 #pragma once
 
-namespace cheshm::ElSe::defaults {
+namespace cheshm::ElSe::defaults
+{
 
 // Working size cap. Frames larger than this on either axis are
 // downscaled before detection runs; results are scaled back to
@@ -14,4 +15,4 @@ inline constexpr int IMG_SIZE = 640;
 inline constexpr float MIN_AREA_RATIO = 0.005f;
 inline constexpr float MAX_AREA_RATIO = 0.2f;
 
-}  // namespace cheshm::ElSe::defaults
+} // namespace cheshm::ElSe::defaults

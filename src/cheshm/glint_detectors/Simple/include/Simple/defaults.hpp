@@ -2,7 +2,8 @@
 
 #pragma once
 
-namespace cheshm::SimpleGlint::defaults {
+namespace cheshm::SimpleGlint::defaults
+{
 
 inline constexpr int GLINT_THRESHOLD = 240;            // intensity above which a pixel is "glint"
 inline constexpr float SEARCH_RADIUS_FACTOR = 2.0f;    // search disk radius = factor × pupil_radius
@@ -14,4 +15,4 @@ inline constexpr bool KEEP_LEFT = true;                // keep contours left of 
 inline constexpr bool KEEP_RIGHT = true;               // keep contours right of pupil centre line
 inline constexpr bool SPLIT_WIDEST_FOR_TARGET = false; // split widest blob when N = target − 1
 
-}  // namespace cheshm::SimpleGlint::defaults
+} // namespace cheshm::SimpleGlint::defaults

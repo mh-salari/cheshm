@@ -1,9 +1,11 @@
 // ExCuSe pupil detector algorithm body.
 
 #include "ExCuSe/excuse.hpp"
-#include "ExCuSe/defaults.hpp"
+
 #include "cheshm/canny_gaussian16.hpp"
 #include "cheshm/ellipse_intensity_gap.hpp"
+
+#include "ExCuSe/defaults.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,19 +15,27 @@
 #include <opencv2/imgproc.hpp>
 #include <vector>
 
-namespace cheshm::ExCuSe {
-namespace {
-
-using namespace cv;   // NOLINT(google-build-using-namespace)
-using namespace std;  // NOLINT(google-build-using-namespace)
-
-using defaults::IMG_SIZE;
-using defaults::DEF_SIZE;
-
-
-bool peek(cv::Mat *pic, double *stddev, int start_x, int end_x, int start_y, int end_y, int peek_detector_factor, int bright_region_th)
+namespace cheshm::ExCuSe
+{
+namespace
 {
 
+using namespace cv;  // NOLINT(google-build-using-namespace)
+using namespace std; // NOLINT(google-build-using-namespace)
+
+using defaults::DEF_SIZE;
+using defaults::IMG_SIZE;
+
+
+bool peek(cv::Mat* pic,
+          double* stddev,
+          int start_x,
+          int end_x,
+          int start_y,
+          int end_y,
+          int peek_detector_factor,
+          int bright_region_th)
+{
     int gray_hist[256];
     int max_gray = 0;
     int max_gray_pos = 0;
@@ -75,7 +85,6 @@ bool peek(cv::Mat *pic, double *stddev, int start_x, int end_x, int start_y, int
     for (int i = 0; i < 256; i++)
         if (gray_hist[i] > 0)
         {
-
             mean_gray += gray_hist[i];
             mean_gray_cnt++;
 
@@ -97,9 +106,8 @@ bool peek(cv::Mat *pic, double *stddev, int start_x, int end_x, int start_y, int
         return false;
 }
 
-void remove_points_with_low_angle(cv::Mat *edge, int start_xx, int end_xx, int start_yy, int end_yy)
+void remove_points_with_low_angle(cv::Mat* edge, int start_xx, int end_xx, int start_yy, int end_yy)
 {
-
     int start_x = start_xx + 5;
     int end_x = end_xx - 5;
     int start_y = start_yy + 5;
@@ -117,7 +125,6 @@ void remove_points_with_low_angle(cv::Mat *edge, int start_xx, int end_xx, int s
     for (int j = start_y; j < end_y; j++)
         for (int i = start_x; i < end_x; i++)
         {
-
             if ((int)edge->data[(edge->cols * (j)) + (i)])
             {
                 int box[8];
@@ -135,7 +142,8 @@ void remove_points_with_low_angle(cv::Mat *edge, int start_xx, int end_xx, int s
 
                 for (int k = 0; k < 8 && !valid; k++)
                     // if( box[k] && (box[(k+3)%8] || box[(k+4)%8] || box[(k+5)%8]) ) valid=true;
-                    if (box[k] && (box[(k + 2) % 8] || box[(k + 3) % 8] || box[(k + 4) % 8] || box[(k + 5) % 8] || box[(k + 6) % 8]))
+                    if (box[k] && (box[(k + 2) % 8] || box[(k + 3) % 8] || box[(k + 4) % 8] || box[(k + 5) % 8] ||
+                                   box[(k + 6) % 8]))
                         valid = true;
 
                 if (!valid)
@@ -242,7 +250,6 @@ void remove_points_with_low_angle(cv::Mat *edge, int start_xx, int end_xx, int s
     for (int j = start_y; j < end_y; j++)
         for (int i = start_x; i < end_x; i++)
         {
-
             int box[33];
 
             box[4] = (int)edge->data[(edge->cols * (j)) + (i)];
@@ -320,9 +327,15 @@ void remove_points_with_low_angle(cv::Mat *edge, int start_xx, int end_xx, int s
         }
 }
 
-std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int start_x, int end_x, int start_y, int end_y, double mean_dist, int inner_color_range)
+std::vector<std::vector<cv::Point>> get_curves(cv::Mat* pic,
+                                               cv::Mat* edge,
+                                               int start_x,
+                                               int end_x,
+                                               int start_y,
+                                               int end_y,
+                                               double mean_dist,
+                                               int inner_color_range)
 {
-
     std::vector<std::vector<cv::Point>> all_curves;
     std::vector<cv::Point> curve;
 
@@ -355,7 +368,6 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int 
     for (int i = start_x; i < end_x; i++)
         for (int j = start_y; j < end_y; j++)
         {
-
             if (edge->data[(edge->cols * (j)) + (i)] == 255 && !check[i][j])
             {
                 check[i][j] = 1;
@@ -372,13 +384,12 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int 
 
                 while (akt_idx < curve_idx)
                 {
-
                     cv::Point akt_pos = curve[akt_idx];
                     for (int k1 = -1; k1 < 2; k1++)
                         for (int k2 = -1; k2 < 2; k2++)
                         {
-
-                            if (akt_pos.x + k1 >= start_x && akt_pos.x + k1 < end_x && akt_pos.y + k2 >= start_y && akt_pos.y + k2 < end_y)
+                            if (akt_pos.x + k1 >= start_x && akt_pos.x + k1 < end_x && akt_pos.y + k2 >= start_y &&
+                                akt_pos.y + k2 < end_y)
                                 if (!check[akt_pos.x + k1][akt_pos.y + k2])
                                     if (edge->data[(edge->cols * (akt_pos.y + k2)) + (akt_pos.x + k1)] == 255)
                                     {
@@ -408,17 +419,15 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int 
                     {
                         cv::RotatedRect ellipse = cv::fitEllipse(cv::Mat(curve));
 
-                        if (ellipse.center.x < 0 || ellipse.center.y < 0 ||
-                            ellipse.center.x > pic->cols || ellipse.center.y > pic->rows)
+                        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic->cols ||
+                            ellipse.center.y > pic->rows)
                         {
-
                             add_curve = false;
                         }
 
                         if (ellipse.size.height > 2.0 * ellipse.size.width ||
                             ellipse.size.width > 2.0 * ellipse.size.height)
                         {
-
                             add_curve = false;
                         }
                     }
@@ -432,40 +441,64 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int 
                             // calc inner mean
                             for (int i = 0; i < curve.size(); i++)
                             {
+                                if (pic->data[(pic->cols * (curve[i].y + 1)) + (curve[i].x)] != 0 ||
+                                    pic->data[(pic->cols * (curve[i].y - 1)) + (curve[i].x)] != 0)
+                                    if (sqrt(pow(double(curve[i].y - mean_p.y), 2) +
+                                             pow(double(curve[i].x - mean_p.x) + 2, 2)) <
+                                        sqrt(pow(double(curve[i].y - mean_p.y), 2) +
+                                             pow(double(curve[i].x - mean_p.x) - 2, 2)))
 
-                                if (pic->data[(pic->cols * (curve[i].y + 1)) + (curve[i].x)] != 0 || pic->data[(pic->cols * (curve[i].y - 1)) + (curve[i].x)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y), 2) + pow(double(curve[i].x - mean_p.x) + 2, 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y), 2) + pow(double(curve[i].x - mean_p.x) - 2, 2)))
-
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y)) + (curve[i].x + 2)];
+                                        mean_inner_gray +=
+                                            (unsigned char)pic->data[(pic->cols * (curve[i].y)) + (curve[i].x + 2)];
                                     else
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y)) + (curve[i].x - 2)];
+                                        mean_inner_gray +=
+                                            (unsigned char)pic->data[(pic->cols * (curve[i].y)) + (curve[i].x - 2)];
 
-                                else if (pic->data[(pic->cols * (curve[i].y)) + (curve[i].x + 1)] != 0 || pic->data[(pic->cols * (curve[i].y)) + (curve[i].x - 1)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) + pow(double(curve[i].x - mean_p.x), 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) + pow(double(curve[i].x - mean_p.x), 2)))
+                                else if (pic->data[(pic->cols * (curve[i].y)) + (curve[i].x + 1)] != 0 ||
+                                         pic->data[(pic->cols * (curve[i].y)) + (curve[i].x - 1)] != 0)
+                                    if (sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) +
+                                             pow(double(curve[i].x - mean_p.x), 2)) <
+                                        sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) +
+                                             pow(double(curve[i].x - mean_p.x), 2)))
 
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y + 2)) + (curve[i].x)];
+                                        mean_inner_gray +=
+                                            (unsigned char)pic->data[(pic->cols * (curve[i].y + 2)) + (curve[i].x)];
                                     else
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y - 2)) + (curve[i].x)];
+                                        mean_inner_gray +=
+                                            (unsigned char)pic->data[(pic->cols * (curve[i].y - 2)) + (curve[i].x)];
 
-                                else if (pic->data[(pic->cols * (curve[i].y + 1)) + (curve[i].x + 1)] != 0 || pic->data[(pic->cols * (curve[i].y - 1)) + (curve[i].x - 1)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) + pow(double(curve[i].x - mean_p.x + 2), 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) + pow(double(curve[i].x - mean_p.x - 2), 2)))
+                                else if (pic->data[(pic->cols * (curve[i].y + 1)) + (curve[i].x + 1)] != 0 ||
+                                         pic->data[(pic->cols * (curve[i].y - 1)) + (curve[i].x - 1)] != 0)
+                                    if (sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) +
+                                             pow(double(curve[i].x - mean_p.x + 2), 2)) <
+                                        sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) +
+                                             pow(double(curve[i].x - mean_p.x - 2), 2)))
 
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y - 2)) + (curve[i].x + 2)];
+                                        mean_inner_gray +=
+                                            (unsigned char)
+                                                pic->data[(pic->cols * (curve[i].y - 2)) + (curve[i].x + 2)];
                                     else
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y + 2)) + (curve[i].x - 2)];
+                                        mean_inner_gray +=
+                                            (unsigned char)
+                                                pic->data[(pic->cols * (curve[i].y + 2)) + (curve[i].x - 2)];
 
-                                else if (pic->data[(pic->cols * (curve[i].y - 1)) + (curve[i].x + 1)] != 0 || pic->data[(pic->cols * (curve[i].y + 1)) + (curve[i].x - 1)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) + pow(double(curve[i].x - mean_p.x + 2), 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) + pow(double(curve[i].x - mean_p.x - 2), 2)))
+                                else if (pic->data[(pic->cols * (curve[i].y - 1)) + (curve[i].x + 1)] != 0 ||
+                                         pic->data[(pic->cols * (curve[i].y + 1)) + (curve[i].x - 1)] != 0)
+                                    if (sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) +
+                                             pow(double(curve[i].x - mean_p.x + 2), 2)) <
+                                        sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) +
+                                             pow(double(curve[i].x - mean_p.x - 2), 2)))
 
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y + 2)) + (curve[i].x + 2)];
+                                        mean_inner_gray +=
+                                            (unsigned char)
+                                                pic->data[(pic->cols * (curve[i].y + 2)) + (curve[i].x + 2)];
                                     else
-                                        mean_inner_gray += (unsigned char)pic->data[(pic->cols * (curve[i].y - 2)) + (curve[i].x - 2)];
+                                        mean_inner_gray +=
+                                            (unsigned char)
+                                                pic->data[(pic->cols * (curve[i].y - 2)) + (curve[i].x - 2)];
 
-                                // mean_inner_gray+=pic->data[( pic->cols*( curve[i].y+((mean_p.y-curve[i].y)/2) ) ) + ( curve[i].x+((mean_p.x-curve[i].x)/2) )];
+                                // mean_inner_gray+=pic->data[( pic->cols*( curve[i].y+((mean_p.y-curve[i].y)/2) ) ) +
+                                // ( curve[i].x+((mean_p.x-curve[i].x)/2) )];
                             }
 
                             mean_inner_gray = floor((double(mean_inner_gray) / double(curve.size())) + 0.5);
@@ -476,9 +509,9 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int 
                                 all_curves.clear();
                                 all_curves.push_back(curve);
                             }
-                            else if (mean_inner_gray_last <= (mean_inner_gray + inner_color_range) && mean_inner_gray_last >= (mean_inner_gray - inner_color_range))
+                            else if (mean_inner_gray_last <= (mean_inner_gray + inner_color_range) &&
+                                     mean_inner_gray_last >= (mean_inner_gray - inner_color_range))
                             {
-
                                 if (curve.size() > all_curves[0].size())
                                 {
                                     mean_inner_gray_last = mean_inner_gray;
@@ -514,9 +547,15 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat *pic, cv::Mat *edge, int 
     return all_curves;
 }
 
-cv::RotatedRect find_best_edge(cv::Mat *pic, cv::Mat *edge, int start_x, int end_x, int start_y, int end_y, double mean_dist, int inner_color_range)
+cv::RotatedRect find_best_edge(cv::Mat* pic,
+                               cv::Mat* edge,
+                               int start_x,
+                               int end_x,
+                               int start_y,
+                               int end_y,
+                               double mean_dist,
+                               int inner_color_range)
 {
-
     cv::RotatedRect ellipse;
     ellipse.center.x = 0;
     ellipse.center.y = 0;
@@ -524,13 +563,15 @@ cv::RotatedRect find_best_edge(cv::Mat *pic, cv::Mat *edge, int start_x, int end
     ellipse.size.height = 0.0;
     ellipse.size.width = 0.0;
 
-    std::vector<std::vector<cv::Point>> all_curves = get_curves(pic, edge, start_x, end_x, start_y, end_y, mean_dist, inner_color_range);
+    std::vector<std::vector<cv::Point>> all_curves =
+        get_curves(pic, edge, start_x, end_x, start_y, end_y, mean_dist, inner_color_range);
 
     if (all_curves.size() == 1)
     {
         ellipse = cv::fitEllipse(cv::Mat(all_curves[0]));
 
-        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic->cols || ellipse.center.y > pic->rows)
+        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic->cols ||
+            ellipse.center.y > pic->rows)
         {
             ellipse.center.x = 0;
             ellipse.center.y = 0;
@@ -551,7 +592,7 @@ cv::RotatedRect find_best_edge(cv::Mat *pic, cv::Mat *edge, int start_x, int end
     return ellipse;
 }
 
-int calc_pos(int *hist, int mini, int max_region_hole, int min_region_size, int real_hist_sz)
+int calc_pos(int* hist, int mini, int max_region_hole, int min_region_size, int real_hist_sz)
 {
     int pos = 0;
 
@@ -583,7 +624,6 @@ int calc_pos(int *hist, int mini, int max_region_hole, int min_region_size, int 
         }
         else if (hist[i] <= mini && region_start && hole_size >= max_region_hole && count >= min_region_size)
         {
-
             if (count < 1)
                 count = 1;
             mean_pos = mean_pos / count;
@@ -609,7 +649,16 @@ int calc_pos(int *hist, int mini, int max_region_hole, int min_region_size, int 
     return pos;
 }
 
-cv::Point th_angular_histo(cv::Mat *pic, cv::Mat *pic_th, int start_x, int end_x, int start_y, int end_y, int th, double th_histo, int max_region_hole, int min_region_size)
+cv::Point th_angular_histo(cv::Mat* pic,
+                           cv::Mat* pic_th,
+                           int start_x,
+                           int end_x,
+                           int start_y,
+                           int end_y,
+                           int th,
+                           double th_histo,
+                           int max_region_hole,
+                           int min_region_size)
 {
     cv::Point pos(0, 0);
 
@@ -650,10 +699,8 @@ cv::Point th_angular_histo(cv::Mat *pic, cv::Mat *pic_th, int start_x, int end_x
     {
         for (int j = start_y; j < end_y; j++)
         {
-
             if (pic->data[(pic->cols * j) + i] < th)
             {
-
                 pic_th->data[(pic->cols * j) + i] = 255;
 
                 idx_lb = (pic->cols / 2) + (i - (pic->cols / 2)) + (j);
@@ -662,7 +709,6 @@ cv::Point th_angular_histo(cv::Mat *pic, cv::Mat *pic_th, int start_x, int end_x
                 if (j >= 0 && j < DEF_SIZE && i >= 0 && i < DEF_SIZE && idx_lb >= 0 && idx_lb < DEF_SIZE &&
                     idx_br >= 0 && idx_br < DEF_SIZE)
                 {
-
                     if (++hist_l[j] > max_l)
                         max_l = hist_l[j];
 
@@ -732,9 +778,8 @@ cv::Point th_angular_histo(cv::Mat *pic, cv::Mat *pic_th, int start_x, int end_x
     return pos;
 }
 
-void grow_region(cv::RotatedRect *ellipse, cv::Mat *pic, int max_ellipse_radi)
+void grow_region(cv::RotatedRect* ellipse, cv::Mat* pic, int max_ellipse_radi)
 {
-
     float mean = 0.0;
 
     int x0 = ellipse->center.x;
@@ -778,10 +823,10 @@ void grow_region(cv::RotatedRect *ellipse, cv::Mat *pic, int max_ellipse_radi)
 
         for (int j = -i; j <= 1 + (i * 2); j++)
         {
-
             // left
             if (y0 + j > 0 && y0 + j < pic->rows && x0 + i > 0 && x0 + i < pic->cols)
-                if (pic->data[(pic->cols * (y0 + j)) + (x0 + i)] > th_down && pic->data[(pic->cols * (y0 + j)) + (x0 + i)] < th_up)
+                if (pic->data[(pic->cols * (y0 + j)) + (x0 + i)] > th_down &&
+                    pic->data[(pic->cols * (y0 + j)) + (x0 + i)] < th_up)
                 {
                     left++;
                     // pic->data[(pic->cols*(y0+j))+(x0+i)]=255;
@@ -789,7 +834,8 @@ void grow_region(cv::RotatedRect *ellipse, cv::Mat *pic, int max_ellipse_radi)
 
             // right
             if (y0 + j > 0 && y0 + j < pic->rows && x0 - i > 0 && x0 - i < pic->cols)
-                if (pic->data[(pic->cols * (y0 + j)) + (x0 - i)] > th_down && pic->data[(pic->cols * (y0 + j)) + (x0 - i)] < th_up)
+                if (pic->data[(pic->cols * (y0 + j)) + (x0 - i)] > th_down &&
+                    pic->data[(pic->cols * (y0 + j)) + (x0 - i)] < th_up)
                 {
                     right++;
                     // pic->data[(pic->cols*(y0+j))+(x0-i)]=255;
@@ -797,7 +843,8 @@ void grow_region(cv::RotatedRect *ellipse, cv::Mat *pic, int max_ellipse_radi)
 
             // top
             if (y0 - i > 0 && y0 - i < pic->rows && x0 + j > 0 && x0 + j < pic->cols)
-                if (pic->data[(pic->cols * (y0 - i)) + (x0 + j)] > th_down && pic->data[(pic->cols * (y0 - i)) + (x0 + j)] < th_up)
+                if (pic->data[(pic->cols * (y0 - i)) + (x0 + j)] > th_down &&
+                    pic->data[(pic->cols * (y0 - i)) + (x0 + j)] < th_up)
                 {
                     top++;
                     // pic->data[(pic->cols*(y0-i))+(x0+j)]=255;
@@ -805,7 +852,8 @@ void grow_region(cv::RotatedRect *ellipse, cv::Mat *pic, int max_ellipse_radi)
 
             // bottom
             if (y0 + i > 0 && y0 + i < pic->rows && x0 + j > 0 && x0 + j < pic->cols)
-                if (pic->data[(pic->cols * (y0 + i)) + (x0 + j)] > th_down && pic->data[(pic->cols * (y0 + i)) + (x0 + j)] < th_up)
+                if (pic->data[(pic->cols * (y0 + i)) + (x0 + j)] > th_down &&
+                    pic->data[(pic->cols * (y0 + i)) + (x0 + j)] < th_up)
                 {
                     bottom++;
                     // pic->data[(pic->cols*(y0+i))+(x0+j)]=255;
@@ -866,7 +914,7 @@ void grow_region(cv::RotatedRect *ellipse, cv::Mat *pic, int max_ellipse_radi)
     */
 }
 
-bool is_good_ellipse(cv::RotatedRect *ellipse, cv::Mat *pic, int good_ellipse_threshold, int max_ellipse_radi)
+bool is_good_ellipse(cv::RotatedRect* ellipse, cv::Mat* pic, int good_ellipse_threshold, int max_ellipse_radi)
 {
     if (ellipse->center.x == 0 && ellipse->center.y == 0)
         return false;
@@ -896,23 +944,19 @@ bool is_good_ellipse(cv::RotatedRect *ellipse, cv::Mat *pic, int good_ellipse_th
         static_cast<int>(y0 + ellipse->size.height / 2) + 1,
     };
 
-    return cheshm::check_ellipse_intensity_gap(
-        *pic, inner, outer, cutout,
-        static_cast<float>(good_ellipse_threshold)).passes;
+    return cheshm::check_ellipse_intensity_gap(*pic, inner, outer, cutout, static_cast<float>(good_ellipse_threshold))
+        .passes;
 }
 
-void rays(cv::Mat *th_edges, int end_x, int end_y, cv::Point *pos, int *ret)
+void rays(cv::Mat* th_edges, int end_x, int end_y, cv::Point* pos, int* ret)
 {
-
     for (int i = 0; i < 8; i++)
         ret[i] = -1;
     for (int i = 0; i < end_x; i++)
         for (int j = 0; j < end_y; j++)
         {
-
             if (pos->x - i > 0 && pos->x + i < th_edges->cols && pos->y - j > 0 && pos->y + j < th_edges->rows)
             {
-
                 if ((int)th_edges->data[(th_edges->cols * (pos->y)) + (pos->x + i)] != 0 && ret[0] == -1)
                 {
                     ret[0] = th_edges->data[(th_edges->cols * (pos->y)) + (pos->x + i)] - 1;
@@ -958,9 +1002,15 @@ void rays(cv::Mat *th_edges, int end_x, int end_y, cv::Point *pos, int *ret)
         }
 }
 
-void zero_around_region_th_border(cv::Mat *pic, cv::Mat *edges, cv::Mat *th_edges, int th, int edge_to_th, double mean_dist, double area, cv::RotatedRect *pos)
+void zero_around_region_th_border(cv::Mat* pic,
+                                  cv::Mat* edges,
+                                  cv::Mat* th_edges,
+                                  int th,
+                                  int edge_to_th,
+                                  double mean_dist,
+                                  double area,
+                                  cv::RotatedRect* pos)
 {
-
     int ret[8];
     std::vector<cv::Point> selected_points;
     cv::RotatedRect ellipse;
@@ -985,14 +1035,11 @@ void zero_around_region_th_border(cv::Mat *pic, cv::Mat *edges, cv::Mat *th_edge
     for (int i = start_x; i < end_x; i++)
         for (int j = start_y; j < end_y; j++)
         {
-
             if (pic->data[(pic->cols * j) + (i)] < th)
             {
-
                 for (int k1 = -edge_to_th; k1 < edge_to_th; k1++)
                     for (int k2 = -edge_to_th; k2 < edge_to_th; k2++)
                     {
-
                         if (i + k1 >= 0 && i + k1 < pic->cols && j + k2 > 0 && j + k2 < edges->rows)
                             if ((int)edges->data[(edges->cols * (j + k2)) + (i + k1)])
                                 th_edges->data[(edges->cols * (j + k2)) + (i + k1)] = 255;
@@ -1001,7 +1048,8 @@ void zero_around_region_th_border(cv::Mat *pic, cv::Mat *edges, cv::Mat *th_edge
         }
 
     // remove_points_with_low_angle(th_edges, start_x, end_x, start_y, end_y);
-    std::vector<std::vector<cv::Point>> all_curves = get_curves(pic, th_edges, start_x, end_x, start_y, end_y, mean_dist, 0);
+    std::vector<std::vector<cv::Point>> all_curves =
+        get_curves(pic, th_edges, start_x, end_x, start_y, end_y, mean_dist, 0);
 
     // std::cout<<"all curves:"<<all_curves.size()<<std::endl;
 
@@ -1027,9 +1075,10 @@ void zero_around_region_th_border(cv::Mat *pic, cv::Mat *edges, cv::Mat *th_edge
             // std::cout<<"written:"<<i+1<<std::endl;
             for (int j = 0; j < all_curves[i].size(); j++)
             {
-
-                if (all_curves[i][j].x >= 0 && all_curves[i][j].x < th_edges->cols && all_curves[i][j].y >= 0 && all_curves[i][j].y < th_edges->rows)
-                    th_edges->data[(th_edges->cols * (all_curves[i][j].y)) + (all_curves[i][j].x)] = i + 1; //+1 becouse of first is 0
+                if (all_curves[i][j].x >= 0 && all_curves[i][j].x < th_edges->cols && all_curves[i][j].y >= 0 &&
+                    all_curves[i][j].y < th_edges->rows)
+                    th_edges->data[(th_edges->cols * (all_curves[i][j].y)) + (all_curves[i][j].x)] =
+                        i + 1; //+1 becouse of first is 0
             }
         }
 
@@ -1058,7 +1107,6 @@ void zero_around_region_th_border(cv::Mat *pic, cv::Mat *edges, cv::Mat *th_edge
 
         if (selected_points.size() > 5)
         {
-
             *pos = cv::fitEllipse(cv::Mat(selected_points));
             /*
             cv::ellipse(*pic, cv::RotatedRect(ellipse.operator CvBox2D()),CV_RGB(255,255,255));
@@ -1074,9 +1122,8 @@ void zero_around_region_th_border(cv::Mat *pic, cv::Mat *edges, cv::Mat *th_edge
     */
 }
 
-void optimize_pos(cv::Mat *pic, double area, cv::Point *pos)
+void optimize_pos(cv::Mat* pic, double area, cv::Point* pos)
 {
-
     int start_x = pos->x - (area * pic->cols);
     int end_x = pos->x + (area * pic->cols);
     int start_y = pos->y - (area * pic->rows);
@@ -1104,13 +1151,11 @@ void optimize_pos(cv::Mat *pic, double area, cv::Point *pos)
     for (int i = start_x; i < end_x; i++)
         for (int j = start_y; j < end_y; j++)
         {
-
             min_akt = 0;
 
             for (int k1 = -reg_size; k1 < reg_size; k1++)
                 for (int k2 = -reg_size; k2 < reg_size; k2++)
                 {
-
                     if (i + k1 > 0 && i + k1 < pic->cols && j + k2 > 0 && j + k2 < pic->rows)
                     {
                         val = (pic->data[(pic->cols * j) + (i)] - pic->data[(pic->cols * (j + k2)) + (i + k1)]);
@@ -1142,7 +1187,8 @@ void optimize_pos(cv::Mat *pic, double area, cv::Point *pos)
     }
 }
 
-cv::RotatedRect runexcuse(cv::Mat *pic, cv::Mat *pic_th, cv::Mat *th_edges, int good_ellipse_threshold, int max_ellipse_radi)
+cv::RotatedRect
+runexcuse(cv::Mat* pic, cv::Mat* pic_th, cv::Mat* th_edges, int good_ellipse_threshold, int max_ellipse_radi)
 {
     // mean under mean
     // mean_under_mean(pic, 5);
@@ -1201,7 +1247,8 @@ cv::RotatedRect runexcuse(cv::Mat *pic, cv::Mat *pic_th, cv::Mat *th_edges, int 
     for (int i = 0; i < detected_edges2.cols; i++)
         for (int j = 0; j < detected_edges2.rows; j++)
         {
-            detected_edges.data[(detected_edges.cols * (start_y + j)) + (start_x + i)] = detected_edges2.data[(detected_edges2.cols * j) + i];
+            detected_edges.data[(detected_edges.cols * (start_y + j)) + (start_x + i)] =
+                detected_edges2.data[(detected_edges2.cols * j) + i];
         }
 
     remove_points_with_low_angle(&detected_edges, start_x, end_x, start_y, end_y);
@@ -1212,7 +1259,8 @@ cv::RotatedRect runexcuse(cv::Mat *pic, cv::Mat *pic_th, cv::Mat *th_edges, int 
         edges_only_tried = true;
         ellipse = find_best_edge(pic, &detected_edges, start_x, end_x, start_y, end_y, mean_dist, inner_color_range);
 
-        if (ellipse.center.x <= 0 || ellipse.center.x >= pic->cols || ellipse.center.y <= 0 || ellipse.center.y >= pic->rows)
+        if (ellipse.center.x <= 0 || ellipse.center.x >= pic->cols || ellipse.center.y <= 0 ||
+            ellipse.center.y >= pic->rows)
         {
             ellipse.center.x = 0;
             ellipse.center.y = 0;
@@ -1225,7 +1273,8 @@ cv::RotatedRect runexcuse(cv::Mat *pic, cv::Mat *pic_th, cv::Mat *th_edges, int 
 
     if (!peek_found)
     {
-        pos = th_angular_histo(pic, pic_th, start_x, end_x, start_y, end_y, threshold_up, th_histo, max_region_hole, min_region_size);
+        pos = th_angular_histo(
+            pic, pic_th, start_x, end_x, start_y, end_y, threshold_up, th_histo, max_region_hole, min_region_size);
 
         ellipse.center.x = pos.x;
         ellipse.center.y = pos.y;
@@ -1249,7 +1298,8 @@ cv::RotatedRect runexcuse(cv::Mat *pic, cv::Mat *pic_th, cv::Mat *th_edges, int 
         ellipse.angle = 0.0;
         ellipse.size.height = 0.0;
         ellipse.size.width = 0.0;
-        zero_around_region_th_border(pic, &detected_edges, th_edges, threshold_up, edge_to_th, mean_dist, area_edges, &ellipse);
+        zero_around_region_th_border(
+            pic, &detected_edges, th_edges, threshold_up, edge_to_th, mean_dist, area_edges, &ellipse);
     }
 
     // if(ellipse.size.height>0 && ellipse.size.width>0.0){
@@ -1284,13 +1334,14 @@ cv::RotatedRect runexcuse(cv::Mat *pic, cv::Mat *pic_th, cv::Mat *th_edges, int 
     */
 }
 
-}  // namespace
+} // namespace
 
-cv::RotatedRect findPupilEllipse(const cv::Mat &frame, int max_ellipse_radi, int good_ellipse_threshold)
+cv::RotatedRect findPupilEllipse(const cv::Mat& frame, int max_ellipse_radi, int good_ellipse_threshold)
 {
     cv::Mat downscaled = frame;
     float scalingRatio = 1.0f;
-    if (frame.rows > IMG_SIZE || frame.cols > IMG_SIZE) {
+    if (frame.rows > IMG_SIZE || frame.cols > IMG_SIZE)
+    {
         const float rw = static_cast<float>(IMG_SIZE) / static_cast<float>(frame.cols);
         const float rh = static_cast<float>(IMG_SIZE) / static_cast<float>(frame.rows);
         scalingRatio = std::min<float>(std::min<float>(rw, rh), 1.0f);
@@ -1304,10 +1355,9 @@ cv::RotatedRect findPupilEllipse(const cv::Mat &frame, int max_ellipse_radi, int
     cv::Mat th_edges = cv::Mat::zeros(target.rows, target.cols, CV_8U);
 
     const cv::RotatedRect ellipse = runexcuse(&target, &pic_th, &th_edges, good_ellipse_threshold, max_ellipse_radi);
-    return cv::RotatedRect(
-        cv::Point2f(ellipse.center.x / scalingRatio, ellipse.center.y / scalingRatio),
-        cv::Size2f(ellipse.size.width / scalingRatio, ellipse.size.height / scalingRatio),
-        ellipse.angle);
+    return cv::RotatedRect(cv::Point2f(ellipse.center.x / scalingRatio, ellipse.center.y / scalingRatio),
+                           cv::Size2f(ellipse.size.width / scalingRatio, ellipse.size.height / scalingRatio),
+                           ellipse.angle);
 }
 
-}  // namespace cheshm::ExCuSe
+} // namespace cheshm::ExCuSe

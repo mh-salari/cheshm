@@ -20,41 +20,46 @@
  *  - Barely any algorithms are supported.
  */
 
+#include "../execution"
+#include "utils.hpp"
+
 #include <algorithm>
-#include <thread>
 #include <numeric>
+#include <thread>
 #include <utility>
 #include <vector>
 
-#include "utils.hpp"
-#include "../execution"
+namespace poolstl
+{
+namespace internal
+{
 
-namespace poolstl {
-    namespace internal {
+template <class ExecPolicy, class RandIt, class Chunk, class ChunkRet, typename... A>
+typename std::enable_if<is_pure_threads_policy<ExecPolicy>::value, void>::type parallel_chunk_for_1_wait(
+    ExecPolicy&& policy, RandIt first, RandIt last, Chunk chunk, ChunkRet*, int extra_split_factor, A&&... chunk_args)
+{
+    std::vector<std::thread> threads;
+    auto chunk_size = get_chunk_size(first, last, extra_split_factor * policy.get_num_threads());
 
-        template <class ExecPolicy, class RandIt, class Chunk, class ChunkRet, typename... A>
-        typename std::enable_if<is_pure_threads_policy<ExecPolicy>::value, void>::type
-        parallel_chunk_for_1_wait(ExecPolicy &&policy, RandIt first, RandIt last,
-                                  Chunk chunk, ChunkRet*, int extra_split_factor, A&&... chunk_args) {
-            std::vector<std::thread> threads;
-            auto chunk_size = get_chunk_size(first, last, extra_split_factor * policy.get_num_threads());
+    while (first < last)
+    {
+        auto iter_chunk_size = get_iter_chunk_size(first, last, chunk_size);
+        RandIt loop_end = advanced(first, iter_chunk_size);
 
-            while (first < last) {
-                auto iter_chunk_size = get_iter_chunk_size(first, last, chunk_size);
-                RandIt loop_end = advanced(first, iter_chunk_size);
+        threads.emplace_back(std::thread(chunk, first, loop_end, chunk_args...));
 
-                threads.emplace_back(std::thread(chunk, first, loop_end, chunk_args...));
+        first = loop_end;
+    }
 
-                first = loop_end;
-            }
-
-            for (auto& thread : threads) {
-                if (thread.joinable()) {
-                    thread.join();
-                }
-            }
+    for (auto& thread : threads)
+    {
+        if (thread.joinable())
+        {
+            thread.join();
         }
     }
 }
+} // namespace internal
+} // namespace poolstl
 
 #endif

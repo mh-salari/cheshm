@@ -12,11 +12,9 @@
 
 #include <opencv2/core.hpp>
 
-namespace cheshm::ExCuSe {
+namespace cheshm::ExCuSe
+{
 
-cv::RotatedRect findPupilEllipse(
-    const cv::Mat &frame,
-    int max_ellipse_radi = 50,
-    int good_ellipse_threshold = 15);
+cv::RotatedRect findPupilEllipse(const cv::Mat& frame, int max_ellipse_radi = 50, int good_ellipse_threshold = 15);
 
-}  // namespace cheshm::ExCuSe
+} // namespace cheshm::ExCuSe

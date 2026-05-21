@@ -6,14 +6,16 @@
 
 #pragma once
 
+#include "Swirski2D/conic_section.hpp"
+
 #include <opencv2/core/core.hpp>
 #include <vector>
 
-#include "Swirski2D/conic_section.hpp"
+namespace cheshm::Swirski2D
+{
 
-namespace cheshm::Swirski2D {
-
-struct TrackerParams {
+struct TrackerParams
+{
     int Radius_Min;
     int Radius_Max;
 
@@ -32,17 +34,30 @@ struct TrackerParams {
 
 const cv::Point2f UNKNOWN_POSITION = cv::Point2f(-1, -1);
 
-struct EdgePoint {
+struct EdgePoint
+{
     cv::Point2f point;
     double edgeStrength;
 
-    EdgePoint(const cv::Point2f &p, double s) : point(p), edgeStrength(s) {}
-    EdgePoint(float x, float y, double s) : point(x, y), edgeStrength(s) {}
+    EdgePoint(const cv::Point2f& p, double s)
+        : point(p),
+          edgeStrength(s)
+    {
+    }
+    EdgePoint(float x, float y, double s)
+        : point(x, y),
+          edgeStrength(s)
+    {
+    }
 
-    bool operator==(const EdgePoint &other) { return point == other.point; }
+    bool operator==(const EdgePoint& other)
+    {
+        return point == other.point;
+    }
 };
 
-struct findPupilEllipse_out {
+struct findPupilEllipse_out
+{
     cv::Rect roiHaarPupil;
     cv::Mat_<uchar> mHaarPupil;
 
@@ -70,9 +85,13 @@ struct findPupilEllipse_out {
     cv::Point2f pPupil;
     cv::RotatedRect elPupil;
 
-    findPupilEllipse_out() : pPupil(UNKNOWN_POSITION), threshold(-1) {}
+    findPupilEllipse_out()
+        : pPupil(UNKNOWN_POSITION),
+          threshold(-1)
+    {
+    }
 };
 
-bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEllipse_out &out);
+bool findPupilEllipse(const TrackerParams& params, const cv::Mat& m, findPupilEllipse_out& out);
 
-}  // namespace cheshm::Swirski2D
+} // namespace cheshm::Swirski2D

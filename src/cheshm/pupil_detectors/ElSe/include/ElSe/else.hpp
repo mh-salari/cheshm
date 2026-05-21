@@ -14,22 +14,22 @@
 #include <opencv2/core.hpp>
 #include <optional>
 
-namespace cheshm::ElSe {
+namespace cheshm::ElSe
+{
 
-enum class DetectionMethod {
-    Ellipse,        // primary path produced a fitted ellipse
-    BlobFallback,   // primary failed; only a coarse blob position is known
+enum class DetectionMethod
+{
+    Ellipse,      // primary path produced a fitted ellipse
+    BlobFallback, // primary failed; only a coarse blob position is known
 };
 
-struct DetectResult {
+struct DetectResult
+{
     DetectionMethod method;
-    cv::Point2f center;                       // always set
-    std::optional<cv::RotatedRect> ellipse;   // set only when method == Ellipse
+    cv::Point2f center;                     // always set
+    std::optional<cv::RotatedRect> ellipse; // set only when method == Ellipse
 };
 
-std::optional<DetectResult> detect(
-    const cv::Mat &frame,
-    float min_area_ratio,
-    float max_area_ratio);
+std::optional<DetectResult> detect(const cv::Mat& frame, float min_area_ratio, float max_area_ratio);
 
-}  // namespace cheshm::ElSe
+} // namespace cheshm::ElSe

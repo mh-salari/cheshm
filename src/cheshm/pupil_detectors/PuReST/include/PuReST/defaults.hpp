@@ -2,7 +2,8 @@
 
 #pragma once
 
-namespace cheshm::PuReST::defaults {
+namespace cheshm::PuReST::defaults
+{
 
 // Maximum scaled tracking-region size (pixels). If the tracking ROI
 // (centred on the previous pupil, sized to its major axis) would scale
@@ -24,4 +25,4 @@ inline constexpr float MAX_MAJOR_AXIS_RATIO = 1.05f;
 // Minimum overall confidence for the greedy-search fit to be accepted.
 inline constexpr float MIN_GREEDY_CONFIDENCE = 0.66f;
 
-}  // namespace cheshm::PuReST::defaults
+} // namespace cheshm::PuReST::defaults

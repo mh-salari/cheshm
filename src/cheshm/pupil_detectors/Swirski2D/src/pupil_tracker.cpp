@@ -3,6 +3,9 @@
 
 #include "Swirski2D/pupil_tracker.hpp"
 
+#include "Swirski2D/cvx.hpp"
+#include "poolstl/poolstl.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -15,18 +18,16 @@
 #include <utility>
 #include <vector>
 
-#include "poolstl/poolstl.hpp"
-#include "Swirski2D/cvx.hpp"
-
-namespace cheshm::Swirski2D {
-
-
+namespace cheshm::Swirski2D
+{
 
 
 class HaarSurroundFeature
 {
 public:
-    HaarSurroundFeature(int r1, int r2) : r_inner(r1), r_outer(r2)
+    HaarSurroundFeature(int r1, int r2)
+        : r_inner(r1),
+          r_outer(r2)
     {
         //  _________________
         // |        -ve      |
@@ -38,8 +39,8 @@ public:
         // |_________<--r2-->|
 
         // Number of pixels in each part of the kernel
-        int count_inner = r_inner*r_inner;
-        int count_outer = r_outer*r_outer - r_inner*r_inner;
+        int count_inner = r_inner * r_inner;
+        int count_outer = r_outer * r_outer - r_inner * r_inner;
 
         // Frobenius normalized values
         //
@@ -50,8 +51,8 @@ public:
         //  count_inner*val_inner + count_outer*val_outer = 0
         //
         // Solving both of these gives:
-        //val_inner = std::sqrt( (double)count_outer/(count_inner*count_outer + sq(count_inner)) );
-        //val_outer = -std::sqrt( (double)count_inner/(count_inner*count_outer + sq(count_outer)) );
+        // val_inner = std::sqrt( (double)count_outer/(count_inner*count_outer + sq(count_inner)) );
+        // val_outer = -std::sqrt( (double)count_inner/(count_inner*count_outer + sq(count_outer)) );
 
         // Square radius normalised values
         //
@@ -62,9 +63,8 @@ public:
         //  count_inner*val_inner + count_outer*val_outer = 0
         //
         // Hence:
-        val_inner = 1.0 / (r_inner*r_inner);
-        val_outer = -val_inner*count_inner/count_outer;
-
+        val_inner = 1.0 / (r_inner * r_inner);
+        val_outer = -val_inner * count_inner / count_outer;
     }
 
     double val_inner, val_outer;
@@ -83,7 +83,7 @@ cv::RotatedRect fitEllipse(const std::vector<EdgePoint>& edgePoints)
 }
 
 
-bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEllipse_out &out)
+bool findPupilEllipse(const TrackerParams& params, const cv::Mat& m, findPupilEllipse_out& out)
 {
     // --------------------
     // Convert to greyscale
@@ -134,7 +134,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
     //
 
     cv::Mat_<int32_t> mEyeIntegral;
-    int padding = 2*params.Radius_Max;
+    int padding = 2 * params.Radius_Max;
 
     {
         cv::Mat mEyePad;
@@ -153,26 +153,25 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
         double minResponse = std::numeric_limits<double>::infinity();
 
-        for (int r = params.Radius_Min; r < params.Radius_Max; r+=rstep)
-        {   
+        for (int r = params.Radius_Min; r < params.Radius_Max; r += rstep)
+        {
             // Get Haar feature
             int r_inner = r;
-            int r_outer = 3*r;
+            int r_outer = 3 * r;
             HaarSurroundFeature f(r_inner, r_outer);
 
             const int row_end = (mEye.rows - r - r - 1) / ystep + 1;
             std::vector<int> row_indices(row_end);
             std::iota(row_indices.begin(), row_indices.end(), 0);
-            const std::pair<double, cv::Point2f> init_min{
-                std::numeric_limits<double>::infinity(), UNKNOWN_POSITION};
+            const std::pair<double, cv::Point2f> init_min{std::numeric_limits<double>::infinity(), UNKNOWN_POSITION};
             auto minRadiusResponse = std::transform_reduce(
                 poolstl::par,
-                row_indices.begin(), row_indices.end(),
+                row_indices.begin(),
+                row_indices.end(),
                 init_min,
-                [](const auto &a, const auto &b) {
-                    return a.first < b.first ? a : b;
-                },
-                [&](int i) -> std::pair<double, cv::Point2f> {
+                [](const auto& a, const auto& b) { return a.first < b.first ? a : b; },
+                [&](int i) -> std::pair<double, cv::Point2f>
+                {
                     const int y = r + i * ystep;
                     std::pair<double, cv::Point2f> local = init_min;
                     //            ·         ·
@@ -189,28 +188,30 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
                     //            |         |  p10'                     'p11
                     //            ·         ·
 
-                    int *row1_inner = mEyeIntegral[y + padding - r_inner];
-                    int *row2_inner = mEyeIntegral[y + padding + r_inner + 1];
-                    int *row1_outer = mEyeIntegral[y + padding - r_outer];
-                    int *row2_outer = mEyeIntegral[y + padding + r_outer + 1];
+                    int* row1_inner = mEyeIntegral[y + padding - r_inner];
+                    int* row2_inner = mEyeIntegral[y + padding + r_inner + 1];
+                    int* row1_outer = mEyeIntegral[y + padding - r_outer];
+                    int* row2_outer = mEyeIntegral[y + padding + r_outer + 1];
 
-                    int *p00_inner = row1_inner + r + padding - r_inner;
-                    int *p01_inner = row1_inner + r + padding + r_inner + 1;
-                    int *p10_inner = row2_inner + r + padding - r_inner;
-                    int *p11_inner = row2_inner + r + padding + r_inner + 1;
+                    int* p00_inner = row1_inner + r + padding - r_inner;
+                    int* p01_inner = row1_inner + r + padding + r_inner + 1;
+                    int* p10_inner = row2_inner + r + padding - r_inner;
+                    int* p11_inner = row2_inner + r + padding + r_inner + 1;
 
-                    int *p00_outer = row1_outer + r + padding - r_outer;
-                    int *p01_outer = row1_outer + r + padding + r_outer + 1;
-                    int *p10_outer = row2_outer + r + padding - r_outer;
-                    int *p11_outer = row2_outer + r + padding + r_outer + 1;
+                    int* p00_outer = row1_outer + r + padding - r_outer;
+                    int* p01_outer = row1_outer + r + padding + r_outer + 1;
+                    int* p10_outer = row2_outer + r + padding - r_outer;
+                    int* p11_outer = row2_outer + r + padding + r_outer + 1;
 
-                    for (int x = r; x < mEye.cols - r; x += xstep) {
+                    for (int x = r; x < mEye.cols - r; x += xstep)
+                    {
                         int sumInner = *p00_inner + *p11_inner - *p01_inner - *p10_inner;
                         int sumOuter = *p00_outer + *p11_outer - *p01_outer - *p10_outer - sumInner;
 
                         double response = f.val_inner * sumInner + f.val_outer * sumOuter;
 
-                        if (response < local.first) {
+                        if (response < local.first)
+                        {
                             local.first = response;
                             local.second = cv::Point(x, y);
                         }
@@ -279,9 +280,10 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
         {
             cv::Mat_<uchar> labels;
             float centres[2] = {candidate0[i], candidate1[i]};
-            float dist = cvx::histKmeans(hist, 0, 256, 2, centres, labels, cv::TermCriteria(cv::TermCriteria::COUNT, 50, 0.0));
+            float dist =
+                cvx::histKmeans(hist, 0, 256, 2, centres, labels, cv::TermCriteria(cv::TermCriteria::COUNT, 50, 0.0));
 
-            float thisthreshold = (centres[0] + centres[1])/2;
+            float thisthreshold = (centres[0] + centres[1]) / 2;
             if (dist < bestDist && std::isnormal(thisthreshold))
             {
                 bestDist = dist;
@@ -315,7 +317,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
     {
         cv::Mat_<uchar> mPupilContours = mPupilThresh.clone();
-        std::vector<std::vector<cv::Point> > contours;
+        std::vector<std::vector<cv::Point>> contours;
         cv::findContours(mPupilContours, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
         if (contours.size() == 0)
@@ -359,12 +361,13 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
     {
         const int padding = 3;
 
-        cv::Rect roiPadded(roiPupil.x-padding, roiPupil.y-padding, roiPupil.width+2*padding, roiPupil.height+2*padding);
+        cv::Rect roiPadded(
+            roiPupil.x - padding, roiPupil.y - padding, roiPupil.width + 2 * padding, roiPupil.height + 2 * padding);
         // First get an ROI around the approximate pupil location
         cvx::getROI(mEye, mPupil, roiPadded, cv::BORDER_REPLICATE);
 
         cv::Mat morphologyDisk = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
-        cv::morphologyEx(mPupil, mPupilOpened, cv::MORPH_OPEN, morphologyDisk, cv::Point(-1,-1), 2);
+        cv::morphologyEx(mPupil, mPupilOpened, cv::MORPH_OPEN, morphologyDisk, cv::Point(-1, -1), 2);
 
         if (params.CannyBlur > 0)
         {
@@ -380,7 +383,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
         cv::Canny(mPupilBlurred, mPupilEdges, params.CannyThreshold1, params.CannyThreshold2);
 
-        cv::Rect roiUnpadded(padding,padding,roiPupil.width,roiPupil.height);
+        cv::Rect roiUnpadded(padding, padding, roiPupil.width, roiPupil.height);
         mPupil = cv::Mat(mPupil, roiUnpadded);
         mPupilOpened = cv::Mat(mPupilOpened, roiUnpadded);
         mPupilBlurred = cv::Mat(mPupilBlurred, roiUnpadded);
@@ -420,71 +423,85 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
             cv::Vec2f elPupil_majorAxis = cvx::majorAxis(elPupilThresh);
             std::vector<cv::Point2f> centres;
             centres.push_back(elPupilThresh.center - cv::Point2f(roiPupil.tl().x, roiPupil.tl().y));
-            centres.push_back(elPupilThresh.center - cv::Point2f(roiPupil.tl().x, roiPupil.tl().y) + cv::Point2f(elPupil_majorAxis));
-            centres.push_back(elPupilThresh.center - cv::Point2f(roiPupil.tl().x, roiPupil.tl().y) - cv::Point2f(elPupil_majorAxis));
+            centres.push_back(elPupilThresh.center - cv::Point2f(roiPupil.tl().x, roiPupil.tl().y) +
+                              cv::Point2f(elPupil_majorAxis));
+            centres.push_back(elPupilThresh.center - cv::Point2f(roiPupil.tl().x, roiPupil.tl().y) -
+                              cv::Point2f(elPupil_majorAxis));
 
             std::vector<int> ray_indices(params.StarburstPoints);
             std::iota(ray_indices.begin(), ray_indices.end(), 0);
             std::mutex edgePoints_mtx;
 
-            for (const cv::Point2f &centre : centres) {
-                std::for_each(poolstl::par, ray_indices.begin(), ray_indices.end(), [&](int i) {
-                    double theta = i * 2 * PI / params.StarburstPoints;
+            for (const cv::Point2f& centre : centres)
+            {
+                std::for_each(poolstl::par,
+                              ray_indices.begin(),
+                              ray_indices.end(),
+                              [&](int i)
+                              {
+                                  double theta = i * 2 * PI / params.StarburstPoints;
 
-                    // Direction vector along the ray.
-                    cv::Point2f pDir(static_cast<float>(std::cos(theta)), static_cast<float>(std::sin(theta)));
+                                  // Direction vector along the ray.
+                                  cv::Point2f pDir(static_cast<float>(std::cos(theta)),
+                                                   static_cast<float>(std::sin(theta)));
 
-                    int t = 1;
-                    cv::Point p = centre + (t * pDir);
-                    while (p.inside(bbPupil)) {
-                        uchar val = mPupilEdges(p);
+                                  int t = 1;
+                                  cv::Point p = centre + (t * pDir);
+                                  while (p.inside(bbPupil))
+                                  {
+                                      uchar val = mPupilEdges(p);
 
-                        if (val > 0) {
-                            float dx = mPupilSobelX(p);
-                            float dy = mPupilSobelY(p);
+                                      if (val > 0)
+                                      {
+                                          float dx = mPupilSobelX(p);
+                                          float dy = mPupilSobelY(p);
 
-                            float cdirx = p.x - (elPupilThresh.center.x - roiPupil.x);
-                            float cdiry = p.y - (elPupilThresh.center.y - roiPupil.y);
+                                          float cdirx = p.x - (elPupilThresh.center.x - roiPupil.x);
+                                          float cdiry = p.y - (elPupilThresh.center.y - roiPupil.y);
 
-                            // Edge gradient should point away from pupil centre.
-                            double dirCheck = dx * cdirx + dy * cdiry;
+                                          // Edge gradient should point away from pupil centre.
+                                          double dirCheck = dx * cdirx + dy * cdiry;
 
-                            if (dirCheck > 0) {
-                                std::lock_guard<std::mutex> lock(edgePoints_mtx);
-                                edgePoints.push_back(cv::Point2f(p.x + 0.5f, p.y + 0.5f));
-                                return;  // next ray
-                            }
-                        }
+                                          if (dirCheck > 0)
+                                          {
+                                              std::lock_guard<std::mutex> lock(edgePoints_mtx);
+                                              edgePoints.push_back(cv::Point2f(p.x + 0.5f, p.y + 0.5f));
+                                              return; // next ray
+                                          }
+                                      }
 
-                        ++t;
-                        p = centre + (t * pDir);
-                    }
-                });
+                                      ++t;
+                                      p = centre + (t * pDir);
+                                  }
+                              });
             }
 
 
             // Remove duplicate edge points
-            std::sort(edgePoints.begin(), edgePoints.end(), [] (const cv::Point2f& p1, const cv::Point2f& p2) -> bool {
-                if (p1.x == p2.x)
-                    return p1.y < p2.y;
-                else
-                    return p1.x < p2.x;
-            });
-            edgePoints.erase( std::unique( edgePoints.begin(), edgePoints.end() ), edgePoints.end() );
+            std::sort(edgePoints.begin(),
+                      edgePoints.end(),
+                      [](const cv::Point2f& p1, const cv::Point2f& p2) -> bool
+                      {
+                          if (p1.x == p2.x)
+                              return p1.y < p2.y;
+                          else
+                              return p1.x < p2.x;
+                      });
+            edgePoints.erase(std::unique(edgePoints.begin(), edgePoints.end()), edgePoints.end());
 
-            if (edgePoints.size() < params.StarburstPoints/2)
+            if (edgePoints.size() < params.StarburstPoints / 2)
                 return false;
         }
     }
     else
     {
         {
-            for(int y = 0; y < mPupilEdges.rows; y++)
+            for (int y = 0; y < mPupilEdges.rows; y++)
             {
                 uchar* val = mPupilEdges[y];
-                for(int x = 0; x < mPupilEdges.cols; x++, val++)
+                for (int x = 0; x < mPupilEdges.cols; x++, val++)
                 {
-                    if(*val == 0)
+                    if (*val == 0)
                         continue;
 
                     edgePoints.push_back(cv::Point2f(x + 0.5f, y + 0.5f));
@@ -504,7 +521,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
         // Desired probability that only inliers are selected
         const double p = 0.999;
         // Probability that a point is an inlier
-        double w = params.PercentageInliers/100.0;
+        double w = params.PercentageInliers / 100.0;
         // Number of points needed for a model
         const int n = 5;
 
@@ -515,23 +532,30 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
         {
             // RANSAC!!!
 
-            double wToN = std::pow(w,n);
-            int k = static_cast<int>(std::log(1-p)/std::log(1 - wToN)  + 2*std::sqrt(1 - wToN)/wToN);
+            double wToN = std::pow(w, n);
+            int k = static_cast<int>(std::log(1 - p) / std::log(1 - wToN) + 2 * std::sqrt(1 - wToN) / wToN);
 
             out.ransacIterations = k;
 
-            //size_t threshold_inlierCount = std::max<size_t>(n, static_cast<size_t>(out.edgePoints.size() * 0.7));
+            // size_t threshold_inlierCount = std::max<size_t>(n, static_cast<size_t>(out.edgePoints.size() * 0.7));
 
-            struct EllipseRansac_out {
+            struct EllipseRansac_out
+            {
                 std::vector<cv::Point2f> bestInliers;
                 cv::RotatedRect bestEllipse;
                 double bestEllipseGoodness;
                 int earlyRejections;
                 bool earlyTermination;
 
-                EllipseRansac_out() : bestEllipseGoodness(-std::numeric_limits<double>::infinity()), earlyTermination(false), earlyRejections(0) {}
+                EllipseRansac_out()
+                    : bestEllipseGoodness(-std::numeric_limits<double>::infinity()),
+                      earlyTermination(false),
+                      earlyRejections(0)
+                {
+                }
             };
-            struct EllipseRansac {
+            struct EllipseRansac
+            {
                 const TrackerParams& params;
                 const std::vector<cv::Point2f>& edgePoints;
                 int n;
@@ -543,14 +567,20 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
                 EllipseRansac_out out;
 
-                EllipseRansac(
-                    const TrackerParams& params,
-                    const std::vector<cv::Point2f>& edgePoints,
-                    int n,
-                    const cv::Rect& bb,
-                    const cv::Mat_<float>& mDX,
-                    const cv::Mat_<float>& mDY)
-                    : params(params), edgePoints(edgePoints), n(n), bb(bb), mDX(mDX), mDY(mDY), earlyTermination(false), earlyRejections(0)
+                EllipseRansac(const TrackerParams& params,
+                              const std::vector<cv::Point2f>& edgePoints,
+                              int n,
+                              const cv::Rect& bb,
+                              const cv::Mat_<float>& mDX,
+                              const cv::Mat_<float>& mDY)
+                    : params(params),
+                      edgePoints(edgePoints),
+                      n(n),
+                      bb(bb),
+                      mDX(mDX),
+                      mDY(mDY),
+                      earlyTermination(false),
+                      earlyRejections(0)
                 {
                 }
 
@@ -578,13 +608,10 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
                         cv::Size s = ellipseSampleFit.size;
                         // Discard useless ellipses early
-                        if (!ellipseSampleFit.center.inside(bb)
-                            || s.height > params.Radius_Max*2
-                            || s.width > params.Radius_Max*2
-                            || s.height < params.Radius_Min*2 && s.width < params.Radius_Min*2
-                            || s.height > 4*s.width
-                            || s.width > 4*s.height
-                            )
+                        if (!ellipseSampleFit.center.inside(bb) || s.height > params.Radius_Max * 2 ||
+                            s.width > params.Radius_Max * 2 ||
+                            s.height < params.Radius_Min * 2 && s.width < params.Radius_Min * 2 ||
+                            s.height > 4 * s.width || s.width > 4 * s.height)
                         {
                             // Bad ellipse! Go to your room!
                             continue;
@@ -603,7 +630,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
                                 float dx = mDX(cv::Point(p.x, p.y));
                                 float dy = mDY(cv::Point(p.x, p.y));
 
-                                float dotProd = dx*grad.x + dy*grad.y;
+                                float dotProd = dx * grad.x + dy * grad.y;
 
                                 gradientCorrect &= dotProd > 0;
                             }
@@ -624,23 +651,26 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
                         for (int i = 0; i < params.InlierIterations; ++i)
                         {
                             // Get error scale for 1px out on the minor axis
-                            cv::Point2f minorAxis(-std::sin(PI/180.0*ellipseInlierFit.angle), std::cos(PI/180.0*ellipseInlierFit.angle));
-                            cv::Point2f minorAxisPlus1px = ellipseInlierFit.center + (ellipseInlierFit.size.height/2 + 1)*minorAxis;
+                            cv::Point2f minorAxis(-std::sin(PI / 180.0 * ellipseInlierFit.angle),
+                                                  std::cos(PI / 180.0 * ellipseInlierFit.angle));
+                            cv::Point2f minorAxisPlus1px =
+                                ellipseInlierFit.center + (ellipseInlierFit.size.height / 2 + 1) * minorAxis;
                             float errOf1px = conicInlierFit.distance(minorAxisPlus1px);
-                            float errorScale = 1.0f/errOf1px;
+                            float errorScale = 1.0f / errOf1px;
 
                             // Find inliers
                             inliers.reserve(edgePoints.size());
                             const float MAX_ERR = 2;
                             for (const cv::Point2f& p : edgePoints)
                             {
-                                float err = errorScale*conicInlierFit.distance(p);
+                                float err = errorScale * conicInlierFit.distance(p);
 
-                                if (err*err < MAX_ERR*MAX_ERR)
+                                if (err * err < MAX_ERR * MAX_ERR)
                                     inliers.push_back(p);
                             }
 
-                            if (inliers.size() < n) {
+                            if (inliers.size() < n)
+                            {
                                 inliers.clear();
                                 continue;
                             }
@@ -661,13 +691,10 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
                         // Discard useless ellipses again
                         s = ellipseInlierFit.size;
-                        if (!ellipseInlierFit.center.inside(bb)
-                            || s.height > params.Radius_Max*2
-                            || s.width > params.Radius_Max*2
-                            || s.height < params.Radius_Min*2 && s.width < params.Radius_Min*2
-                            || s.height > 4*s.width
-                            || s.width > 4*s.height
-                            )
+                        if (!ellipseInlierFit.center.inside(bb) || s.height > params.Radius_Max * 2 ||
+                            s.width > params.Radius_Max * 2 ||
+                            s.height < params.Radius_Min * 2 && s.width < params.Radius_Min * 2 ||
+                            s.height > 4 * s.width || s.width > 4 * s.height)
                         {
                             // Bad ellipse! Go to your room!
                             continue;
@@ -683,7 +710,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
                                 float dx = mDX(p);
                                 float dy = mDY(p);
 
-                                double edgeStrength = dx*grad.x + dy*grad.y;
+                                double edgeStrength = dx * grad.x + dy * grad.y;
 
                                 ellipseGoodness += edgeStrength;
                             }
@@ -701,39 +728,45 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
 
                             // Early termination, if N% of points match.
                             if (params.EarlyTerminationPercentage > 0 &&
-                                out.bestInliers.size() > params.EarlyTerminationPercentage * edgePoints.size() / 100) {
+                                out.bestInliers.size() > params.EarlyTerminationPercentage * edgePoints.size() / 100)
+                            {
                                 earlyTermination = true;
                                 out.earlyTermination = true;
                                 break;
                             }
                         }
-
                     }
-                    //std::cout << "Ransac end" << std::endl;
+                    // std::cout << "Ransac end" << std::endl;
                 }
-
             };
 
             EllipseRansac ransac(params, edgePoints, n, bbPupil, out.mPupilSobelX, out.mPupilSobelY);
-            try {
+            try
+            {
                 const int n_threads = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
                 const int chunk_size = std::max(1, (k + n_threads - 1) / n_threads);
                 const int n_chunks = (k + chunk_size - 1) / chunk_size;
                 std::vector<EllipseRansac> workers;
                 workers.reserve(n_chunks);
-                for (int t = 0; t < n_chunks; t++) {
-                    workers.emplace_back(params, edgePoints, n, bbPupil,
-                                         out.mPupilSobelX, out.mPupilSobelY);
+                for (int t = 0; t < n_chunks; t++)
+                {
+                    workers.emplace_back(params, edgePoints, n, bbPupil, out.mPupilSobelX, out.mPupilSobelY);
                 }
                 std::vector<int> chunk_idx(n_chunks);
                 std::iota(chunk_idx.begin(), chunk_idx.end(), 0);
-                std::for_each(poolstl::par, chunk_idx.begin(), chunk_idx.end(), [&](int t) {
-                    const size_t begin = static_cast<size_t>(t) * chunk_size;
-                    const size_t end = std::min(begin + chunk_size, static_cast<size_t>(k));
-                    workers[t](begin, end);
-                });
-                for (const auto &w : workers) {
-                    if (w.out.bestEllipseGoodness > ransac.out.bestEllipseGoodness) {
+                std::for_each(poolstl::par,
+                              chunk_idx.begin(),
+                              chunk_idx.end(),
+                              [&](int t)
+                              {
+                                  const size_t begin = static_cast<size_t>(t) * chunk_size;
+                                  const size_t end = std::min(begin + chunk_size, static_cast<size_t>(k));
+                                  workers[t](begin, end);
+                              });
+                for (const auto& w : workers)
+                {
+                    if (w.out.bestEllipseGoodness > ransac.out.bestEllipseGoodness)
+                    {
                         ransac.out.bestEllipseGoodness = w.out.bestEllipseGoodness;
                         ransac.out.bestInliers = w.out.bestInliers;
                         ransac.out.bestEllipse = w.out.bestEllipse;
@@ -741,7 +774,9 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
                     ransac.out.earlyRejections += w.out.earlyRejections;
                     ransac.out.earlyTermination = ransac.out.earlyTermination || w.out.earlyTermination;
                 }
-            } catch (std::exception &e) {
+            }
+            catch (std::exception& e)
+            {
                 std::cerr << "Swirski2D RANSAC: " << e.what() << '\n';
             }
             inliers = ransac.out.bestInliers;
@@ -758,7 +793,7 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
                 float dx = out.mPupilSobelX(p);
                 float dy = out.mPupilSobelY(p);
 
-                out.edgePoints.push_back(EdgePoint(p, dx*grad.x + dy*grad.y));
+                out.edgePoints.push_back(EdgePoint(p, dx * grad.x + dy * grad.y));
             }
 
             elPupil = ellipseBestFit;
@@ -777,7 +812,8 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
         // frame so callers can plot them on the original image.
         const cv::Point2f roi_offset(roiPupil.x, roiPupil.y);
         out.inliers.reserve(inliers.size());
-        for (const cv::Point2f &p : inliers) {
+        for (const cv::Point2f& p : inliers)
+        {
             out.inliers.push_back(p + roi_offset);
         }
 
@@ -787,4 +823,4 @@ bool findPupilEllipse(const TrackerParams &params, const cv::Mat &m, findPupilEl
     return false;
 }
 
-}  // namespace cheshm::Swirski2D
+} // namespace cheshm::Swirski2D

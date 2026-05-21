@@ -1,40 +1,47 @@
 // PuReST tracker — Python binding.
 
-#include "PuReST/purest.hpp"
-#include "PuReST/defaults.hpp"
-#include "PuRe/defaults.hpp"
 #include "cheshm/roi.hpp"
 
-#include <cstdint>
+#include "PuRe/defaults.hpp"
+#include "PuReST/defaults.hpp"
+#include "PuReST/purest.hpp"
+
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/tuple.h>
+
+#include <cstdint>
 #include <opencv2/core.hpp>
 
 namespace nb = nanobind;
 using namespace nb::literals;
 
-namespace {
+namespace
+{
 
-nb::object tracker_detect(
-    cheshm::PuReST::Tracker &self,
-    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
-    int roi_x, int roi_y, int roi_w, int roi_h)
+nb::object tracker_detect(cheshm::PuReST::Tracker& self,
+                          nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+                          int roi_x,
+                          int roi_y,
+                          int roi_w,
+                          int roi_h)
 {
     const int height = static_cast<int>(img.shape(0));
     const int width = static_cast<int>(img.shape(1));
-    const cv::Mat full(height, width, CV_8U,
-                       const_cast<std::uint8_t *>(img.data()));
+    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t*>(img.data()));
 
     cv::Rect crop(0, 0, width, height);
-    if (cheshm::roi_is_active(roi_w, roi_h)) {
+    if (cheshm::roi_is_active(roi_w, roi_h))
+    {
         crop = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
-        if (crop.area() == 0) return nb::none();
+        if (crop.area() == 0)
+            return nb::none();
     }
     const cv::Mat view = full(crop);
 
     const auto result = self.detect(view);
-    if (!result) return nb::none();
+    if (!result)
+        return nb::none();
 
     const double cx = static_cast<double>(result->ellipse.center.x) + crop.x;
     const double cy = static_cast<double>(result->ellipse.center.y) + crop.y;
@@ -45,7 +52,7 @@ nb::object tracker_detect(
     return nb::make_tuple(cx, cy, w, h, angle, confidence);
 }
 
-}  // namespace
+} // namespace
 
 NB_MODULE(_core, m)
 {
@@ -55,8 +62,7 @@ NB_MODULE(_core, m)
              "max_pupil_diameter_mm"_a,
              "canthi_distance_mm"_a,
              "outline_bias"_a)
-        .def("detect", &tracker_detect,
-             "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a)
+        .def("detect", &tracker_detect, "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a)
         .def("reset", &cheshm::PuReST::Tracker::reset);
 
     m.attr("MIN_PUPIL_DIAMETER_MM") = cheshm::PuRe::defaults::MIN_PUPIL_DIAMETER_MM;

@@ -9,9 +9,11 @@
 #include <opencv2/core.hpp>
 #include <optional>
 
-namespace cheshm::PupilLabs2D {
+namespace cheshm::PupilLabs2D
+{
 
-struct Properties {
+struct Properties
+{
     int intensity_range;
     int blur_size;
     float canny_threshold;
@@ -37,14 +39,12 @@ struct Properties {
 
 Properties default_properties();
 
-struct DetectResult {
+struct DetectResult
+{
     cv::RotatedRect ellipse;
     float confidence;
 };
 
-std::optional<DetectResult> detect(
-    const cv::Mat &gray,
-    const cv::Rect &roi,
-    const Properties &props);
+std::optional<DetectResult> detect(const cv::Mat& gray, const cv::Rect& roi, const Properties& props);
 
-}  // namespace cheshm::PupilLabs2D
+} // namespace cheshm::PupilLabs2D

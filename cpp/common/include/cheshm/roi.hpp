@@ -4,7 +4,8 @@
 
 #include <opencv2/core.hpp>
 
-namespace cheshm {
+namespace cheshm
+{
 
 inline cv::Rect clamp_roi(int roi_x, int roi_y, int roi_w, int roi_h, int img_w, int img_h)
 {
@@ -18,4 +19,4 @@ inline bool roi_is_active(int roi_w, int roi_h)
     return roi_w > 0 && roi_h > 0;
 }
 
-}  // namespace cheshm
+} // namespace cheshm

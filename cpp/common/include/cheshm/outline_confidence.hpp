@@ -18,16 +18,17 @@
 #include <optional>
 #include <vector>
 
-namespace cheshm {
+namespace cheshm
+{
 
 // Returns the vote ratio in ``[0, 1]``, or ``std::nullopt`` when no
 // outline sample fell inside the image. ``bias`` is the minimum
 // intensity gap (uchar units) between the inside and outside means
 // required to count a sample as supporting the fit.
-inline std::optional<float> outline_contrast_confidence(
-    const cv::Mat &frame, const cv::RotatedRect &outline, int bias)
+inline std::optional<float> outline_contrast_confidence(const cv::Mat& frame, const cv::RotatedRect& outline, int bias)
 {
-    if (outline.size.width <= 0 || outline.size.height <= 0) return std::nullopt;
+    if (outline.size.width <= 0 || outline.size.height <= 0)
+        return std::nullopt;
 
     const cv::Rect boundaries{0, 0, frame.cols, frame.rows};
     const float minor_axis = std::min(outline.size.width, outline.size.height);
@@ -38,25 +39,29 @@ inline std::optional<float> outline_contrast_confidence(
     int valid_count = 0;
 
     const std::vector<cv::Point> outline_points = cheshm::ellipse_to_points(outline, 10);
-    for (const cv::Point &p : outline_points) {
+    for (const cv::Point& p : outline_points)
+    {
         const int dxp = p.x - c.x;
         const int dyp = p.y - c.y;
 
         float a = 0.0f;
-        if (dxp != 0) a = static_cast<float>(dyp) / static_cast<float>(dxp);
+        if (dxp != 0)
+            a = static_cast<float>(dyp) / static_cast<float>(dxp);
         const float b = c.y - a * c.x;
 
-        if (a == 0.0f) continue;
+        if (a == 0.0f)
+            continue;
 
-        if (std::abs(dxp) > std::abs(dyp)) {
+        if (std::abs(dxp) > std::abs(dyp))
+        {
             const int sx = p.x - delta;
             const int ex = p.x + delta;
             const int sy = static_cast<int>(std::roundf(a * sx + b));
             const int ey = static_cast<int>(std::roundf(a * ex + b));
             ++evaluated;
 
-            if (!boundaries.contains(cv::Point{sx, sy})
-                || !boundaries.contains(cv::Point{ex, ey})) continue;
+            if (!boundaries.contains(cv::Point{sx, sy}) || !boundaries.contains(cv::Point{ex, ey}))
+                continue;
 
             float m1 = 0.0f;
             for (int x = sx; x < p.x; ++x)
@@ -68,20 +73,27 @@ inline std::optional<float> outline_contrast_confidence(
                 m2 += frame.ptr<uchar>(static_cast<int>(std::roundf(a * x + b)))[x];
             m2 = std::roundf(m2 / delta);
 
-            if (p.x < c.x) {
-                if (m1 > m2 + bias) ++valid_count;
-            } else {
-                if (m2 > m1 + bias) ++valid_count;
+            if (p.x < c.x)
+            {
+                if (m1 > m2 + bias)
+                    ++valid_count;
             }
-        } else {
+            else
+            {
+                if (m2 > m1 + bias)
+                    ++valid_count;
+            }
+        }
+        else
+        {
             const int sy = p.y - delta;
             const int ey = p.y + delta;
             const int sx = static_cast<int>(std::roundf((sy - b) / a));
             const int ex = static_cast<int>(std::roundf((ey - b) / a));
             ++evaluated;
 
-            if (!boundaries.contains(cv::Point{sx, sy})
-                || !boundaries.contains(cv::Point{ex, ey})) continue;
+            if (!boundaries.contains(cv::Point{sx, sy}) || !boundaries.contains(cv::Point{ex, ey}))
+                continue;
 
             float m1 = 0.0f;
             for (int y = sy; y < p.y; ++y)
@@ -93,16 +105,22 @@ inline std::optional<float> outline_contrast_confidence(
                 m2 += frame.ptr<uchar>(y)[static_cast<int>(std::roundf((y - b) / a))];
             m2 = std::roundf(m2 / delta);
 
-            if (p.y < c.y) {
-                if (m1 > m2 + bias) ++valid_count;
-            } else {
-                if (m2 > m1 + bias) ++valid_count;
+            if (p.y < c.y)
+            {
+                if (m1 > m2 + bias)
+                    ++valid_count;
+            }
+            else
+            {
+                if (m2 > m1 + bias)
+                    ++valid_count;
             }
         }
     }
 
-    if (evaluated == 0) return std::nullopt;
+    if (evaluated == 0)
+        return std::nullopt;
     return static_cast<float>(valid_count) / static_cast<float>(evaluated);
 }
 
-}  // namespace cheshm
+} // namespace cheshm

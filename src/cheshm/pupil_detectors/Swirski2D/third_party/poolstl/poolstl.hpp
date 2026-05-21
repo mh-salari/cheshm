@@ -12,8 +12,8 @@
 #ifndef POOLSTL_HPP
 #define POOLSTL_HPP
 
-#include "execution"
 #include "algorithm"
+#include "execution"
 #include "numeric"
 
 // Note that iota_iter.hpp is self-contained in its own right.
@@ -43,32 +43,34 @@
  * Define POOLSTL_ALLOW_SUPPLEMENT=0 to override POOLSTL_STD_SUPPLEMENT and disable this feature.
  */
 #ifndef POOLSTL_ALLOW_SUPPLEMENT
-#define POOLSTL_ALLOW_SUPPLEMENT 1
+#    define POOLSTL_ALLOW_SUPPLEMENT 1
 #endif
 
 #if POOLSTL_ALLOW_SUPPLEMENT && defined(POOLSTL_STD_SUPPLEMENT)
 
-#if __cplusplus >= 201603L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201603L)
-#if __has_include(<execution>)
-#ifndef POOLSTL_STD_SUPPLEMENT_NO_INCLUDE
-#include <execution>
-#endif
-#endif
-#endif
+#    if __cplusplus >= 201603L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201603L)
+#        if __has_include(<execution>)
+#            ifndef POOLSTL_STD_SUPPLEMENT_NO_INCLUDE
+#                include <execution>
+#            endif
+#        endif
+#    endif
 
-#if !defined(__cpp_lib_parallel_algorithm) || defined(POOLSTL_STD_SUPPLEMENT_FORCE)
-namespace std {
-    namespace execution {
-        using ::poolstl::execution::sequenced_policy;
-        using ::poolstl::execution::seq;
-        using ::poolstl::execution::parallel_policy;
-        using ::poolstl::execution::par;
-        using parallel_unsequenced_policy = ::poolstl::execution::parallel_policy;
-        constexpr parallel_unsequenced_policy par_unseq{};
-    }
-}
+#    if !defined(__cpp_lib_parallel_algorithm) || defined(POOLSTL_STD_SUPPLEMENT_FORCE)
+namespace std
+{
+namespace execution
+{
+using ::poolstl::execution::par;
+using ::poolstl::execution::parallel_policy;
+using ::poolstl::execution::seq;
+using ::poolstl::execution::sequenced_policy;
+using parallel_unsequenced_policy = ::poolstl::execution::parallel_policy;
+constexpr parallel_unsequenced_policy par_unseq{};
+} // namespace execution
+} // namespace std
 
-#endif
+#    endif
 #endif
 
 #endif

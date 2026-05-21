@@ -7,16 +7,10 @@
 
 #include <opencv2/core/types.hpp>
 
-namespace cheshm::Starburst {
+namespace cheshm::Starburst
+{
 
 void remove_corneal_reflection(
-    cv::Mat &image,
-    int sx,
-    int sy,
-    int window_size,
-    int biggest_crr,
-    int &crx,
-    int &cry,
-    int &crr);
+    cv::Mat& image, int sx, int sy, int window_size, int biggest_crr, int& crx, int& cry, int& crr);
 
-}  // namespace cheshm::Starburst
+} // namespace cheshm::Starburst

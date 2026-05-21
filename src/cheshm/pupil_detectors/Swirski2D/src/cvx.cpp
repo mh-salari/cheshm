@@ -6,7 +6,8 @@
 #include <cmath>
 #include <limits>
 
-namespace cheshm::Swirski2D {
+namespace cheshm::Swirski2D
+{
 
 void cvx::getROI(const cv::Mat& src, cv::Mat& dst, const cv::Rect& roi, int borderType)
 {
@@ -33,14 +34,20 @@ void cvx::getROI(const cv::Mat& src, cv::Mat& dst, const cv::Rect& roi, int bord
 }
 
 
-float cvx::histKmeans(const cv::Mat_<float>& hist, int bin_min, int bin_max, int K, float init_centres[], cv::Mat_<uchar>& labels, cv::TermCriteria termCriteria)
+float cvx::histKmeans(const cv::Mat_<float>& hist,
+                      int bin_min,
+                      int bin_max,
+                      int K,
+                      float init_centres[],
+                      cv::Mat_<uchar>& labels,
+                      cv::TermCriteria termCriteria)
 {
-    CV_Assert( hist.rows == 1 || hist.cols == 1 && K > 0 );
+    CV_Assert(hist.rows == 1 || hist.cols == 1 && K > 0);
 
     labels = cv::Mat_<uchar>::zeros(hist.size());
     int nbins = hist.total();
-    float binWidth = (bin_max - bin_min)/nbins;
-    float binStart = bin_min + binWidth/2;
+    float binWidth = (bin_max - bin_min) / nbins;
+    float binStart = bin_min + binWidth / 2;
 
     cv::Mat_<float> centres(K, 1, init_centres, 4);
 
@@ -61,11 +68,9 @@ float cvx::histKmeans(const cv::Mat_<float>& hist, int bin_min, int bin_max, int
         int movedCount = 0;
 
         // Step 1. Assign each element a label
-        for (i_bin = 0, i_labels = labels.begin(), i_hist = hist.begin();
-             i_bin < nbins;
-             ++i_bin, ++i_labels, ++i_hist)
+        for (i_bin = 0, i_labels = labels.begin(), i_hist = hist.begin(); i_bin < nbins; ++i_bin, ++i_labels, ++i_hist)
         {
-            float bin_val = binStart + i_bin*binWidth;
+            float bin_val = binStart + i_bin * binWidth;
             float minDist = sq(bin_val - centres(*i_labels));
             int curLabel = *i_labels;
 
@@ -90,11 +95,9 @@ float cvx::histKmeans(const cv::Mat_<float>& hist, int bin_min, int bin_max, int
 
         // Step 2. Recalculate centres
         cv::Mat_<float> counts(K, 1, 0.0f);
-        for (i_bin = 0, i_labels = labels.begin(), i_hist = hist.begin();
-             i_bin < nbins;
-             ++i_bin, ++i_labels, ++i_hist)
+        for (i_bin = 0, i_labels = labels.begin(), i_hist = hist.begin(); i_bin < nbins; ++i_bin, ++i_labels, ++i_hist)
         {
-            float bin_val = binStart + i_bin*binWidth;
+            float bin_val = binStart + i_bin * binWidth;
 
             centres(*i_labels) += (*i_hist) * bin_val;
             counts(*i_labels) += *i_hist;
@@ -130,38 +133,41 @@ cv::RotatedRect cvx::fitEllipse(const cv::Moments& m)
 {
     cv::RotatedRect ret;
 
-    ret.center.x = m.m10/m.m00;
-    ret.center.y = m.m01/m.m00;
+    ret.center.x = m.m10 / m.m00;
+    ret.center.y = m.m01 / m.m00;
 
-    double mu20 = m.m20/m.m00 - ret.center.x*ret.center.x;
-    double mu02 = m.m02/m.m00 - ret.center.y*ret.center.y;
-    double mu11 = m.m11/m.m00 - ret.center.x*ret.center.y;
+    double mu20 = m.m20 / m.m00 - ret.center.x * ret.center.x;
+    double mu02 = m.m02 / m.m00 - ret.center.y * ret.center.y;
+    double mu11 = m.m11 / m.m00 - ret.center.x * ret.center.y;
 
-    double common = std::sqrt(sq(mu20 - mu02) + 4*sq(mu11));
+    double common = std::sqrt(sq(mu20 - mu02) + 4 * sq(mu11));
 
-    ret.size.width = std::sqrt(2*(mu20 + mu02 + common));
-    ret.size.height = std::sqrt(2*(mu20 + mu02 - common));
+    ret.size.width = std::sqrt(2 * (mu20 + mu02 + common));
+    ret.size.height = std::sqrt(2 * (mu20 + mu02 - common));
 
     double num, den;
-    if (mu02 > mu20) {
+    if (mu02 > mu20)
+    {
         num = mu02 - mu20 + common;
-        den = 2*mu11;
+        den = 2 * mu11;
     }
-    else {
-        num = 2*mu11;
+    else
+    {
+        num = 2 * mu11;
         den = mu20 - mu02 + common;
     }
 
     if (num == 0 && den == 0)
         ret.angle = 0;
     else
-        ret.angle = (180/PI) * std::atan2(num,den);
+        ret.angle = (180 / PI) * std::atan2(num, den);
 
     return ret;
 }
 cv::Vec2f cvx::majorAxis(const cv::RotatedRect& ellipse)
 {
-    return cv::Vec2f(ellipse.size.width*std::cos(PI/180*ellipse.angle), ellipse.size.width*std::sin(PI/180*ellipse.angle));
+    return cv::Vec2f(ellipse.size.width * std::cos(PI / 180 * ellipse.angle),
+                     ellipse.size.width * std::sin(PI / 180 * ellipse.angle));
 }
 
-}  // namespace cheshm::Swirski2D
+} // namespace cheshm::Swirski2D

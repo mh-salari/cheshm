@@ -2,7 +2,8 @@
 
 #pragma once
 
-namespace cheshm::PupilLabs2D::defaults {
+namespace cheshm::PupilLabs2D::defaults
+{
 
 inline constexpr bool COARSE_DETECTION = true;
 inline constexpr int COARSE_FILTER_MIN = 128;
@@ -26,4 +27,4 @@ inline constexpr float FINAL_PERIMETER_RATIO_RANGE_MAX = 1.2f;
 inline constexpr float ELLIPSE_TRUE_SUPPORT_MIN_DIST = 2.5f;
 inline constexpr float SUPPORT_PIXEL_RATIO_EXPONENT = 2.0f;
 
-}  // namespace cheshm::PupilLabs2D::defaults
+} // namespace cheshm::PupilLabs2D::defaults

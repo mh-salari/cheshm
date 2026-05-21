@@ -10,53 +10,61 @@
 //
 // Returned coordinates are in full-image (not crop-local) space.
 
-#include "ElSe/else.hpp"
-#include "ElSe/defaults.hpp"
 #include "cheshm/roi.hpp"
 
-#include <cstdint>
+#include "ElSe/defaults.hpp"
+#include "ElSe/else.hpp"
+
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
+
+#include <cstdint>
 #include <opencv2/core.hpp>
 #include <string>
 
 namespace nb = nanobind;
 using namespace nb::literals;
 
-namespace {
+namespace
+{
 
-nb::object detect(
-    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
-    int roi_x, int roi_y, int roi_w, int roi_h,
-    float min_area_ratio,
-    float max_area_ratio)
+nb::object detect(nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+                  int roi_x,
+                  int roi_y,
+                  int roi_w,
+                  int roi_h,
+                  float min_area_ratio,
+                  float max_area_ratio)
 {
     const int height = static_cast<int>(img.shape(0));
     const int width = static_cast<int>(img.shape(1));
-    const cv::Mat full(height, width, CV_8U,
-                       const_cast<std::uint8_t *>(img.data()));
+    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t*>(img.data()));
 
     cv::Rect crop(0, 0, width, height);
-    if (cheshm::roi_is_active(roi_w, roi_h)) {
+    if (cheshm::roi_is_active(roi_w, roi_h))
+    {
         crop = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
-        if (crop.area() == 0) {
+        if (crop.area() == 0)
+        {
             return nb::none();
         }
     }
     const cv::Mat view = full(crop);
 
     const auto result = cheshm::ElSe::detect(view, min_area_ratio, max_area_ratio);
-    if (!result) {
+    if (!result)
+    {
         return nb::none();
     }
 
     const double cx = static_cast<double>(result->center.x) + crop.x;
     const double cy = static_cast<double>(result->center.y) + crop.y;
 
-    if (result->method == cheshm::ElSe::DetectionMethod::Ellipse) {
-        const cv::RotatedRect &e = *result->ellipse;
+    if (result->method == cheshm::ElSe::DetectionMethod::Ellipse)
+    {
+        const cv::RotatedRect& e = *result->ellipse;
         const double w = e.size.width;
         const double h = e.size.height;
         const double angle = e.angle;
@@ -66,13 +74,19 @@ nb::object detect(
     return nb::make_tuple(std::string{"blob_fallback"}, cx, cy);
 }
 
-}  // namespace
+} // namespace
 
 NB_MODULE(_core, m)
 {
-    m.def("detect", &detect,
-          "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
-          "min_area_ratio"_a, "max_area_ratio"_a);
+    m.def("detect",
+          &detect,
+          "img"_a,
+          "roi_x"_a,
+          "roi_y"_a,
+          "roi_w"_a,
+          "roi_h"_a,
+          "min_area_ratio"_a,
+          "max_area_ratio"_a);
 
     m.attr("MIN_AREA_RATIO") = cheshm::ElSe::defaults::MIN_AREA_RATIO;
     m.attr("MAX_AREA_RATIO") = cheshm::ElSe::defaults::MAX_AREA_RATIO;

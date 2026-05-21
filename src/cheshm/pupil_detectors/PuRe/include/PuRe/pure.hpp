@@ -14,18 +14,19 @@
 #include <opencv2/core.hpp>
 #include <optional>
 
-namespace cheshm::PuRe {
+namespace cheshm::PuRe
+{
 
-struct DetectResult {
+struct DetectResult
+{
     cv::RotatedRect ellipse;
-    float confidence;  // outline-contrast vote ratio in [0, 1]
+    float confidence; // outline-contrast vote ratio in [0, 1]
 };
 
-std::optional<DetectResult> detect(
-    const cv::Mat &frame,
-    float min_pupil_diameter_mm,
-    float max_pupil_diameter_mm,
-    float canthi_distance_mm,
-    int outline_bias);
+std::optional<DetectResult> detect(const cv::Mat& frame,
+                                   float min_pupil_diameter_mm,
+                                   float max_pupil_diameter_mm,
+                                   float canthi_distance_mm,
+                                   int outline_bias);
 
-}  // namespace cheshm::PuRe
+} // namespace cheshm::PuRe

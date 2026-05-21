@@ -13,21 +13,21 @@
 #include <opencv2/core.hpp>
 #include <optional>
 
-namespace cheshm::PuReST {
+namespace cheshm::PuReST
+{
 
-struct DetectResult {
+struct DetectResult
+{
     cv::RotatedRect ellipse;
     float confidence;
 };
 
-class Tracker {
+class Tracker
+{
 public:
-    Tracker(float min_pupil_diameter_mm,
-            float max_pupil_diameter_mm,
-            float canthi_distance_mm,
-            int outline_bias);
+    Tracker(float min_pupil_diameter_mm, float max_pupil_diameter_mm, float canthi_distance_mm, int outline_bias);
 
-    std::optional<DetectResult> detect(const cv::Mat &frame);
+    std::optional<DetectResult> detect(const cv::Mat& frame);
     void reset();
 
 private:
@@ -46,4 +46,4 @@ private:
     cv::Mat dilate_kernel_;
 };
 
-}  // namespace cheshm::PuReST
+} // namespace cheshm::PuReST

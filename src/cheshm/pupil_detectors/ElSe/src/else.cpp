@@ -1,10 +1,12 @@
 // ElSe pupil detector algorithm body.
 
 #include "ElSe/else.hpp"
-#include "ElSe/defaults.hpp"
+
 #include "cheshm/canny.hpp"
 #include "cheshm/canny_gaussian16.hpp"
 #include "cheshm/ellipse_intensity_gap.hpp"
+
+#include "ElSe/defaults.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,11 +17,13 @@
 #include <optional>
 #include <vector>
 
-namespace cheshm::ElSe {
-namespace {
+namespace cheshm::ElSe
+{
+namespace
+{
 
-using namespace cv;   // NOLINT(google-build-using-namespace)
-using namespace std;  // NOLINT(google-build-using-namespace)
+using namespace cv;  // NOLINT(google-build-using-namespace)
+using namespace std; // NOLINT(google-build-using-namespace)
 
 using defaults::IMG_SIZE;
 
@@ -30,7 +34,7 @@ constexpr float INNER_OUTER_INTENSITY_GAP_MIN = 10.0f;
 // Returns true when the ellipse looks pupil-like: its interior is at
 // least INNER_OUTER_INTENSITY_GAP_MIN darker than the surrounding band.
 // erg receives the integer-rounded mean difference.
-bool is_good_ellipse_eval(RotatedRect *ellipse, Mat *pic, int *erg)
+bool is_good_ellipse_eval(RotatedRect* ellipse, Mat* pic, int* erg)
 {
     if (ellipse->center.x == 0 && ellipse->center.y == 0)
         return false;
@@ -57,8 +61,7 @@ bool is_good_ellipse_eval(RotatedRect *ellipse, Mat *pic, int *erg)
         static_cast<int>(std::floor(y0 + ellipse->size.height / 2)) + 1,
     };
 
-    const auto r = cheshm::check_ellipse_intensity_gap(
-        *pic, inner, outer, cutout, INNER_OUTER_INTENSITY_GAP_MIN);
+    const auto r = cheshm::check_ellipse_intensity_gap(*pic, inner, outer, cutout, INNER_OUTER_INTENSITY_GAP_MIN);
     *erg = static_cast<int>(r.diff);
     return r.passes;
 }
@@ -67,9 +70,8 @@ bool is_good_ellipse_eval(RotatedRect *ellipse, Mat *pic, int *erg)
 // curve (95% down to 80% of each point's vector to the ellipse centre,
 // in 1% steps). Lower means a darker interior, which scores as a
 // stronger pupil candidate in get_curves.
-int calc_inner_gray(Mat *pic, std::vector<Point> curve, RotatedRect ellipse)
+int calc_inner_gray(Mat* pic, std::vector<Point> curve, RotatedRect ellipse)
 {
-
     int gray_val = 0;
     int gray_cnt = 0;
 
@@ -77,7 +79,6 @@ int calc_inner_gray(Mat *pic, std::vector<Point> curve, RotatedRect ellipse)
 
     for (unsigned int i = 0; i < curve.size(); i++)
     {
-
         int vec_x = static_cast<int>(round(curve[i].x - ellipse.center.x));
         int vec_y = static_cast<int>(round(curve[i].y - ellipse.center.y));
 
@@ -88,7 +89,6 @@ int calc_inner_gray(Mat *pic, std::vector<Point> curve, RotatedRect ellipse)
 
             if (p_x > 0 && p_x < pic->cols && p_y > 0 && p_y < pic->rows)
             {
-
                 if (checkmap.data[(pic->cols * p_y) + p_x] == 0)
                 {
                     checkmap.data[(pic->cols * p_y) + p_x] = 1;
@@ -110,13 +110,18 @@ int calc_inner_gray(Mat *pic, std::vector<Point> curve, RotatedRect ellipse)
 // Walks the edge image, collects connected curves, fits an ellipse to
 // each, gates by shape and pupil-area bounds, and keeps the single
 // best curve under the inner-gray score (or no curve if none pass).
-std::vector<std::vector<Point>> get_curves(
-    Mat *pic, Mat *edge, Mat *magni,
-    int start_x, int end_x, int start_y, int end_y,
-    double mean_dist, int inner_color_range,
-    float min_area, float max_area)
+std::vector<std::vector<Point>> get_curves(Mat* pic,
+                                           Mat* edge,
+                                           Mat* magni,
+                                           int start_x,
+                                           int end_x,
+                                           int start_y,
+                                           int end_y,
+                                           double mean_dist,
+                                           int inner_color_range,
+                                           float min_area,
+                                           float max_area)
 {
-
     (void)magni;
     std::vector<std::vector<Point>> all_lines;
 
@@ -153,7 +158,6 @@ std::vector<std::vector<Point>> get_curves(
     for (int i = start_x; i < end_x; i++)
         for (int j = start_y; j < end_y; j++)
         {
-
             if (edge->data[(edge->cols * (j)) + (i)] > 0 && !check[i * IMG_SIZE + j])
             {
                 check[i * IMG_SIZE + j] = 1;
@@ -170,13 +174,12 @@ std::vector<std::vector<Point>> get_curves(
 
                 while (akt_idx < curve_idx)
                 {
-
                     Point akt_pos = curve[akt_idx];
                     for (int k1 = -1; k1 < 2; k1++)
                         for (int k2 = -1; k2 < 2; k2++)
                         {
-
-                            if (akt_pos.x + k1 >= start_x && akt_pos.x + k1 < end_x && akt_pos.y + k2 >= start_y && akt_pos.y + k2 < end_y)
+                            if (akt_pos.x + k1 >= start_x && akt_pos.x + k1 < end_x && akt_pos.y + k2 >= start_y &&
+                                akt_pos.y + k2 < end_y)
                                 if (!check[(akt_pos.x + k1) * IMG_SIZE + (akt_pos.y + k2)])
                                     if (edge->data[(edge->cols * (akt_pos.y + k2)) + (akt_pos.x + k1)] > 0)
                                     {
@@ -193,7 +196,6 @@ std::vector<std::vector<Point>> get_curves(
 
                 if (curve_idx > 10 && curve.size() > 10)
                 {
-
                     mean_p.x = static_cast<int>(floor((double(mean_p.x) / double(curve_idx)) + 0.5));
                     mean_p.y = static_cast<int>(floor((double(mean_p.y) / double(curve_idx)) + 0.5));
 
@@ -207,7 +209,6 @@ std::vector<std::vector<Point>> get_curves(
 
     for (unsigned int iii = 0; iii < all_lines.size(); iii++)
     {
-
         curve = all_lines.at(iii);
         mean_p = all_means.at(iii);
 
@@ -223,20 +224,16 @@ std::vector<std::vector<Point>> get_curves(
         // is ellipse fit possible
         if (add_curve)
         {
-
             ellipse = fitEllipse(Mat(curve));
 
-            if (ellipse.center.x < 0 || ellipse.center.y < 0 ||
-                ellipse.center.x > pic->cols || ellipse.center.y > pic->rows)
+            if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic->cols ||
+                ellipse.center.y > pic->rows)
             {
-
                 add_curve = false;
             }
 
-            if (ellipse.size.height > 3 * ellipse.size.width ||
-                ellipse.size.width > 3 * ellipse.size.height)
+            if (ellipse.size.height > 3 * ellipse.size.width || ellipse.size.width > 3 * ellipse.size.height)
             {
-
                 add_curve = false;
             }
 
@@ -256,12 +253,12 @@ std::vector<std::vector<Point>> get_curves(
 
         if (add_curve)
         {
-
             if (inner_color_range >= 0)
             {
                 mean_inner_gray = 0;
                 mean_inner_gray = calc_inner_gray(pic, curve, ellipse);
-                mean_inner_gray = static_cast<int>(mean_inner_gray * (1 + abs(ellipse.size.height - ellipse.size.width)));
+                mean_inner_gray =
+                    static_cast<int>(mean_inner_gray * (1 + abs(ellipse.size.height - ellipse.size.width)));
 
                 if (mean_inner_gray_last > mean_inner_gray)
                 {
@@ -271,7 +268,6 @@ std::vector<std::vector<Point>> get_curves(
                 }
                 else if (mean_inner_gray_last == mean_inner_gray)
                 {
-
                     if (curve.size() > all_curves[0].size())
                     {
                         mean_inner_gray_last = mean_inner_gray;
@@ -290,13 +286,18 @@ std::vector<std::vector<Point>> get_curves(
 // Picks the surviving curve from get_curves and refits an ellipse to
 // it. Returns a zero-RotatedRect when get_curves yields zero or
 // multiple curves.
-RotatedRect find_best_edge(
-    Mat *pic, Mat *edge, Mat *magni,
-    int start_x, int end_x, int start_y, int end_y,
-    double mean_dist, int inner_color_range,
-    float min_area, float max_area)
+RotatedRect find_best_edge(Mat* pic,
+                           Mat* edge,
+                           Mat* magni,
+                           int start_x,
+                           int end_x,
+                           int start_y,
+                           int end_y,
+                           double mean_dist,
+                           int inner_color_range,
+                           float min_area,
+                           float max_area)
 {
-
     RotatedRect ellipse;
     ellipse.center.x = 0;
     ellipse.center.y = 0;
@@ -304,15 +305,15 @@ RotatedRect find_best_edge(
     ellipse.size.height = 0.0;
     ellipse.size.width = 0.0;
 
-    std::vector<std::vector<Point>> all_curves = get_curves(
-        pic, edge, magni, start_x, end_x, start_y, end_y,
-        mean_dist, inner_color_range, min_area, max_area);
+    std::vector<std::vector<Point>> all_curves =
+        get_curves(pic, edge, magni, start_x, end_x, start_y, end_y, mean_dist, inner_color_range, min_area, max_area);
 
     if (all_curves.size() == 1)
     {
         ellipse = fitEllipse(Mat(all_curves[0]));
 
-        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic->cols || ellipse.center.y > pic->rows)
+        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic->cols ||
+            ellipse.center.y > pic->rows)
         {
             ellipse.center.x = 0;
             ellipse.center.y = 0;
@@ -338,9 +339,8 @@ RotatedRect find_best_edge(
 // the input window centred on the corresponding source pixel, then
 // re-averages only the pixels at or below that local mean. Used by
 // blob_finder to suppress glints before the blob template runs.
-void mum(Mat *pic, Mat *result, int fak)
+void mum(Mat* pic, Mat* result, int fak)
 {
-
     int fak_ges = fak + 1;
     int sz_x = pic->cols / fak_ges;
     int sz_y = pic->rows / fak_ges;
@@ -372,7 +372,6 @@ void mum(Mat *pic, Mat *result, int fak)
             for (int ii = -fak; ii <= fak; ii++)
                 for (int jj = -fak; jj <= fak; jj++)
                 {
-
                     if (idy + ii > 0 && idy + ii < pic->rows && idx + jj > 0 && idx + jj < pic->cols)
                     {
                         if (static_cast<unsigned int>(pic->data[(pic->cols * (idy + ii)) + (idx + jj)]) > 255)
@@ -408,9 +407,8 @@ void mum(Mat *pic, Mat *result, int fak)
 // weights form the disk of radius `rad` at the centre, positive
 // weights outside. `all_mat_neg` carries the negative band only,
 // used for the dual-filter scoring inside blob_finder.
-void gen_blob_neu(int rad, Mat *all_mat, Mat *all_mat_neg)
+void gen_blob_neu(int rad, Mat* all_mat, Mat* all_mat_neg)
 {
-
     int len = 1 + (4 * rad);
     int c0 = rad * 2;
     float negis = 0;
@@ -426,7 +424,6 @@ void gen_blob_neu(int rad, Mat *all_mat, Mat *all_mat_neg)
 
         for (int j = -rad * 2; j <= rad * 2; j++)
         {
-
             if (i < -rad || i > rad)
             { // positive band
                 p[c0 + j] = 1;
@@ -458,7 +455,6 @@ void gen_blob_neu(int rad, Mat *all_mat, Mat *all_mat_neg)
 
         for (int j = 0; j < len; j++)
         {
-
             if (p[j] > 0)
             {
                 p[j] = static_cast<int>(1.0) / posis;
@@ -476,7 +472,7 @@ void gen_blob_neu(int rad, Mat *all_mat, Mat *all_mat_neg)
 // Stricter variant of is_good_ellipse_eval used inside blob_finder to
 // validate the coarse blob position before accepting it. Same
 // inside-vs-outside intensity-gap test, no `erg` output param.
-bool is_good_ellipse_evaluation(RotatedRect *ellipse, Mat *pic)
+bool is_good_ellipse_evaluation(RotatedRect* ellipse, Mat* pic)
 {
     if (ellipse->center.x == 0 && ellipse->center.y == 0)
         return false;
@@ -503,8 +499,7 @@ bool is_good_ellipse_evaluation(RotatedRect *ellipse, Mat *pic)
         static_cast<int>(std::floor(y0 + ellipse->size.height / 2)) + 1,
     };
 
-    return cheshm::check_ellipse_intensity_gap(
-        *pic, inner, outer, cutout, INNER_OUTER_INTENSITY_GAP_MIN).passes;
+    return cheshm::check_ellipse_intensity_gap(*pic, inner, outer, cutout, INNER_OUTER_INTENSITY_GAP_MIN).passes;
 }
 
 // Coarse-blob fallback. Convolves a circular template against the
@@ -512,13 +507,12 @@ bool is_good_ellipse_evaluation(RotatedRect *ellipse, Mat *pic)
 // dark-pixel centroid, and returns it as a degenerate RotatedRect
 // (size = template). Used when the edge-based path produces no valid
 // ellipse.
-RotatedRect blob_finder(Mat *pic)
+RotatedRect blob_finder(Mat* pic)
 {
-
     Point pos(0, 0);
     float abs_max = 0;
 
-    float *p_erg;
+    float* p_erg;
     Mat blob_mat, blob_mat_neg;
 
     int fak_mum = 5;
@@ -580,7 +574,6 @@ RotatedRect blob_finder(Mat *pic)
 
     if (pos.y > 0 && pos.y < pic->rows && pos.x > 0 && pos.x < pic->cols)
     {
-
         // dark-pixel centroid refinement around the response peak.
         int opti_x = 0;
         int opti_y = 0;
@@ -604,17 +597,16 @@ RotatedRect blob_finder(Mat *pic)
 
         int th_bot = 0;
         if (pos.y > 0 && pos.y < pic->rows && pos.x > 0 && pos.x < pic->cols)
-            th_bot = static_cast<int>(pic->data[(pic->cols * (pos.y)) + (pos.x)] + abs(mm - pic->data[(pic->cols * (pos.y)) + (pos.x)]));
+            th_bot = static_cast<int>(pic->data[(pic->cols * (pos.y)) + (pos.x)] +
+                                      abs(mm - pic->data[(pic->cols * (pos.y)) + (pos.x)]));
         cnt = 0;
 
         for (int i = -(fak_mum * fak_mum); i < (fak_mum * fak_mum); i++)
         {
             for (int j = -(fak_mum * fak_mum); j < (fak_mum * fak_mum); j++)
             {
-
                 if (pos.y + i > 0 && pos.y + i < pic->rows && pos.x + j > 0 && pos.x + j < pic->cols)
                 {
-
                     if (pic->data[(pic->cols * (pos.y + i)) + (pos.x + j)] <= th_bot)
                     {
                         opti_x += pos.x + j;
@@ -671,12 +663,9 @@ RotatedRect blob_finder(Mat *pic)
     return ellipse;
 }
 
-}  // namespace
+} // namespace
 
-std::optional<DetectResult> detect(
-    const cv::Mat &frame,
-    float min_area_ratio,
-    float max_area_ratio)
+std::optional<DetectResult> detect(const cv::Mat& frame, float min_area_ratio, float max_area_ratio)
 {
     cv::Mat downscaled = frame;
     float scaling_ratio = 1.0f;
@@ -694,7 +683,7 @@ std::optional<DetectResult> detect(
     const float min_area = downscaled.cols * downscaled.rows * min_area_ratio;
     const float max_area = downscaled.cols * downscaled.rows * max_area_ratio;
 
-    constexpr double border = 0.0;  // ROI handling is delegated to the binding layer.
+    constexpr double border = 0.0; // ROI handling is delegated to the binding layer.
     constexpr double mean_dist = 3;
     constexpr int inner_color_range = 0;
 
@@ -715,30 +704,36 @@ std::optional<DetectResult> detect(
         }
     }
 
-    const int non_edge_pixel_count =
-        static_cast<int>(std::round(0.7 * picpic.cols * picpic.rows));
-    cv::Mat detected_edges2 =
-        cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64, &magni);
+    const int non_edge_pixel_count = static_cast<int>(std::round(0.7 * picpic.cols * picpic.rows));
+    cv::Mat detected_edges2 = cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64, &magni);
 
     cv::Mat detected_edges = cv::Mat::zeros(pic.rows, pic.cols, CV_8U);
     for (int i = 0; i < detected_edges2.cols; i++)
     {
         for (int j = 0; j < detected_edges2.rows; j++)
         {
-            detected_edges.data[(detected_edges.cols * (start_y + j)) + (start_x + i)] = detected_edges2.data[(detected_edges2.cols * j) + i];
+            detected_edges.data[(detected_edges.cols * (start_y + j)) + (start_x + i)] =
+                detected_edges2.data[(detected_edges2.cols * j) + i];
         }
     }
 
     cheshm::filter_edges(detected_edges, start_x, end_x, start_y, end_y);
 
-    cv::RotatedRect ellipse = find_best_edge(
-        &pic, &detected_edges, &magni, start_x, end_x, start_y, end_y,
-        mean_dist, inner_color_range, min_area, max_area);
+    cv::RotatedRect ellipse = find_best_edge(&pic,
+                                             &detected_edges,
+                                             &magni,
+                                             start_x,
+                                             end_x,
+                                             start_y,
+                                             end_y,
+                                             mean_dist,
+                                             inner_color_range,
+                                             min_area,
+                                             max_area);
 
     DetectionMethod method;
-    const bool primary_invalid =
-        (ellipse.center.x <= 0 && ellipse.center.y <= 0) ||
-        ellipse.center.x >= pic.cols || ellipse.center.y >= pic.rows;
+    const bool primary_invalid = (ellipse.center.x <= 0 && ellipse.center.y <= 0) || ellipse.center.x >= pic.cols ||
+                                 ellipse.center.y >= pic.rows;
 
     if (primary_invalid)
     {
@@ -758,22 +753,18 @@ std::optional<DetectResult> detect(
         method = DetectionMethod::Ellipse;
     }
 
-    const cv::Point2f scaled_center{
-        ellipse.center.x / scaling_ratio,
-        ellipse.center.y / scaling_ratio};
+    const cv::Point2f scaled_center{ellipse.center.x / scaling_ratio, ellipse.center.y / scaling_ratio};
 
     std::optional<cv::RotatedRect> scaled_ellipse;
     if (method == DetectionMethod::Ellipse)
     {
-        scaled_ellipse = cv::RotatedRect(
-            scaled_center,
-            cv::Size2f(
-                ellipse.size.width / scaling_ratio,
-                ellipse.size.height / scaling_ratio),
-            ellipse.angle);
+        scaled_ellipse =
+            cv::RotatedRect(scaled_center,
+                            cv::Size2f(ellipse.size.width / scaling_ratio, ellipse.size.height / scaling_ratio),
+                            ellipse.angle);
     }
 
     return DetectResult{method, scaled_center, scaled_ellipse};
 }
 
-}  // namespace cheshm::ElSe
+} // namespace cheshm::ElSe

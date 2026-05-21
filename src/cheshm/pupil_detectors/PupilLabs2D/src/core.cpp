@@ -1,48 +1,54 @@
 // PupilLabs2D pupil detector — Python binding.
 
-#include "PupilLabs2D/pupil_labs_2d.hpp"
-#include "PupilLabs2D/defaults.hpp"
 #include "cheshm/roi.hpp"
 
-#include <cstdint>
+#include "PupilLabs2D/defaults.hpp"
+#include "PupilLabs2D/pupil_labs_2d.hpp"
+
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/tuple.h>
+
+#include <cstdint>
 #include <opencv2/core.hpp>
 
 namespace nb = nanobind;
 using namespace nb::literals;
 
-namespace {
+namespace
+{
 
-nb::object detect(
-    nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
-    int roi_x, int roi_y, int roi_w, int roi_h,
-    int intensity_range,
-    int blur_size,
-    float canny_threshold,
-    float canny_ratio,
-    int canny_aperture,
-    int pupil_size_max,
-    int pupil_size_min,
-    int contour_size_min,
-    float ellipse_roundness_ratio,
-    float initial_ellipse_fit_threshold,
-    float ellipse_true_support_min_dist,
-    float support_pixel_ratio_exponent,
-    bool coarse_detection,
-    int coarse_filter_min,
-    int coarse_filter_max)
+nb::object detect(nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+                  int roi_x,
+                  int roi_y,
+                  int roi_w,
+                  int roi_h,
+                  int intensity_range,
+                  int blur_size,
+                  float canny_threshold,
+                  float canny_ratio,
+                  int canny_aperture,
+                  int pupil_size_max,
+                  int pupil_size_min,
+                  int contour_size_min,
+                  float ellipse_roundness_ratio,
+                  float initial_ellipse_fit_threshold,
+                  float ellipse_true_support_min_dist,
+                  float support_pixel_ratio_exponent,
+                  bool coarse_detection,
+                  int coarse_filter_min,
+                  int coarse_filter_max)
 {
     const int height = static_cast<int>(img.shape(0));
     const int width = static_cast<int>(img.shape(1));
-    const cv::Mat full(height, width, CV_8U,
-                       const_cast<std::uint8_t *>(img.data()));
+    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t*>(img.data()));
 
     cv::Rect roi{0, 0, width, height};
-    if (cheshm::roi_is_active(roi_w, roi_h)) {
+    if (cheshm::roi_is_active(roi_w, roi_h))
+    {
         roi = cheshm::clamp_roi(roi_x, roi_y, roi_w, roi_h, width, height);
-        if (roi.area() == 0) return nb::none();
+        if (roi.area() == 0)
+            return nb::none();
     }
 
     auto props = cheshm::PupilLabs2D::default_properties();
@@ -63,7 +69,8 @@ nb::object detect(
     props.coarse_filter_max = coarse_filter_max;
 
     const auto result = cheshm::PupilLabs2D::detect(full, roi, props);
-    if (!result) return nb::none();
+    if (!result)
+        return nb::none();
 
     const double cx = result->ellipse.center.x;
     const double cy = result->ellipse.center.y;
@@ -74,21 +81,34 @@ nb::object detect(
     return nb::make_tuple(cx, cy, w, h, angle, confidence);
 }
 
-}  // namespace
+} // namespace
 
 NB_MODULE(_core, m)
 {
     namespace d = cheshm::PupilLabs2D::defaults;
 
-    m.def("detect", &detect,
-          "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
-          "intensity_range"_a, "blur_size"_a,
-          "canny_threshold"_a, "canny_ratio"_a, "canny_aperture"_a,
-          "pupil_size_max"_a, "pupil_size_min"_a,
-          "contour_size_min"_a, "ellipse_roundness_ratio"_a,
+    m.def("detect",
+          &detect,
+          "img"_a,
+          "roi_x"_a,
+          "roi_y"_a,
+          "roi_w"_a,
+          "roi_h"_a,
+          "intensity_range"_a,
+          "blur_size"_a,
+          "canny_threshold"_a,
+          "canny_ratio"_a,
+          "canny_aperture"_a,
+          "pupil_size_max"_a,
+          "pupil_size_min"_a,
+          "contour_size_min"_a,
+          "ellipse_roundness_ratio"_a,
           "initial_ellipse_fit_threshold"_a,
-          "ellipse_true_support_min_dist"_a, "support_pixel_ratio_exponent"_a,
-          "coarse_detection"_a, "coarse_filter_min"_a, "coarse_filter_max"_a);
+          "ellipse_true_support_min_dist"_a,
+          "support_pixel_ratio_exponent"_a,
+          "coarse_detection"_a,
+          "coarse_filter_min"_a,
+          "coarse_filter_max"_a);
 
     m.attr("INTENSITY_RANGE") = d::INTENSITY_RANGE;
     m.attr("BLUR_SIZE") = d::BLUR_SIZE;
