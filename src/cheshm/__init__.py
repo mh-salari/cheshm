@@ -8,8 +8,8 @@ Sub-packages, each owning its own surface:
   ``Simple`` (threshold-based), ``Starburst``, ``Swirski2D``, ``ExCuSe``.
 - :mod:`cheshm.glint_detectors` — glint detectors (``detect_glints``).
 - :mod:`cheshm.limbus_detectors` — limbus / iris boundary detectors,
-  currently the Daugman family (``IntegroDifferentialOperator``,
-  ``DaugmanActiveContour``, ``PupilGuidedContour``).
+  currently the Daugman family (``DaugmanActiveContour``,
+  ``PupilGuidedContour``, plus the integro-differential ``detect_limbus``).
 - :mod:`cheshm.align` — iris-texture rigid alignment of a target eye
   image onto a reference. Returns ``(dx, dy, theta)``.
 - :mod:`cheshm.viz` — cv2 image-save helpers (diff heatmap, alignment

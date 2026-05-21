@@ -1,13 +1,6 @@
 """Limbus / iris boundary detectors.
 
-- :mod:`.daugman` — Daugman-derived methods (``IntegroDifferentialOperator``,
-``DaugmanActiveContour``, ``PupilGuidedContour``).
+- :mod:`.daugman` — Daugman-derived methods. Each sub-module exposes its
+  own ``detect_limbus`` function (active_contour, integro_differential,
+  pupil_guided).
 """
-
-from .daugman import DaugmanActiveContour, IntegroDifferentialOperator, PupilGuidedContour
-
-__all__ = [
-    "DaugmanActiveContour",
-    "IntegroDifferentialOperator",
-    "PupilGuidedContour",
-]

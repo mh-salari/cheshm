@@ -7,26 +7,19 @@ Recognition of Persons by a Test of Statistical Independence." IEEE Trans.
 PAMI, 15(11), 1148-1161.
 """
 
-import ctypes
-import pathlib
-import platform
-from typing import Literal
-
 import cv2
 import numpy as np
 
 from cheshm._protocols import LimbusResult
 
-# Overlays this detector produces (limbus is returned as a circle).
+from . import _core
+
 _OVERLAYS = (
     ("curve", "line"),
     ("center", "point"),
     ("mask", "fill"),
 )
 
-# GUI metadata. Defaults / types / choices come from `detect_limbus`'s
-# signature; this dict carries slider bounds, per-param help, and label
-# overrides where the auto-derived label would be wrong.
 _UI = {
     "r_min": {
         "min": 1,
@@ -37,10 +30,6 @@ _UI = {
         "min": 1,
         "max": 1024,
         "help": "Upper bound on candidate iris radius (pixels).",
-    },
-    "c_type": {
-        "label": "Perimeter type",
-        "help": "Which half of the circle perimeter contributes — 'half' = left/right semicircles (avoids eyelid bias), 'full' = whole circle.",
     },
     "range_": {
         "min": 0,
@@ -56,144 +45,10 @@ _UI = {
     },
 }
 
-# Radius-3 disk structuring element for the morphological-open preprocess.
-_DISK3 = np.array(
-    [
-        [0, 0, 0, 1, 0, 0, 0],
-        [0, 1, 1, 1, 1, 1, 0],
-        [0, 1, 1, 1, 1, 1, 0],
-        [1, 1, 1, 1, 1, 1, 1],
-        [0, 1, 1, 1, 1, 1, 0],
-        [0, 1, 1, 1, 1, 1, 0],
-        [0, 0, 0, 1, 0, 0, 0],
-    ],
-    dtype=np.uint8,
-)
-
-# 1-D Gaussian kernel used by the C kernel to smooth the radius-integral
-# before its derivative (size 3, sigma 1, normalised).
-_GAUSSIAN_KERNEL_1D = np.array([0.27406862, 0.45186276, 0.27406862], dtype=np.float64)
-
-_LIB_DIR = pathlib.Path(__file__).parent
-_LIB_NAME = "core"
-_lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
-_lib = ctypes.CDLL(str(_LIB_DIR / f"{_LIB_NAME}{_lib_ext}"))
-_lib.integro_differential_operator_search.restype = ctypes.c_int
-_lib.integro_differential_operator_search.argtypes = [
-    ctypes.POINTER(ctypes.c_ubyte),
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.POINTER(ctypes.c_double),
-    ctypes.c_int,
-    ctypes.POINTER(ctypes.c_double),
-]
-
-DEFAULT_R_MIN = ctypes.c_int.in_dll(_lib, "integro_differential_default_r_min").value
-DEFAULT_R_MAX = ctypes.c_int.in_dll(_lib, "integro_differential_default_r_max").value
-DEFAULT_C_TYPE = ctypes.c_char_p.in_dll(_lib, "integro_differential_default_c_type").value.decode("ascii")
-DEFAULT_RANGE = ctypes.c_int.in_dll(_lib, "integro_differential_default_range").value
-DEFAULT_STEP = ctypes.c_int.in_dll(_lib, "integro_differential_default_step").value
-
-
-def _circle_perimeter(x: int, y: int, r: int, half: bool = True) -> tuple[np.ndarray, np.ndarray]:
-    """Bresenham circle perimeter (Python fallback used by ``result()`` to draw)."""
-    aa, bb = [], []
-    dp = 3 - 2 * r
-    a, b = 0, r
-    while a <= b:
-        if half:
-            aa.extend([a, a, -a, -a])
-            bb.extend([b, -b, b, -b])
-        else:
-            aa.extend([a, -a, a, -a, b, -b, b, -b])
-            bb.extend([b, b, -b, -b, a, a, -a, -a])
-        if dp > 0:
-            b -= 1
-            dp += 4 * (a - b) + 10
-        else:
-            dp += 4 * a + 6
-        a += 1
-    return x + np.array(aa, dtype=np.int16), y + np.array(bb, dtype=np.int16)
-
-
-class IntegroDifferentialOperator:
-    """Daugman's integro-differential operator (1993 / 2004) wrapping a C kernel.
-
-    For each candidate ``(x_0, y_0, r)`` the operator integrates image
-    intensity around the circle, takes a Gaussian-smoothed derivative with
-    respect to ``r``, and selects the ``(x_0, y_0, r*)`` that maximises that
-    derivative magnitude (paper eq. 1).
-    """
-
-    def __init__(
-        self,
-        image: np.ndarray,
-        r_min: int = DEFAULT_R_MIN,
-        r_max: int = DEFAULT_R_MAX,
-        c_type: str = DEFAULT_C_TYPE,
-    ) -> None:
-        """Convert ``image`` to grayscale, apply the morphological open, store params."""
-        if image.ndim == 3:
-            self.image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            self.image = image
-        self.r_min, self.r_max = r_min, r_max
-        self.image_open = cv2.morphologyEx(self.image, cv2.MORPH_OPEN, _DISK3)
-        self.c_type = c_type
-
-    def search(self, cen_x: int, cen_y: int, range_: int, step: int) -> np.ndarray:
-        """Sweep centres over a ``(±range_, step)`` grid; return responses sorted by score."""
-        img = np.ascontiguousarray(self.image_open)
-        h, w = img.shape
-        grid_size = (2 * range_ // step + 1) ** 2
-        out = np.empty((grid_size, 4), dtype=np.float64)
-
-        n = _lib.integro_differential_operator_search(
-            img.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)),
-            h,
-            w,
-            cen_x,
-            cen_y,
-            range_,
-            step,
-            self.r_min,
-            self.r_max,
-            _GAUSSIAN_KERNEL_1D.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-            len(_GAUSSIAN_KERNEL_1D),
-            out.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        )
-        results = out[:n]
-        return results[results[:, 2].argsort()].astype(np.int16)
-
-    def result(self) -> tuple[np.ndarray, np.ndarray]:
-        """Run a coarse-then-fine search and return the best iris circle + the marked image."""
-        range_ = int(np.min([int(s / 2) for s in self.image.shape]) * 0.40)
-        cen_x, cen_y = [int(s / 2) for s in self.image.shape]
-
-        fuzzy_max = self.search(cen_x, cen_y, range_, 3)[-1]
-        cen_x, cen_y = fuzzy_max[0], fuzzy_max[1]
-
-        info = np.array([])
-        for i in np.arange(2):
-            try:
-                circle_max = self.search(cen_x, cen_y, 2 + i, 1)[-1]
-                circle = _circle_perimeter(circle_max[0], circle_max[1], circle_max[3], False)
-                self.image[circle] = 255
-            except Exception:
-                info = np.append(info, [0, 0, 0, 0])
-                return self.image, info
-
-            if i == 0:
-                info = np.append(info, circle_max)
-                self.r_min, self.r_max = int(np.ceil(0.1 * circle_max[3])), int(np.ceil(0.8 * circle_max[3]))
-
-        return self.image, info
+DEFAULT_R_MIN = _core.R_MIN
+DEFAULT_R_MAX = _core.R_MAX
+DEFAULT_RANGE = _core.RANGE
+DEFAULT_STEP = _core.STEP
 
 
 def detect_limbus(
@@ -202,23 +57,28 @@ def detect_limbus(
     *,
     r_min: int = DEFAULT_R_MIN,
     r_max: int = DEFAULT_R_MAX,
-    c_type: Literal["half", "full"] = DEFAULT_C_TYPE,
     range_: int = DEFAULT_RANGE,
     step: int = DEFAULT_STEP,
 ) -> LimbusResult | None:
     """One-shot integro-differential limbus localization around ``seed_center``.
 
-    Builds an :class:`IntegroDifferentialOperator` for ``img`` and runs a
-    single centre sweep over a ``(±range_, step)`` grid around
-    ``seed_center``. The returned circle is the highest-scoring candidate.
-
-    Returns ``{"center": (cx, cy), "radius": r}`` or ``None`` if the
-    search produced no candidate.
+    Runs a single grid search of ``(±range_, step)`` around ``seed_center``,
+    scoring each candidate centre by the Gaussian-smoothed derivative of the
+    mean circle intensity. Returns ``{"center": (cx, cy), "radius": r}`` or
+    ``None`` if the search produced no candidate.
     """
-    op = IntegroDifferentialOperator(img, r_min=r_min, r_max=r_max, c_type=c_type)
-    cx, cy = round(seed_center[0]), round(seed_center[1])
-    results = op.search(cx, cy, range_, step)
-    if len(results) == 0:
+    if img.ndim == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    result = _core.detect_limbus(
+        np.ascontiguousarray(img, dtype=np.uint8),
+        float(seed_center[0]),
+        float(seed_center[1]),
+        int(r_min),
+        int(r_max),
+        int(range_),
+        int(step),
+    )
+    if result is None:
         return None
-    best = results[-1]
-    return {"center": (int(best[0]), int(best[1])), "radius": int(best[3])}
+    cx, cy, radius = result
+    return {"center": (int(cx), int(cy)), "radius": int(radius)}

@@ -1,5 +1,5 @@
-"""Daugman Fourier-series active-contour iris boundary detector (2007)."""
+"""Daugman 2007 Fourier-series active contour — iris boundary fit."""
 
-from .core import DaugmanActiveContour, detect_limbus
+from .core import detect_limbus
 
-__all__ = ["DaugmanActiveContour", "detect_limbus"]
+__all__ = ["detect_limbus"]
