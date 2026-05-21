@@ -42,7 +42,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=["src/cheshm/gui/icon.icns"],
+    icon=["bindings/python/cheshm/gui/icon.icns"],
 )
 coll = COLLECT(
     exe,
@@ -56,6 +56,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="Cheshm.app",
-    icon="src/cheshm/gui/icon.icns",
+    icon="bindings/python/cheshm/gui/icon.icns",
     bundle_identifier="ir.mh-salari.cheshm",
 )

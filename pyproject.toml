@@ -70,12 +70,9 @@ Issues = "https://github.com/mh-salari/cheshm/issues"
 [tool.scikit-build]
 minimum-version = "0.10"
 build-dir = "build/{wheel_tag}"
-wheel.packages = ["src/cheshm"]
-sdist.include = ["src/cheshm/**", "CMakeLists.txt", "README.md", "LICENSE"]
+wheel.packages = ["bindings/python/cheshm"]
+sdist.include = ["bindings/**", "include/**", "src/**", "CMakeLists.txt", "README.md", "LICENSE"]
 metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
-# Daugman C kernels are loaded via ctypes from the package directory;
-# inplace editable installs put compiled libs next to their .py files.
-editable.mode = "inplace"
 
 [tool.setuptools_scm]
 

@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/mh-salari/cheshm/main/src/cheshm/gui/icon.png" alt="" width="48"> `cheshm`
+# <img src="https://raw.githubusercontent.com/mh-salari/cheshm/main/bindings/python/cheshm/gui/icon.png" alt="" width="48"> `cheshm`
 
 [![PyPI version](https://img.shields.io/pypi/v/cheshm)](https://pypi.org/project/cheshm/)
 [![Downloads](https://static.pepy.tech/badge/cheshm)](https://pepy.tech/project/cheshm)
@@ -16,18 +16,18 @@ Cheshm's framework code is MIT-licensed (see [`LICENSE`](LICENSE)). Each detecto
 
 | Detector | Subdirectory | Licence |
 |---|---|---|
-| Simple (pupil) | `src/cheshm/pupil_detectors/Simple/` | MIT |
-| Starburst | `src/cheshm/pupil_detectors/Starburst/` | GPL (Li, Winfield, Parkhurst 2005 — cvEyeTracker / openEyes ToolKit) |
-| Swirski2D | `src/cheshm/pupil_detectors/Swirski2D/` | MIT (Świrski, Bulling, Dodgson 2012 — pupiltracker by Lech Świrski) |
-| ExCuSe | `src/cheshm/pupil_detectors/ExCuSe/` | Non-commercial (Fuhl et al. 2015, University of Tübingen) |
-| ElSe | `src/cheshm/pupil_detectors/ElSe/` | Non-commercial (Fuhl et al. 2016, University of Tübingen) |
-| PuRe | `src/cheshm/pupil_detectors/PuRe/` | Non-commercial (Santini et al. 2018, University of Tübingen) |
-| PuReST | `src/cheshm/pupil_detectors/PuReST/` | Non-commercial (Santini et al. 2018, University of Tübingen) |
-| PupilLabs2D | `src/cheshm/pupil_detectors/PupilLabs2D/` | LGPL-3.0-or-later (Kassner et al. 2014 — Pupil Core / pupil-labs/pupil-detectors) |
-| Simple (glint) | `src/cheshm/glint_detectors/Simple/` | MIT |
-| Daugman integro-differential operator | `src/cheshm/limbus_detectors/daugman/integro_differential/` | MIT (© 2023 Fatih BAŞATEMUR — carried from his MIT port) |
-| Daugman 2007 active contour | `src/cheshm/limbus_detectors/daugman/active_contour/` | MIT |
-| Pupil-shape-prior active contour | `src/cheshm/limbus_detectors/daugman/pupil_guided/` | MIT |
+| Simple (pupil) | `bindings/python/cheshm/pupil_detectors/Simple/` | MIT |
+| Starburst | `bindings/python/cheshm/pupil_detectors/Starburst/` | GPL (Li, Winfield, Parkhurst 2005 — cvEyeTracker / openEyes ToolKit) |
+| Swirski2D | `bindings/python/cheshm/pupil_detectors/Swirski2D/` | MIT (Świrski, Bulling, Dodgson 2012 — pupiltracker by Lech Świrski) |
+| ExCuSe | `bindings/python/cheshm/pupil_detectors/ExCuSe/` | Non-commercial (Fuhl et al. 2015, University of Tübingen) |
+| ElSe | `bindings/python/cheshm/pupil_detectors/ElSe/` | Non-commercial (Fuhl et al. 2016, University of Tübingen) |
+| PuRe | `bindings/python/cheshm/pupil_detectors/PuRe/` | Non-commercial (Santini et al. 2018, University of Tübingen) |
+| PuReST | `bindings/python/cheshm/pupil_detectors/PuReST/` | Non-commercial (Santini et al. 2018, University of Tübingen) |
+| PupilLabs2D | `bindings/python/cheshm/pupil_detectors/PupilLabs2D/` | LGPL-3.0-or-later (Kassner et al. 2014 — Pupil Core / pupil-labs/pupil-detectors) |
+| Simple (glint) | `bindings/python/cheshm/glint_detectors/Simple/` | MIT |
+| Daugman integro-differential operator | `bindings/python/cheshm/limbus_detectors/daugman/integro_differential/` | MIT (© 2023 Fatih BAŞATEMUR — carried from his MIT port) |
+| Daugman 2007 active contour | `bindings/python/cheshm/limbus_detectors/daugman/active_contour/` | MIT |
+| Pupil-shape-prior active contour | `bindings/python/cheshm/limbus_detectors/daugman/pupil_guided/` | MIT |
 
 Each detector is imported explicitly — the licence of the detectors you import is the licence that governs your use. `pip install cheshm` installs all of them, but only the ones you `import` are loaded into your process:
 
@@ -67,8 +67,8 @@ Note: plain `uv sync` will **not** notice C/C++ source edits — only `pyproject
 The compiled extensions are written next to each detector's `core.py`, one `.so` per Python minor version:
 
 ```
-src/cheshm/pupil_detectors/ElSe/_core.cpython-312-darwin.so
-src/cheshm/pupil_detectors/ElSe/_core.cpython-314-darwin.so
+bindings/python/cheshm/pupil_detectors/ElSe/_core.cpython-312-darwin.so
+bindings/python/cheshm/pupil_detectors/ElSe/_core.cpython-314-darwin.so
 ```
 
 ## Name
