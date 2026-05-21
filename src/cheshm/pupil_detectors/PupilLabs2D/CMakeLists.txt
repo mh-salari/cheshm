@@ -6,8 +6,6 @@ nanobind_add_module(PupilLabs2D_core_nb
   src/core.cpp
   src/pupil_labs_2d.cpp
   cpp/singleeyefitter/detectorUtils.cpp
-  cpp/singleeyefitter/ImageProcessing/cvx.cpp
-  cpp/singleeyefitter/utils.cpp
 )
 set_target_properties(PupilLabs2D_core_nb PROPERTIES OUTPUT_NAME "_core")
 

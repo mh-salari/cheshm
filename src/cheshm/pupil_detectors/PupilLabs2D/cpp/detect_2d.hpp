@@ -20,6 +20,7 @@ See COPYING and COPYING.LESSER for license details.
 #include "singleeyefitter/utils.h"
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <set>
 
 using namespace singleeyefitter;
 
