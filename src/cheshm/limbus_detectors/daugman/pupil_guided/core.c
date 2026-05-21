@@ -19,6 +19,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "defaults.h"
+
+const int pupil_guided_default_n = 360;
+const int pupil_guided_default_m = 3;
+const double pupil_guided_default_gradient_sigma = 1.0;
+const double pupil_guided_default_radial_smoothing = 2.0;
+const double pupil_guided_default_k_min = 2.0;
+const double pupil_guided_default_k_max = 4.0;
+
 static inline float bilinear_f32(const float* image, int h, int w, float x, float y, int* in_bounds)
 {
     if (x < 0.0f || x > (float)(w - 1) || y < 0.0f || y > (float)(h - 1))

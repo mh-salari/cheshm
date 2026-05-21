@@ -30,6 +30,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "defaults.h"
+
+const int active_contour_default_n = 360;
+const int active_contour_default_m = 5;
+const double active_contour_default_gradient_sigma = 1.0;
+const double active_contour_default_radial_smoothing = 2.0;
+const int active_contour_default_skip_eyelid_wedges = 1;
+const double active_contour_default_r_min = 30.0;
+const double active_contour_default_r_max = 80.0;
+
 /* Bilinear-interpolated sample from a float32 single-channel image. Returns
  * 0.0 (and writes 0 to *in_bounds) if (x, y) is outside the safely-sampleable
  * region (need 1 px margin for the bilinear kernel). */

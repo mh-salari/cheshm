@@ -17,12 +17,6 @@ import numpy as np
 
 from cheshm._protocols import LimbusResult
 
-DEFAULT_R_MIN = 40
-DEFAULT_R_MAX = 62
-DEFAULT_C_TYPE = "half"
-DEFAULT_RANGE = 5
-DEFAULT_STEP = 1
-
 # Overlays this detector produces (limbus is returned as a circle).
 _OVERLAYS = (
     ("curve", "line"),
@@ -99,6 +93,12 @@ _lib.integro_differential_operator_search.argtypes = [
     ctypes.c_int,
     ctypes.POINTER(ctypes.c_double),
 ]
+
+DEFAULT_R_MIN = ctypes.c_int.in_dll(_lib, "integro_differential_default_r_min").value
+DEFAULT_R_MAX = ctypes.c_int.in_dll(_lib, "integro_differential_default_r_max").value
+DEFAULT_C_TYPE = ctypes.c_char_p.in_dll(_lib, "integro_differential_default_c_type").value.decode("ascii")
+DEFAULT_RANGE = ctypes.c_int.in_dll(_lib, "integro_differential_default_range").value
+DEFAULT_STEP = ctypes.c_int.in_dll(_lib, "integro_differential_default_step").value
 
 
 def _circle_perimeter(x: int, y: int, r: int, half: bool = True) -> tuple[np.ndarray, np.ndarray]:

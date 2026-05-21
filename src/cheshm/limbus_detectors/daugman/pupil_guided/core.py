@@ -85,13 +85,6 @@ _UI = {
     },
 }
 
-DEFAULT_N = 360
-DEFAULT_M = 3
-DEFAULT_GRADIENT_SIGMA = 1.0
-DEFAULT_RADIAL_SMOOTHING = 2.0
-DEFAULT_K_MIN = 2.0
-DEFAULT_K_MAX = 4.0
-
 _LIB_DIR = pathlib.Path(__file__).parent
 _LIB_NAME = "core"
 _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
@@ -112,6 +105,13 @@ _lib.pupil_guided_radial_search.argtypes = [
     ctypes.c_int,  # k_len
     ctypes.POINTER(ctypes.c_double),  # r_theta_out
 ]
+
+DEFAULT_N = ctypes.c_int.in_dll(_lib, "pupil_guided_default_n").value
+DEFAULT_M = ctypes.c_int.in_dll(_lib, "pupil_guided_default_m").value
+DEFAULT_GRADIENT_SIGMA = ctypes.c_double.in_dll(_lib, "pupil_guided_default_gradient_sigma").value
+DEFAULT_RADIAL_SMOOTHING = ctypes.c_double.in_dll(_lib, "pupil_guided_default_radial_smoothing").value
+DEFAULT_K_MIN = ctypes.c_double.in_dll(_lib, "pupil_guided_default_k_min").value
+DEFAULT_K_MAX = ctypes.c_double.in_dll(_lib, "pupil_guided_default_k_max").value
 
 
 def _pupil_radial_profile(

@@ -10,6 +10,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "defaults.h"
+
+const int integro_differential_default_r_min = 40;
+const int integro_differential_default_r_max = 62;
+const char* const integro_differential_default_c_type = "half";
+const int integro_differential_default_range = 5;
+const int integro_differential_default_step = 1;
+
 /* ── Bresenham half-circle perimeter ──────────────────────────────────────── */
 
 static int circle_perimeter_half(int r, int* out_dr, int* out_dc)

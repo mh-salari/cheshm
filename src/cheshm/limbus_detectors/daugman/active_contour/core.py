@@ -88,14 +88,6 @@ _UI = {
     },
 }
 
-DEFAULT_N = 360
-DEFAULT_M = 5
-DEFAULT_GRADIENT_SIGMA = 1.0
-DEFAULT_RADIAL_SMOOTHING = 2.0
-DEFAULT_SKIP_EYELID_WEDGES = True
-DEFAULT_R_MIN = 30.0
-DEFAULT_R_MAX = 80.0
-
 # Image-coordinate angle range (y-down) typically occupied by the upper
 # eyelid in head-on eye-tracker frames; skipped during the radial search
 # and filled by cyclic linear interpolation before the FFT.
@@ -122,6 +114,14 @@ _lib.active_contour_radial_search.argtypes = [
     ctypes.c_int,  # k_len
     ctypes.POINTER(ctypes.c_double),  # r_theta_out
 ]
+
+DEFAULT_N = ctypes.c_int.in_dll(_lib, "active_contour_default_n").value
+DEFAULT_M = ctypes.c_int.in_dll(_lib, "active_contour_default_m").value
+DEFAULT_GRADIENT_SIGMA = ctypes.c_double.in_dll(_lib, "active_contour_default_gradient_sigma").value
+DEFAULT_RADIAL_SMOOTHING = ctypes.c_double.in_dll(_lib, "active_contour_default_radial_smoothing").value
+DEFAULT_SKIP_EYELID_WEDGES = bool(ctypes.c_int.in_dll(_lib, "active_contour_default_skip_eyelid_wedges").value)
+DEFAULT_R_MIN = ctypes.c_double.in_dll(_lib, "active_contour_default_r_min").value
+DEFAULT_R_MAX = ctypes.c_double.in_dll(_lib, "active_contour_default_r_max").value
 
 
 class DaugmanActiveContour:
