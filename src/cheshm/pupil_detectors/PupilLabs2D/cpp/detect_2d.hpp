@@ -9,7 +9,6 @@ See COPYING and COPYING.LESSER for license details.
 ---------------------------------------------------------------------------~(*)
 */
 
-#include "common/colors.h"
 #include "common/types.h"
 #include "geometry/Ellipse.h"
 #include "singleeyefitter/EllipseDistanceApproxCalculator.h"
@@ -19,7 +18,6 @@ See COPYING and COPYING.LESSER for license details.
 #include "singleeyefitter/fun.h"
 #include "singleeyefitter/mathHelper.h"
 #include "singleeyefitter/utils.h"
-
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -33,14 +31,7 @@ private:
 
 public:
     Detector2D();
-    std::shared_ptr<Detector2DResult> detect(Detector2DProperties& props,
-                                             cv::Mat& image,
-                                             cv::Mat& color_image,
-                                             cv::Mat& debug_image,
-                                             cv::Rect& roi,
-                                             bool visualize,
-                                             bool use_debug_image,
-                                             bool pause_video);
+    std::shared_ptr<Detector2DResult> detect(Detector2DProperties& props, cv::Mat& image, cv::Rect& roi);
     std::vector<cv::Point> ellipse_true_support(Detector2DProperties& props,
                                                 Ellipse& ellipse,
                                                 double ellipse_circumference,
@@ -52,10 +43,6 @@ private:
     Ellipse mPrior_ellipse;
 };
 
-void printPoints(std::vector<cv::Point> points)
-{
-    std::for_each(points.begin(), points.end(), [](cv::Point& p) { std::cout << p << std::endl; });
-}
 
 Detector2D::Detector2D()
     : mUse_strong_prior(false),
@@ -71,7 +58,7 @@ std::vector<cv::Point> Detector2D::ellipse_true_support(Detector2DProperties& pr
 
     for (auto& p : raw_edges)
     {
-        double distance = std::abs(ellipseDistance((double)p.x, (double)p.y));
+        double distance = std::abs(ellipseDistance(static_cast<double>(p.x), static_cast<double>(p.y)));
         if (distance <= props.ellipse_true_support_min_dist)
         {
             support_pixels.emplace_back(p);
@@ -79,14 +66,7 @@ std::vector<cv::Point> Detector2D::ellipse_true_support(Detector2DProperties& pr
     }
     return support_pixels;
 }
-std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props,
-                                                     cv::Mat& image,
-                                                     cv::Mat& color_image,
-                                                     cv::Mat& debug_image,
-                                                     cv::Rect& roi,
-                                                     bool visualize,
-                                                     bool use_debug_image,
-                                                     bool pause_video = false)
+std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props, cv::Mat& image, cv::Rect& roi)
 {
     std::shared_ptr<Detector2DResult> result = std::make_shared<Detector2DResult>();
     result->current_roi = roi;
@@ -115,39 +95,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
     float max_intensity = 0;
     singleeyefitter::detector::calculate_spike_indices_and_max_intenesity(
         histogram, 40, lowest_spike_index, highest_spike_index, max_intensity);
-
-    if (visualize)
-    {
-        const int scale_x = 100;
-        const int scale_y = 1;
-
-        // display the histogram and the spikes
-        for (int i = 0; i < histogram.rows; i++)
-        {
-            const float norm_i = histogram.ptr<float>(i)[0] / max_intensity; // normalized intensity
-            cv::line(color_image,
-                     {image_width, i * scale_y},
-                     {image_width - int(norm_i * scale_x), i * scale_y},
-                     mBlue_color);
-        }
-
-        cv::line(color_image,
-                 {image_width, lowest_spike_index * scale_y},
-                 {int(image_width - 0.5f * scale_x), lowest_spike_index * scale_y},
-                 mRed_color);
-        cv::line(color_image,
-                 {image_width, (lowest_spike_index + offset) * scale_y},
-                 {int(image_width - 0.5f * scale_x), (lowest_spike_index + offset) * scale_y},
-                 mYellow_color);
-        cv::line(color_image,
-                 {image_width, (highest_spike_index)*scale_y},
-                 {int(image_width - 0.5f * scale_x), highest_spike_index * scale_y},
-                 mRed_color);
-        cv::line(color_image,
-                 {image_width, (highest_spike_index - spectral_offset) * scale_y},
-                 {int(image_width - 0.5f * scale_x), (highest_spike_index - spectral_offset) * scale_y},
-                 mWhite_color);
-    }
 
     // create dark and spectral glint masks
     cv::Mat binary_img, spec_mask, kernel;
@@ -179,43 +126,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
     cv::min(edges, spec_mask, edges);
     cv::min(edges, binary_img, edges);
 
-    if (visualize)
-    {
-        // get sub matrix
-        cv::Mat overlay = cv::Mat(color_image, roi);
-        cv::Mat g_channel(overlay.rows, overlay.cols, CV_8UC1);
-        cv::Mat b_channel(overlay.rows, overlay.cols, CV_8UC1);
-        cv::Mat r_channel(overlay.rows, overlay.cols, CV_8UC1);
-        cv::Mat out[] = {b_channel, g_channel, r_channel};
-
-        cv::split(overlay, out);
-
-        cv::max(g_channel, edges, g_channel);
-        cv::max(b_channel, binary_img, b_channel);
-        cv::min(b_channel, spec_mask, b_channel);
-        cv::merge(out, 3, overlay);
-
-        // draw a frame around the automatic pupil ROI in overlay.
-        auto rect = cv::Rect(0, 0, overlay.size().width, overlay.size().height);
-        cvx::draw_dotted_rect(overlay, rect, mWhite_color);
-
-        // draw a frame around the area we require the pupil center to be.
-        rect = cv::Rect(padding, padding, roi.width - padding, roi.height - padding);
-        cvx::draw_dotted_rect(overlay, rect, mWhite_color);
-
-        // draw size ellipses
-        cv::Point center(100, image_height - 100);
-        cv::circle(color_image, center, props.pupil_size_min / 2.0, mRed_color);
-
-        // real pupil size of this frame is calculated further down, so this size is from the last frame
-        cv::circle(color_image, center, mPupil_Size / 2.0, mGreen_color);
-        cv::circle(color_image, center, props.pupil_size_max / 2.0, mRed_color);
-        auto text_string = std::to_string(mPupil_Size);
-        cv::Size text_size = cv::getTextSize(text_string, cv::FONT_HERSHEY_SIMPLEX, 0.4, 1, 0);
-        cv::Point text_pos = {center.x - text_size.width / 2, center.y + text_size.height / 2};
-        cv::putText(color_image, text_string, text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.4, mRoyalBlue_color);
-    }
-
     // get raw edge pixel for later
     std::vector<cv::Point> raw_edges;
     // find zero crashes if it doesn't find one. replace with cv implementation if opencv version is 3.0 or above
@@ -245,39 +155,7 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
             {
                 cv::RotatedRect refit_ellipse = cv::fitEllipse(support_pixels);
 
-                if (use_debug_image)
-                {
-                    cv::ellipse(debug_image, toRotatedRect(ellipse), mRoyalBlue_color, 4);
-                    cv::ellipse(debug_image, refit_ellipse, mRed_color, 1);
-                }
-
                 ellipse = toEllipse<double>(refit_ellipse);
-
-                ellipse_circumference = ellipse.circumference();
-                auto support_pixels_narrow = ellipse_true_support(props, ellipse, ellipse_circumference, raw_edges);
-                auto num_support_pixels_narrow = float(support_pixels_narrow.size());
-                props.ellipse_true_support_min_dist *= 2.;
-                auto support_pixels_wide = ellipse_true_support(props, ellipse, ellipse_circumference, raw_edges);
-                auto num_support_pixels_wide = float(support_pixels_wide.size());
-                props.ellipse_true_support_min_dist /= 2.;
-
-                cv::Mat edge_vis;
-                cv::cvtColor(edges, edge_vis, cv::COLOR_GRAY2BGR);
-                for (cv::Point& p : support_pixels_wide)
-                {
-                    edge_vis.at<cv::Vec3b>(p) = cv::Vec3b(0, 0, 255);
-                }
-                for (cv::Point& p : support_pixels_narrow)
-                {
-                    edge_vis.at<cv::Vec3b>(p) = cv::Vec3b(0, 255, 0);
-                }
-                auto label_support = "Edges vs wide support vs narrow support";
-                cv::Mat edge_vis_big;
-                cv::resize(edge_vis, edge_vis_big, cv::Size(), 2.0, 2.0);
-
-                float narrow_wide_ratio = num_support_pixels_narrow / num_support_pixels_wide;
-                float narrow_circum_ratio = num_support_pixels_narrow / float(ellipse_circumference);
-
 
 
 
@@ -345,21 +223,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
         // result->contours = std::move(split_contours);
         // result->raw_edges = std::move(raw_edges);
         return result;
-    }
-
-    if (use_debug_image)
-    {
-        // debug segments
-        int colorIndex = 0;
-
-        for (const auto& segment : split_contours)
-        {
-            const cv::Scalar_<int> colors[] = {
-                mRed_color, mBlue_color, mRoyalBlue_color, mYellow_color, mWhite_color, mGreen_color};
-            cv::polylines(debug_image, segment, false, colors[colorIndex], 1, 4);
-            colorIndex++;
-            colorIndex %= 6;
-        }
     }
 
     std::sort(split_contours.begin(),
@@ -581,11 +444,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
         }
         auto cv_ellipse = cv::fitEllipse(test_contour);
 
-        if (use_debug_image)
-        {
-            cv::ellipse(debug_image, cv_ellipse, mRed_color);
-        }
-
         Ellipse ellipse = toEllipse<double>(cv_ellipse);
         double ellipse_circumference = ellipse.circumference();
         std::vector<cv::Point> support_pixels =
@@ -604,11 +462,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
                 ellipse.center[1] += roi.y;
                 mPrior_ellipse = ellipse;
                 mUse_strong_prior = true;
-
-                if (use_debug_image)
-                {
-                    cv::ellipse(debug_image, cv_ellipse, mGreen_color);
-                }
             }
         }
 
@@ -668,19 +521,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
         // above
         cv::findNonZero(new_edges, new_contours);
 
-        if (visualize)
-        {
-            cv::Mat overlay = color_image.colRange(roi.x, roi.x + roi.width).rowRange(roi.y, roi.y + roi.height);
-            cv::Mat g_channel(overlay.rows, overlay.cols, CV_8UC1);
-            cv::Mat b_channel(overlay.rows, overlay.cols, CV_8UC1);
-            cv::Mat r_channel(overlay.rows, overlay.cols, CV_8UC1);
-            cv::Mat out[] = {b_channel, g_channel, r_channel};
-            cv::split(overlay, out);
-            cv::threshold(new_edges, new_edges, 0, 255, cv::THRESH_BINARY);
-            cv::max(r_channel, new_edges, r_channel);
-            cv::merge(out, 3, overlay);
-        }
-
         return new_contours;
     };
     std::vector<cv::Point> final_edges = final_fitting(best_contours, edges);
@@ -696,11 +536,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
     auto& cv_final_Ellipse = cv_ellipse;
     if (is_Ellipse(cv_new_Ellipse) && size_difference < 0.3)
     {
-        if (use_debug_image)
-        {
-            cv::ellipse(debug_image, cv_new_Ellipse, mGreen_color);
-        }
-        cv_final_Ellipse = cv_new_Ellipse;
     }
 
     mPupil_Size = cv_final_Ellipse.size.height;

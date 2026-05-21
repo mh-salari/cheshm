@@ -190,18 +190,10 @@ std::optional<DetectResult> detect(const cv::Mat& gray, const cv::Rect& roi_in, 
 
     // detect() takes non-const cv::Mat references; bind named copies.
     cv::Mat image = gray;
-    cv::Mat color_image;
-    cv::Mat debug_image;
     cv::Rect roi_for_upstream = roi;
 
     Detector2D detector;
-    auto res = detector.detect(up_props,
-                               image,
-                               color_image,
-                               debug_image,
-                               roi_for_upstream,
-                               /*visualize=*/false,
-                               /*use_debug_image=*/false);
+    auto res = detector.detect(up_props, image, roi_for_upstream);
     if (!res)
         return std::nullopt;
 
