@@ -2,8 +2,6 @@
 #define __UTILS_H__
 
 #include "geometry/Ellipse.h"
-#include "geometry/Circle.h"
-#include "geometry/Sphere.h"
 #include "common/constants.h"
 #include "mathHelper.h"
 

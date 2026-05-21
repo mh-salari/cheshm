@@ -19,13 +19,13 @@ See COPYING and COPYING.LESSER for license details.
 #include "singleeyefitter/fun.h"
 #include "singleeyefitter/utils.h"
 #include "singleeyefitter/ImageProcessing/cvx.h"
-#include "geometry/Ellipse.h" // use ellipse eyefitter
-#include "math/distance.h"
+#include "geometry/Ellipse.h"
 #include "singleeyefitter/mathHelper.h"
 #include "singleeyefitter/detectorUtils.h"
 #include "singleeyefitter/EllipseDistanceApproxCalculator.h"
 #include "singleeyefitter/EllipseEvaluation2D.h"
-#include "singleeyefitter/ImageProcessing/GuoHallThinner.h"
+
+using namespace singleeyefitter;
 
 class Detector2D
 {
@@ -176,9 +176,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties &props
 		cv::Point text_pos = {center.x - text_size.width / 2, center.y + text_size.height / 2};
 		cv::putText(color_image, text_string, text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.4, mRoyalBlue_color);
 	}
-
-	// GuoHallThinner thinner;
-	// thinner.thin(edges, true);
 
 	// get raw edge pixel for later
 	std::vector<cv::Point> raw_edges;
