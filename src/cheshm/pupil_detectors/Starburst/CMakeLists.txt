@@ -5,7 +5,6 @@ nanobind_add_module(Starburst_core_nb
   src/contour_detection.cpp
   src/corneal_reflection.cpp
   src/ransac_ellipse.cpp
-  src/svd.cpp
 )
 set_target_properties(Starburst_core_nb PROPERTIES OUTPUT_NAME "_core")
 

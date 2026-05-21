@@ -156,32 +156,15 @@ int* RansacEllipse::pupil_fitting_inliers(std::uint8_t* /*pupil_image*/,
     std::memset(inliers_index, 0, sizeof(int) * ep_num);
     std::memset(max_inliers_index, 0, sizeof(int) * ep_num);
     int rand_index[ellipse_point_num];
-    double A[ellipse_point_num + 1][6];
     constexpr int M = ellipse_point_num + 1;
     constexpr int N = 6;
+    cv::Mat A_mat = cv::Mat::zeros(M, N, CV_64F);
     for (int i = 0; i < M; i++)
     {
-        A[i][5] = 1;
+        A_mat.at<double>(i, 5) = 1.0;
     }
-    for (int i = 0; i < N; i++)
-    {
-        A[ellipse_point_num][i] = 0;
-    }
-    double** ppa = static_cast<double**>(std::malloc(sizeof(double*) * M));
-    double** ppu = static_cast<double**>(std::malloc(sizeof(double*) * M));
-    double** ppv = static_cast<double**>(std::malloc(sizeof(double*) * N));
-    for (int i = 0; i < M; i++)
-    {
-        ppa[i] = A[i];
-        ppu[i] = static_cast<double*>(std::malloc(sizeof(double) * N));
-    }
-    for (int i = 0; i < N; i++)
-    {
-        ppv[i] = static_cast<double*>(std::malloc(sizeof(double) * N));
-    }
+    A_mat.at<double>(ellipse_point_num, 5) = 0.0;
 
-    double pd[6];
-    int min_d_index;
     double conic_par[6] = {0};
     double ellipse_par[5] = {0};
     double best_ellipse_par[5] = {0};
@@ -192,27 +175,37 @@ int* RansacEllipse::pupil_fitting_inliers(std::uint8_t* /*pupil_image*/,
 
         for (int i = 0; i < ellipse_point_num; i++)
         {
-            A[i][0] = edge_point_nor[rand_index[i]].x * edge_point_nor[rand_index[i]].x;
-            A[i][1] = edge_point_nor[rand_index[i]].x * edge_point_nor[rand_index[i]].y;
-            A[i][2] = edge_point_nor[rand_index[i]].y * edge_point_nor[rand_index[i]].y;
-            A[i][3] = edge_point_nor[rand_index[i]].x;
-            A[i][4] = edge_point_nor[rand_index[i]].y;
+            const double x = edge_point_nor[rand_index[i]].x;
+            const double y = edge_point_nor[rand_index[i]].y;
+            A_mat.at<double>(i, 0) = x * x;
+            A_mat.at<double>(i, 1) = x * y;
+            A_mat.at<double>(i, 2) = y * y;
+            A_mat.at<double>(i, 3) = x;
+            A_mat.at<double>(i, 4) = y;
         }
 
-        svd(M, N, ppa, ppu, pd, ppv);
-        min_d_index = 0;
-        for (int i = 1; i < N; i++)
-        {
-            if (pd[i] < pd[min_d_index])
-            {
-                min_d_index = i;
-            }
-        }
+        // cv::SVD sorts singular values in descending order, so the
+        // smallest sits in the final row of vt — i.e. the column of V
+        // corresponding to the smallest singular value, which solves
+        // the homogeneous conic system in least-squares sense.
+        cv::Mat w, u, vt;
+        cv::SVD::compute(A_mat, w, u, vt);
         for (int i = 0; i < N; i++)
         {
-            // Column of v corresponding to the smallest singular value:
-            // the conic-equation solution.
-            conic_par[i] = ppv[i][min_d_index];
+            conic_par[i] = vt.at<double>(N - 1, i);
+        }
+        // Anchor the sign on the first nonzero component.
+        for (int i = 0; i < N; i++)
+        {
+            if (conic_par[i] != 0.0)
+            {
+                if (conic_par[i] < 0.0)
+                {
+                    for (int j = 0; j < N; j++)
+                        conic_par[j] = -conic_par[j];
+                }
+                break;
+            }
         }
 
         ninliers = 0;
@@ -271,18 +264,6 @@ int* RansacEllipse::pupil_fitting_inliers(std::uint8_t* /*pupil_image*/,
         std::free(max_inliers_index);
         max_inliers_index = nullptr;
     }
-
-    for (int i = 0; i < M; i++)
-    {
-        std::free(ppu[i]);
-    }
-    for (int i = 0; i < N; i++)
-    {
-        std::free(ppv[i]);
-    }
-    std::free(ppu);
-    std::free(ppv);
-    std::free(ppa);
 
     std::free(edge_point_nor);
     std::free(inliers_index);

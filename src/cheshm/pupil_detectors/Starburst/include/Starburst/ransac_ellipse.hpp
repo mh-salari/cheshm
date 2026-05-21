@@ -33,7 +33,6 @@ public:
     double pupil_param[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
 
 private:
-    void svd(int m, int n, double** a, double** p, double* d, double** q);
     void destroy_edge_point();
     void locate_edge_points(const std::uint8_t* image,
                             int width,
@@ -52,8 +51,6 @@ private:
     void get_random_num(int n, int max_num, int* rand_num);
 
     std::vector<int> edge_intensity_diff;
-
-    static double radius(double u, double v);
 };
 
 } // namespace cheshm::Starburst
