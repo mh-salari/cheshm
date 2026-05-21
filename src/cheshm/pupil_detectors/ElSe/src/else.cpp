@@ -121,13 +121,6 @@ std::vector<std::vector<Point>> get_curves(const Mat& pic,
                                            float min_area,
                                            float max_area)
 {
-    std::vector<std::vector<Point>> all_lines;
-
-    std::vector<std::vector<Point>> all_curves;
-    std::vector<Point> curve;
-
-    std::vector<Point> all_means;
-
     if (start_x < 2)
         start_x = 2;
     if (start_y < 2)
@@ -137,77 +130,55 @@ std::vector<std::vector<Point>> get_curves(const Mat& pic,
     if (end_y > pic.rows - 2)
         end_y = pic.rows - 2;
 
-    int curve_idx = 0;
+    const cv::Rect walk_roi(start_x, start_y, end_x - start_x, end_y - start_y);
+    cv::Mat labels;
+    const int n_labels = cv::connectedComponents(edge(walk_roi), labels, 8, CV_32S);
+
+    // Bucket every foreground pixel under its component label, in row-major
+    // scan order. Component 0 is the background and is skipped.
+    std::vector<std::vector<Point>> components(n_labels > 0 ? n_labels : 0);
+    for (int j = 0; j < labels.rows; ++j)
+    {
+        const int32_t* row = labels.ptr<int32_t>(j);
+        for (int i = 0; i < labels.cols; ++i)
+        {
+            const int label = row[i];
+            if (label != 0)
+                components[label].emplace_back(i + start_x, j + start_y);
+        }
+    }
+
+    std::vector<std::vector<Point>> all_lines;
+    std::vector<Point> all_means;
+    all_lines.reserve(n_labels);
+    all_means.reserve(n_labels);
+    for (int label = 1; label < n_labels; ++label)
+    {
+        auto& curve = components[label];
+        if (curve.size() <= 10)
+            continue;
+        long long sx = 0, sy = 0;
+        for (const auto& p : curve)
+        {
+            sx += p.x;
+            sy += p.y;
+        }
+        const auto n = static_cast<double>(curve.size());
+        all_means.emplace_back(static_cast<int>(std::floor(sx / n + 0.5)), static_cast<int>(std::floor(sy / n + 0.5)));
+        all_lines.push_back(std::move(curve));
+    }
+
+    std::vector<std::vector<Point>> all_curves;
     Point mean_p;
     bool add_curve;
     int mean_inner_gray;
     int mean_inner_gray_last = 1000000;
-
-    all_curves.clear();
-    all_means.clear();
-    all_lines.clear();
-
-    // Visited-pixel mask sized to the IMG_SIZE × IMG_SIZE working frame;
-    // indexed as x * IMG_SIZE + y.
-    std::vector<std::uint8_t> check(static_cast<std::size_t>(IMG_SIZE) * IMG_SIZE, 0);
-
-    // get all lines
-    for (int i = start_x; i < end_x; i++)
-        for (int j = start_y; j < end_y; j++)
-        {
-            if (edge.data[(edge.cols * (j)) + (i)] > 0 && !check[i * IMG_SIZE + j])
-            {
-                check[i * IMG_SIZE + j] = 1;
-
-                curve.clear();
-                curve_idx = 0;
-
-                curve.push_back(Point(i, j));
-                mean_p.x = i;
-                mean_p.y = j;
-                curve_idx++;
-
-                int akt_idx = 0;
-
-                while (akt_idx < curve_idx)
-                {
-                    Point akt_pos = curve[akt_idx];
-                    for (int k1 = -1; k1 < 2; k1++)
-                        for (int k2 = -1; k2 < 2; k2++)
-                        {
-                            if (akt_pos.x + k1 >= start_x && akt_pos.x + k1 < end_x && akt_pos.y + k2 >= start_y &&
-                                akt_pos.y + k2 < end_y)
-                                if (!check[(akt_pos.x + k1) * IMG_SIZE + (akt_pos.y + k2)])
-                                    if (edge.data[(edge.cols * (akt_pos.y + k2)) + (akt_pos.x + k1)] > 0)
-                                    {
-                                        check[(akt_pos.x + k1) * IMG_SIZE + (akt_pos.y + k2)] = 1;
-
-                                        mean_p.x += akt_pos.x + k1;
-                                        mean_p.y += akt_pos.y + k2;
-                                        curve.push_back(Point(akt_pos.x + k1, akt_pos.y + k2));
-                                        curve_idx++;
-                                    }
-                        }
-                    akt_idx++;
-                }
-
-                if (curve_idx > 10 && curve.size() > 10)
-                {
-                    mean_p.x = static_cast<int>(floor((double(mean_p.x) / double(curve_idx)) + 0.5));
-                    mean_p.y = static_cast<int>(floor((double(mean_p.y) / double(curve_idx)) + 0.5));
-
-                    all_means.push_back(mean_p);
-                    all_lines.push_back(curve);
-                }
-            }
-        }
-
     RotatedRect selected_ellipse;
 
     for (std::size_t iii = 0; iii < all_lines.size(); ++iii)
     {
-        curve = all_lines.at(iii);
-        mean_p = all_means.at(iii);
+        std::vector<Point>& curve = all_lines[iii];
+        mean_p = all_means[iii];
 
         int results = 0;
         add_curve = true;
@@ -294,39 +265,15 @@ RotatedRect find_best_edge(const Mat& pic,
                            float min_area,
                            float max_area)
 {
-    RotatedRect ellipse;
-    ellipse.center.x = 0;
-    ellipse.center.y = 0;
-    ellipse.angle = 0.0;
-    ellipse.size.height = 0.0;
-    ellipse.size.width = 0.0;
-
-    std::vector<std::vector<Point>> all_curves =
+    const auto all_curves =
         get_curves(pic, edge, start_x, end_x, start_y, end_y, mean_dist, inner_color_range, min_area, max_area);
+    if (all_curves.size() != 1)
+        return RotatedRect{};
 
-    if (all_curves.size() == 1)
-    {
-        ellipse = fitEllipse(Mat(all_curves[0]));
-
-        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic.cols ||
-            ellipse.center.y > pic.rows)
-        {
-            ellipse.center.x = 0;
-            ellipse.center.y = 0;
-            ellipse.angle = 0.0;
-            ellipse.size.height = 0.0;
-            ellipse.size.width = 0.0;
-        }
-    }
-    else
-    {
-        ellipse.center.x = 0;
-        ellipse.center.y = 0;
-        ellipse.angle = 0.0;
-        ellipse.size.height = 0.0;
-        ellipse.size.width = 0.0;
-    }
-
+    RotatedRect ellipse = fitEllipse(Mat(all_curves[0]));
+    if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic.cols ||
+        ellipse.center.y > pic.rows)
+        return RotatedRect{};
     return ellipse;
 }
 
@@ -370,12 +317,10 @@ void mum(const Mat& pic, Mat& result, int fak)
                 {
                     if (idy + ii > 0 && idy + ii < pic.rows && idx + jj > 0 && idx + jj < pic.cols)
                     {
-                        if (static_cast<unsigned int>(pic.data[(pic.cols * (idy + ii)) + (idx + jj)]) > 255)
-                            pic.data[(pic.cols * (idy + ii)) + (idx + jj)] = 255;
-
-                        hist[pic.data[(pic.cols * (idy + ii)) + (idx + jj)]]++;
+                        const auto v = pic.data[(pic.cols * (idy + ii)) + (idx + jj)];
+                        hist[v]++;
                         cnt++;
-                        mean += pic.data[(pic.cols * (idy + ii)) + (idx + jj)];
+                        mean += v;
                     }
                 }
             mean = mean / cnt;
@@ -453,13 +398,13 @@ void gen_blob_neu(int rad, Mat& all_mat, Mat& all_mat_neg)
         {
             if (p[j] > 0)
             {
-                p[j] = static_cast<int>(1.0) / posis;
-                p_neg[j] = 0.0;
+                p[j] = 1.0f / posis;
+                p_neg[j] = 0.0f;
             }
             else
             {
-                p[j] = static_cast<int>(-1.0) / negis;
-                p_neg[j] = static_cast<int>(1.0) / negis;
+                p[j] = -1.0f / negis;
+                p_neg[j] = 1.0f / negis;
             }
         }
     }
@@ -506,66 +451,32 @@ bool is_good_ellipse_evaluation(const RotatedRect& ellipse, const Mat& pic)
 RotatedRect blob_finder(const Mat& pic)
 {
     Point pos(0, 0);
-    float abs_max = 0;
 
-    float* p_erg;
-    Mat blob_mat, blob_mat_neg;
-
-    int fak_mum = 5;
-    int fakk = pic.cols > pic.rows ? (pic.cols / 100) + 1 : (pic.rows / 100) + 1;
+    const int fak_mum = 5;
+    const int fakk = pic.cols > pic.rows ? (pic.cols / 100) + 1 : (pic.rows / 100) + 1;
 
     Mat img;
     mum(pic, img, fak_mum);
-    Mat erg = Mat::zeros(img.rows, img.cols, CV_32FC1);
+    img.convertTo(img, CV_32FC1);
 
-    Mat result, result_neg;
-
+    Mat blob_mat, blob_mat_neg;
     gen_blob_neu(fakk, blob_mat, blob_mat_neg);
 
-    img.convertTo(img, CV_32FC1);
+    Mat result, result_neg, erg;
     filter2D(img, result, -1, blob_mat, Point(-1, -1), 0, BORDER_REPLICATE);
-
-    float *p_res, *p_neg_res;
-    for (int i = 0; i < result.rows; i++)
-    {
-        p_res = result.ptr<float>(i);
-
-        for (int j = 0; j < result.cols; j++)
-        {
-            if (p_res[j] < 0)
-                p_res[j] = 0;
-        }
-    }
+    cv::max(result, 0.0, result);
 
     filter2D(img, result_neg, -1, blob_mat_neg, Point(-1, -1), 0, BORDER_REPLICATE);
+    cv::subtract(cv::Scalar(255.0f), result_neg, result_neg);
+    cv::multiply(result_neg, result, erg);
 
-    for (int i = 0; i < result.rows; i++)
+    double max_val = 0.0;
+    cv::Point max_loc;
+    cv::minMaxLoc(erg, nullptr, &max_val, nullptr, &max_loc);
+    if (max_val > 0.0)
     {
-        p_res = result.ptr<float>(i);
-        p_neg_res = result_neg.ptr<float>(i);
-        p_erg = erg.ptr<float>(i);
-
-        for (int j = 0; j < result.cols; j++)
-        {
-            p_neg_res[j] = (255.0f - p_neg_res[j]);
-            p_erg[j] = (p_neg_res[j]) * (p_res[j]);
-        }
-    }
-
-    for (int i = 0; i < erg.rows; i++)
-    {
-        p_erg = erg.ptr<float>(i);
-
-        for (int j = 0; j < erg.cols; j++)
-        {
-            if (abs_max < p_erg[j])
-            {
-                abs_max = p_erg[j];
-
-                pos.x = (fak_mum + 1) + (j * (fak_mum + 1));
-                pos.y = (fak_mum + 1) + (i * (fak_mum + 1));
-            }
-        }
+        pos.x = (fak_mum + 1) + (max_loc.x * (fak_mum + 1));
+        pos.y = (fak_mum + 1) + (max_loc.y * (fak_mum + 1));
     }
 
     if (pos.y > 0 && pos.y < pic.rows && pos.x > 0 && pos.x < pic.cols)
@@ -689,28 +600,14 @@ std::optional<DetectResult> detect(const cv::Mat& frame, float min_area_ratio, f
     const int end_x = pic.cols - start_x;
     const int end_y = pic.rows - start_y;
 
-    cv::Mat picpic = cv::Mat::zeros(end_y - start_y, end_x - start_x, CV_8U);
-
-    for (int i = 0; i < picpic.cols; i++)
-    {
-        for (int j = 0; j < picpic.rows; j++)
-        {
-            picpic.data[(picpic.cols * j) + i] = pic.data[(pic.cols * (start_y + j)) + (start_x + i)];
-        }
-    }
+    const cv::Rect inner_rect(start_x, start_y, end_x - start_x, end_y - start_y);
+    const cv::Mat picpic = pic(inner_rect);
 
     const int non_edge_pixel_count = static_cast<int>(std::round(0.7 * picpic.cols * picpic.rows));
-    cv::Mat detected_edges2 = cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64);
+    const cv::Mat detected_edges2 = cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64);
 
     cv::Mat detected_edges = cv::Mat::zeros(pic.rows, pic.cols, CV_8U);
-    for (int i = 0; i < detected_edges2.cols; i++)
-    {
-        for (int j = 0; j < detected_edges2.rows; j++)
-        {
-            detected_edges.data[(detected_edges.cols * (start_y + j)) + (start_x + i)] =
-                detected_edges2.data[(detected_edges2.cols * j) + i];
-        }
-    }
+    detected_edges2.copyTo(detected_edges(inner_rect));
 
     cheshm::filter_edges(detected_edges, start_x, end_x, start_y, end_y);
 

@@ -71,57 +71,36 @@ canny_gaussian16(const cv::Mat& image, int non_edge_pixel_count, int bins, cv::M
     cv::Mat work;
     image.convertTo(work, CV_32FC1);
 
-    const cv::Mat gau_x(1, k_sz, CV_32FC1, const_cast<float*>(gau));
-    const cv::Mat deriv_gau_x(1, k_sz, CV_32FC1, const_cast<float*>(deriv_gau));
-
-    const cv::Point anchor(-1, -1);
-    const int ddepth = -1;
+    const cv::Mat gau_row(1, k_sz, CV_32FC1, const_cast<float*>(gau));
+    const cv::Mat deriv_row(1, k_sz, CV_32FC1, const_cast<float*>(deriv_gau));
 
     cv::Mat res_x;
     cv::Mat res_y;
+    cv::sepFilter2D(work, res_x, CV_32F, deriv_row, gau_row.t(), cv::Point(-1, -1), 0, cv::BORDER_REPLICATE);
+    cv::sepFilter2D(work, res_y, CV_32F, gau_row, deriv_row.t(), cv::Point(-1, -1), 0, cv::BORDER_REPLICATE);
 
-    cv::transpose(work, work);
-    cv::filter2D(work, res_x, ddepth, gau_x, anchor, 0, cv::BORDER_REPLICATE);
-    cv::transpose(work, work);
-    cv::transpose(res_x, res_x);
-    cv::filter2D(res_x, res_x, ddepth, deriv_gau_x, anchor, 0, cv::BORDER_REPLICATE);
-
-    cv::filter2D(work, res_y, ddepth, gau_x, anchor, 0, cv::BORDER_REPLICATE);
-    cv::transpose(res_y, res_y);
-    cv::filter2D(res_y, res_y, ddepth, deriv_gau_x, anchor, 0, cv::BORDER_REPLICATE);
-    cv::transpose(res_y, res_y);
-
-    cv::Mat magnitude = cv::Mat::zeros(work.rows, work.cols, CV_32FC1);
-    for (int i = 0; i < magnitude.rows; ++i)
-    {
-        const float* p_x = res_x.ptr<float>(i);
-        const float* p_y = res_y.ptr<float>(i);
-        float* p_res = magnitude.ptr<float>(i);
-        for (int j = 0; j < magnitude.cols; ++j)
-        {
-            p_res[j] = std::hypot(p_x[j], p_y[j]);
-        }
-    }
+    cv::Mat magnitude;
+    cv::magnitude(res_x, res_y, magnitude);
 
     cv::normalize(magnitude, magnitude, 0, 1, cv::NORM_MINMAX, CV_32FC1);
-    cv::Mat res_idx = cv::Mat::zeros(work.rows, work.cols, CV_8U);
+    cv::Mat res_idx;
     cv::normalize(magnitude, res_idx, 0, bins - 1, cv::NORM_MINMAX, CV_32S);
 
-    std::vector<int> hist(bins, 0);
-    for (int i = 0; i < magnitude.rows; ++i)
-    {
-        const int* p = res_idx.ptr<int>(i);
-        for (int j = 0; j < magnitude.cols; ++j)
-        {
-            ++hist[p[j]];
-        }
-    }
+    cv::Mat res_idx_f32;
+    res_idx.convertTo(res_idx_f32, CV_32F);
+    const float hist_range_max = static_cast<float>(bins);
+    const float range_array[] = {0.0f, hist_range_max};
+    const float* hist_range[] = {range_array};
+    const int hist_size = bins;
+    const int channels[] = {0};
+    cv::Mat hist_mat;
+    cv::calcHist(&res_idx_f32, 1, channels, cv::Mat(), hist_mat, 1, &hist_size, hist_range);
 
     float high_th = 0.0f;
     int sum = 0;
     for (int i = 0; i < bins; ++i)
     {
-        sum += hist[i];
+        sum += static_cast<int>(hist_mat.at<float>(i));
         if (sum > non_edge_pixel_count)
         {
             high_th = static_cast<float>(i + 1) / static_cast<float>(bins);
