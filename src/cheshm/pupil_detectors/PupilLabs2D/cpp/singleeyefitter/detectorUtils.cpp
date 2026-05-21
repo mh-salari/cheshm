@@ -66,8 +66,6 @@ Contours_2D detector::split_rough_contours(const Contours_2D& contours, const Sc
         // we split whenever there is a real kink (abs(curvature)<right angle) or a change in the genreal direction
         auto kink_indices = detail::find_kink_and_dir_change(curvature, angle);
         auto contour_segments = detail::split_at_corner_index(contour, kink_indices);
-        // TODO: split at shart inward turns
-        // int colorIndex = 0;
 
         for (auto seg_it = contour_segments.begin(); seg_it != contour_segments.end(); seg_it++)
         {
@@ -77,13 +75,6 @@ Contours_2D detector::split_rough_contours(const Contours_2D& contours, const Sc
             if (segment.size() > 2)
             {
                 split_contours.push_back(segment);
-                // // debug segments
-                // if(use_debug_image){
-                //   const cv::Scalar_<int> colors[] = {mRed_color, mBlue_color, mRoyalBlue_color, mYellow_color,
-                //   mWhite_color, mGreen_color}; cv::polylines(debug_image, segment, false, colors[colorIndex], 1, 4);
-                //   colorIndex++;
-                //   colorIndex %= 6;
-                // }
             }
         }
     }
@@ -234,20 +225,10 @@ detector::divide_strong_and_weak_contours(const Contours_2D& contours,
                         strong_area_ratio_range_min <= area_ratio && strong_area_ratio_range_max >= area_ratio)
                     {
                         strong_contours.push_back(index);
-                        // if (use_debug_image)
-                        // {
-                        //  cv::polylines(debug_image, contour, false, mRoyalBlue_color, 4);
-                        //  cv::ellipse(debug_image, ellipse, mBlue_color);
-                        // }
                     }
                     else
                     {
                         weak_contours.push_back(index);
-                        // if (use_debug_image)
-                        // {
-                        //  cv::polylines(debug_image, contour, false, mBlue_color, 2);
-                        //  cv::ellipse(debug_image, ellipse, mBlue_color);
-                        // }
                     }
                 }
             }

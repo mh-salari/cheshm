@@ -162,7 +162,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
     cv::erode(spec_mask, spec_mask, kernel);
 
     // auto spec_ratio = float(cv::countNonZero(spec_mask)) / float(spec_mask.total());
-    // printf("spec_count=%f ", spec_ratio);
 
     kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, {9, 9});
     // open operation to remove eye lashes
@@ -264,7 +263,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
 
                 cv::Mat edge_vis;
                 cv::cvtColor(edges, edge_vis, cv::COLOR_GRAY2BGR);
-                // cv::Point roi_offset = cv::Point(roi.x, roi.y);
                 for (cv::Point& p : support_pixels_wide)
                 {
                     edge_vis.at<cv::Vec3b>(p) = cv::Vec3b(0, 0, 255);
@@ -276,21 +274,12 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
                 auto label_support = "Edges vs wide support vs narrow support";
                 cv::Mat edge_vis_big;
                 cv::resize(edge_vis, edge_vis_big, cv::Size(), 2.0, 2.0);
-                // cv::imshow(label_support, edge_vis_big);
-                // cv::moveWindow(label_support, 4500, 100);
 
                 float narrow_wide_ratio = num_support_pixels_narrow / num_support_pixels_wide;
                 float narrow_circum_ratio = num_support_pixels_narrow / float(ellipse_circumference);
-                // printf("narrow_circum_ratio=%f ", narrow_circum_ratio);
 
-                // printf("narrow_wide_ratio=%f ", narrow_wide_ratio);
 
-                support_ratio = pow(narrow_wide_ratio, props.support_pixel_ratio_exponent);
-                // printf("narrow_wide_ratio^2=%f ", support_ratio);
-                support_ratio *= narrow_circum_ratio;
 
-                // printf("\n"); // end line
-                // cv::waitKey(1);
 
                 ellipse.center[0] += roi.x;
                 ellipse.center[1] += roi.y;
@@ -485,12 +474,10 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
                         continue;
                     }
 
-                    // we have not tested this and a subset of this was sucessfull before
                     double fit_variance = detector::contour_ellipse_deviation_variance(test_contour);
 
                     if (fit_variance < props.initial_ellipse_fit_treshhold)
                     {
-                        // yes this was good, keep as solution
                         results.push_back(test_contour_indices);
 
                         // lets explore more by creating paths to each remaining node
@@ -605,7 +592,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
             ellipse_true_support(props, ellipse, ellipse_circumference, test_contour);
         double support_ratio = (support_pixels.size() / ellipse_circumference) *
                                pow(support_pixels.size() / test_contour.size(), props.support_pixel_ratio_exponent);
-        // TODO: refine the selection of final candidate
 
         if (support_ratio >= max_support_ratio && is_Ellipse(cv_ellipse))
         {
@@ -717,7 +703,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
         cv_final_Ellipse = cv_new_Ellipse;
     }
 
-    // cv::imshow("debug_image", debug_image);
     mPupil_Size = cv_final_Ellipse.size.height;
     result->ellipse = toEllipse<double>(cv_final_Ellipse);
 
@@ -734,12 +719,6 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
     result->ellipse.center[1] += roi.y;
     // result->final_contours = std::move(best_contours);
 
-    // TODO optimize
-    // just do this if we really need it
-    // std::for_each(contours.begin(), contours.end(), [&](const Contour_2D & contour) {
-    // 	std::vector<cv::Point> approx_c;
-    // 	cv::approxPolyDP(contour, approx_c, 1.0, false);
-    // 	approx_contours.push_back(std::move(approx_c));
     // });
     // split_contours = singleeyefitter::detector::split_rough_contours_optimized(approx_contours, 150.0 ,
     // split_contour_size_min);

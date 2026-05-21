@@ -141,7 +141,6 @@ void remove_points_with_low_angle(cv::Mat* edge, int start_xx, int end_xx, int s
                 bool valid = false;
 
                 for (int k = 0; k < 8 && !valid; k++)
-                    // if( box[k] && (box[(k+3)%8] || box[(k+4)%8] || box[(k+5)%8]) ) valid=true;
                     if (box[k] && (box[(k + 2) % 8] || box[(k + 3) % 8] || box[(k + 4) % 8] || box[(k + 5) % 8] ||
                                    box[(k + 6) % 8]))
                         valid = true;
@@ -174,7 +173,6 @@ void remove_points_with_low_angle(cv::Mat* edge, int start_xx, int end_xx, int s
                 if ((box[3] && box[1]))
                     edge->data[(edge->cols * (j)) + (i)] = 0;
 
-                // if( (box[1] && box[5]) || (box[1] && box[3]) || (box[3] && box[7]) || (box[5] && box[7]) )
                 //		edge->data[(edge->cols*(j))+(i)]=0;
             }
         }
@@ -527,22 +525,6 @@ std::vector<std::vector<cv::Point>> get_curves(cv::Mat* pic,
             }
         }
 
-    /*
-    std::cout<<all_curves.size()<<std::endl;
-
-    for(int i=0;i<1;i++)
-        for(int j=0;j<all_curves[i].size();j++)
-         std::cout<<all_curves[i][j].x<<";"<<all_curves[i][j].y<<std::endl;
-
-
-    cv::Mat m = cv::Mat::zeros(edge->rows, edge->cols, CV_8U);
-
-    for(int i=0;i<all_curves.size();i++)
-        for(int j=0;j<all_curves[i].size();j++)
-            m.data[(edge->cols*all_curves[i][j].y)+(all_curves[i][j].x)]=255;
-
-    imshow("ddd",m);
-    */
 
     return all_curves;
 }
@@ -735,13 +717,6 @@ cv::Point th_angular_histo(cv::Mat* pic,
     pos_b = calc_pos(hist_b, min_b, max_region_hole, min_region_size, pic->cols);
     pos_br = calc_pos(hist_br, min_br, max_region_hole, min_region_size, pic->cols + pic->rows);
 
-    /*
-    std::cout<<"min_l: "<<min_l<<" min_lb: "<<min_lb<<std::endl;
-    std::cout<<"min_b: "<<min_b<<" min_br: "<<min_br<<std::endl;
-
-    std::cout<<"l: "<<pos_l<<"    lb: "<<pos_lb<<std::endl;
-    std::cout<<"b: "<<pos_b<<"    br: "<<pos_br<<std::endl;
-    */
 
     if (pos_l > 0 && pos_lb > 0 && pos_b > 0 && pos_br > 0)
     {
@@ -768,12 +743,6 @@ cv::Point th_angular_histo(cv::Mat* pic,
     if (pos.y >= pic->rows)
         pos.y = 0;
 
-    /*
-    std::cout<<pos.x<<";"<<pos.y<<std::endl;
-    imshow("th",*pic_th);
-    cv::ellipse(*pic, cv::RotatedRect(pos, cv::Size2f(5,5),0), CV_RGB(255,255,255));
-    imshow("angular",*pic);
-    */
 
     return pos;
 }
@@ -860,7 +829,6 @@ void grow_region(cv::RotatedRect* ellipse, cv::Mat* pic, int max_ellipse_radi)
                 }
         }
 
-        // if less than 25% stop
         float p_left = float(left) / float(1 + (2 * i));
         float p_right = float(right) / float(1 + (2 * i));
         float p_top = float(top) / float(1 + (2 * i));
@@ -876,42 +844,6 @@ void grow_region(cv::RotatedRect* ellipse, cv::Mat* pic, int max_ellipse_radi)
     ellipse->size.height = radi;
     ellipse->size.width = radi;
 
-    /*
-    //collect points in threashold
-    cv::Mat ch_mat=cv::Mat::zeros(pic->rows, pic->cols, CV_8UC1);
-    cv::Point2i coor;
-    std::vector<cv::Point2i> all_points;
-
-    ch_mat.data[(pic->cols*(y0))+(x0)]=1;
-    coor.x=x0;
-    coor.y=y0;
-    all_points.push_back(coor);
-
-    int all_p_idx=0;
-
-    while(all_p_idx<all_points.size()){
-        cv::Point2i ak_p=all_points.at(all_p_idx);
-        pic->data[(pic->cols*(ak_p.y))+(ak_p.x)]=255;
-
-        for(int i=-1;i<2;i++)
-            for(int j=-1;j<2;j++){
-
-                if(ak_p.y+j>0 && ak_p.y+j<pic->rows && ak_p.x+i>0 && ak_p.x+i<pic->cols)
-                if((int)ch_mat.data[(ch_mat.cols*(ak_p.y+j))+(ak_p.x+i)]==0 &&
-                    (int)pic->data[(pic->cols*(ak_p.y+j))+(ak_p.x+i)]>th_down &&
-                    (int)pic->data[(pic->cols*(ak_p.y+j))+(ak_p.x+i)]<th_up){
-
-                        coor.x=ak_p.x+i;
-                        coor.y=ak_p.y+j;
-                        ch_mat.data[(pic->cols*(ak_p.y+j))+(ak_p.x+i)]=1;
-                        all_points.push_back(coor);
-                }
-            }
-        all_p_idx++;
-
-        //std::cout<<all_points.size()<<":"<<all_p_idx<<std::endl;
-    }
-    */
 }
 
 bool is_good_ellipse(cv::RotatedRect* ellipse, cv::Mat* pic, int good_ellipse_threshold, int max_ellipse_radi)
@@ -960,43 +892,35 @@ void rays(cv::Mat* th_edges, int end_x, int end_y, cv::Point* pos, int* ret)
                 if ((int)th_edges->data[(th_edges->cols * (pos->y)) + (pos->x + i)] != 0 && ret[0] == -1)
                 {
                     ret[0] = th_edges->data[(th_edges->cols * (pos->y)) + (pos->x + i)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x+i<<" y:"<<pos->y<<std::endl;
                 }
                 if ((int)th_edges->data[(th_edges->cols * (pos->y)) + (pos->x - i)] != 0 && ret[1] == -1)
                 {
                     ret[1] = th_edges->data[(th_edges->cols * (pos->y)) + (pos->x - i)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x-i<<" y:"<<pos->y<<std::endl;
                 }
                 if ((int)th_edges->data[(th_edges->cols * (pos->y + j)) + (pos->x)] != 0 && ret[2] == -1)
                 {
                     ret[2] = th_edges->data[(th_edges->cols * (pos->y + j)) + (pos->x)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x<<" y:"<<pos->y+j<<std::endl;
                 }
                 if ((int)th_edges->data[(th_edges->cols * (pos->y - j)) + (pos->x)] != 0 && ret[3] == -1)
                 {
                     ret[3] = th_edges->data[(th_edges->cols * (pos->y - j)) + (pos->x)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x<<" y:"<<pos->y-j<<std::endl;
                 }
 
                 if ((int)th_edges->data[(th_edges->cols * (pos->y + j)) + (pos->x + i)] != 0 && ret[4] == -1 && i == j)
                 {
                     ret[4] = th_edges->data[(th_edges->cols * (pos->y + j)) + (pos->x + i)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x+i<<" y:"<<pos->y+j<<std::endl;
                 }
                 if ((int)th_edges->data[(th_edges->cols * (pos->y - j)) + (pos->x - i)] != 0 && ret[5] == -1 && i == j)
                 {
                     ret[5] = th_edges->data[(th_edges->cols * (pos->y - j)) + (pos->x - i)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x-i<<" y:"<<pos->y-j<<std::endl;
                 }
                 if ((int)th_edges->data[(th_edges->cols * (pos->y - j)) + (pos->x + i)] != 0 && ret[6] == -1 && i == j)
                 {
                     ret[6] = th_edges->data[(th_edges->cols * (pos->y - j)) + (pos->x + i)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x+i<<" y:"<<pos->y-j<<std::endl;
                 }
                 if ((int)th_edges->data[(th_edges->cols * (pos->y + j)) + (pos->x - i)] != 0 && ret[7] == -1 && i == j)
                 {
                     ret[7] = th_edges->data[(th_edges->cols * (pos->y + j)) + (pos->x - i)] - 1;
-                    // std::cout<<"val:"<<ret[0]<<" x:"<<pos->x-i<<" y:"<<pos->y+j<<std::endl;
                 }
             }
         }
@@ -1031,7 +955,6 @@ void zero_around_region_th_border(cv::Mat* pic,
 
     th = th + th + 1;
 
-    // std::cout<<"sx:"<<start_x<<" sy:"<<start_y<<" ex:"<<end_x<<" ey:"<<end_y<<" dist:"<<edge_to_th<<std::endl;
     for (int i = start_x; i < end_x; i++)
         for (int j = start_y; j < end_y; j++)
         {
@@ -1051,17 +974,10 @@ void zero_around_region_th_border(cv::Mat* pic,
     std::vector<std::vector<cv::Point>> all_curves =
         get_curves(pic, th_edges, start_x, end_x, start_y, end_y, mean_dist, 0);
 
-    // std::cout<<"all curves:"<<all_curves.size()<<std::endl;
 
     if (all_curves.size() > 0)
     {
         // zero th_edges
-        /*
-    for(int i=start_x-edge_to_th; i<end_x+edge_to_th; i++)
-        for(int j=start_y-edge_to_th; j<end_y+edge_to_th; j++){
-            th_edges->data[(th_edges->cols*(j))+(i)]=0;
-        }
-        */
 
         for (int i = 0; i < th_edges->cols; i++)
             for (int j = 0; j < th_edges->rows; j++)
@@ -1072,7 +988,6 @@ void zero_around_region_th_border(cv::Mat* pic,
         // draw remaining edges
         for (int i = 0; i < all_curves.size(); i++)
         {
-            // std::cout<<"written:"<<i+1<<std::endl;
             for (int j = 0; j < all_curves[i].size(); j++)
             {
                 if (all_curves[i][j].x >= 0 && all_curves[i][j].x < th_edges->cols && all_curves[i][j].y >= 0 &&
@@ -1088,16 +1003,11 @@ void zero_around_region_th_border(cv::Mat* pic,
         // send rays add edges to vector
         rays(th_edges, (end_x - start_x) / 2, (end_y - start_y) / 2, &st_pos, ret);
 
-        // for(int i=0; i<8; i++) std::cout<<"ret:"<<ret[i]<<std::endl;
-        // cv::imshow("akt", *th_edges);
-        // cv::waitKey(0);
 
         // gather points
         for (int i = 0; i < 8; i++)
             if (ret[i] > -1 && ret[i] < all_curves.size())
             {
-                // std::cout<<"size:"<<all_curves.size()<<std::endl;
-                // std::cout<<"idx:"<<ret[i]<<std::endl;
                 for (int j = 0; j < all_curves[ret[i]].size(); j++)
                 {
                     selected_points.push_back(all_curves[ret[i]][j]);
@@ -1108,18 +1018,9 @@ void zero_around_region_th_border(cv::Mat* pic,
         if (selected_points.size() > 5)
         {
             *pos = cv::fitEllipse(cv::Mat(selected_points));
-            /*
-            cv::ellipse(*pic, cv::RotatedRect(ellipse.operator CvBox2D()),CV_RGB(255,255,255));
-            cv::imshow("akt", *pic);
-            */
         }
     }
 
-    /*
-    std::cout<<pos->x<<";"<<pos->y<<std::endl;
-    cv::ellipse(*pic, cv::RotatedRect(*pos, cv::Size2f(5,5),0), CV_RGB(255,255,255));
-    imshow("opt",*pic);
-    */
 }
 
 void optimize_pos(cv::Mat* pic, double area, cv::Point* pos)
@@ -1220,9 +1121,6 @@ runexcuse(cv::Mat* pic, cv::Mat* pic_th, cv::Mat* th_edges, int good_ellipse_thr
     bool peek_found = false;
     int threshold_up = 0;
 
-    // cv::Mat pic=rgb2gray(m); //m is input pointer to mat
-    // cv::normalize(*m, *m, 0, 255, cv::NORM_MINMAX, CV_8U);
-    // cv::Mat pic;
     // cvtColor(*m, pic, CV_RGB2GRAY);
 
     peek_found = peek(pic, &stddev, start_x, end_x, start_y, end_y, peek_detector_factor, bright_region_th);
@@ -1237,8 +1135,6 @@ runexcuse(cv::Mat* pic, cv::Mat* pic_th, cv::Mat* th_edges, int good_ellipse_thr
             picpic.data[(picpic.cols * j) + i] = pic->data[(pic->cols * (start_y + j)) + (start_x + i)];
         }
 
-    // cv::Mat detected_edges2;
-    // cv::GaussianBlur(picpic,detected_edges2, cv::Size(15,15),sqrt(2.0));
     // Canny( detected_edges2, detected_edges2, stddev*0.4, stddev, 3 );
     const int non_edge_pixel_count = static_cast<int>(0.7 * picpic.cols * picpic.rows);
     cv::Mat detected_edges2 = cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64);
@@ -1302,7 +1198,6 @@ runexcuse(cv::Mat* pic, cv::Mat* pic_th, cv::Mat* th_edges, int good_ellipse_thr
             pic, &detected_edges, th_edges, threshold_up, edge_to_th, mean_dist, area_edges, &ellipse);
     }
 
-    // if(ellipse.size.height>0 && ellipse.size.width>0.0){
 
     if (is_good_ellipse(&ellipse, pic, good_ellipse_threshold, max_ellipse_radi))
         return ellipse;
@@ -1317,21 +1212,8 @@ runexcuse(cv::Mat* pic, cv::Mat* pic_th, cv::Mat* th_edges, int good_ellipse_thr
         return ellipse;
     }
 
-    //}
 
     return ellipse;
-    /*
-    if(is_possible_pupil(pic, ellipse))
-        return ellipse;
-    else{
-        ellipse.center.x=0;
-        ellipse.center.y=0;
-        ellipse.angle=0.0;
-        ellipse.size.height=0.0;
-        ellipse.size.width=0.0;
-        return ellipse;
-    }
-    */
 }
 
 } // namespace

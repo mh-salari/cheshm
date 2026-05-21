@@ -736,7 +736,6 @@ bool findPupilEllipse(const TrackerParams& params, const cv::Mat& m, findPupilEl
                             }
                         }
                     }
-                    // std::cout << "Ransac end" << std::endl;
                 }
             };
 

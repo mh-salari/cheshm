@@ -149,9 +149,8 @@ std::vector<std::vector<Point>> get_curves(Mat* pic,
     all_means.clear();
     all_lines.clear();
 
-    // 640x640 visited-pixel mask. The original placed this on the
-    // stack (~400KB); moving it to the heap avoids the stack-pressure
-    // risk. Indexing stays 2D via the x*IMG_SIZE + y layout.
+    // Visited-pixel mask sized to the IMG_SIZE × IMG_SIZE working frame;
+    // indexed as x * IMG_SIZE + y.
     std::vector<std::uint8_t> check(static_cast<std::size_t>(IMG_SIZE) * IMG_SIZE, 0);
 
     // get all lines

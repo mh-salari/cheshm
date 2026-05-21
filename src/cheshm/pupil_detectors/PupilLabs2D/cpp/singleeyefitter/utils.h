@@ -58,12 +58,6 @@ inline cv::RotatedRect toRotatedRect(const Ellipse2D<Scalar>& ellipse)
 template <typename Scalar>
 inline Ellipse2D<Scalar> toEllipse(const cv::RotatedRect& rect)
 {
-    // Scalar major = rect.size.height;
-    // Scalar minor = rect.size.width;
-    // if(major < minor ){
-    //     std::cout << "Flip major minor !!" << std::endl;
-    //     std::swap(major,minor);
-    // }
     return Ellipse2D<Scalar>(toEigen<Scalar>(rect.center),
                              static_cast<Scalar>(rect.size.height / 2.0),
                              static_cast<Scalar>(rect.size.width / 2.0),
