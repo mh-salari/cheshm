@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "cheshm/edge_hysteresis.hpp"
+#include "cheshm/edges/edge_hysteresis.hpp"
 
 #include <cmath>
 #include <opencv2/core.hpp>

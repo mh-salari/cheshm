@@ -2,9 +2,11 @@
 
 #include "ElSe/else.hpp"
 
-#include "cheshm/canny.hpp"
-#include "cheshm/canny_gaussian16.hpp"
-#include "cheshm/ellipse_intensity_gap.hpp"
+#include "cheshm/edges/canny.hpp"
+#include "cheshm/edges/canny_gaussian16.hpp"
+#include "cheshm/edges/edge_filter.hpp"
+#include "cheshm/ellipses/ellipse_intensity_gap.hpp"
+#include "cheshm/image/normalise.hpp"
 
 #include "ElSe/defaults.hpp"
 
@@ -585,7 +587,7 @@ std::optional<DetectResult> detect(const cv::Mat& frame, float min_area_ratio, f
     }
 
     cv::Mat pic;
-    cv::normalize(downscaled, pic, 0, 255, cv::NORM_MINMAX, CV_8U);
+    cheshm::normalise_to_u8(downscaled, pic);
 
     const float min_area = downscaled.cols * downscaled.rows * min_area_ratio;
     const float max_area = downscaled.cols * downscaled.rows * max_area_ratio;

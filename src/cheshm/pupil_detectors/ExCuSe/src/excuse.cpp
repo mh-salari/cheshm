@@ -2,10 +2,12 @@
 
 #include "ExCuSe/excuse.hpp"
 
-#include "cheshm/canny_gaussian16.hpp"
-#include "cheshm/ellipse_intensity_gap.hpp"
+#include "cheshm/edges/canny_gaussian16.hpp"
+#include "cheshm/ellipses/ellipse_intensity_gap.hpp"
+#include "cheshm/image/normalise.hpp"
 
 #include "ExCuSe/defaults.hpp"
+#include "ExCuSe/label_order.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -362,25 +364,8 @@ std::vector<std::vector<cv::Point>> get_curves(const cv::Mat& pic,
         }
     }
 
-    // Sort labels by their column-major seed (smallest x, ties on smallest y);
-    // the per-curve loop's tie-break is iteration-order-sensitive.
-    std::vector<int> order;
-    order.reserve(n_labels > 1 ? n_labels - 1 : 0);
-    for (int label = 1; label < n_labels; ++label)
-        if (!components[label].empty())
-            order.push_back(label);
-    std::sort(order.begin(), order.end(), [&](int a, int b) {
-        auto seed = [](const std::vector<cv::Point>& c) {
-            cv::Point s = c[0];
-            for (const auto& p : c)
-                if (p.x < s.x || (p.x == s.x && p.y < s.y))
-                    s = p;
-            return s;
-        };
-        const cv::Point sa = seed(components[a]);
-        const cv::Point sb = seed(components[b]);
-        return sa.x < sb.x || (sa.x == sb.x && sa.y < sb.y);
-    });
+    // The per-curve loop's tie-break is iteration-order-sensitive.
+    const auto order = sort_labels_by_column_major_seed(components, n_labels);
 
     std::vector<std::vector<cv::Point>> all_curves;
     int mean_inner_gray_last = 1000000;
@@ -1047,7 +1032,7 @@ runexcuse(cv::Mat& pic, cv::Mat& pic_th, cv::Mat& th_edges, int good_ellipse_thr
 {
     // mean under mean
     // mean_under_mean(pic, 5);
-    cv::normalize(pic, pic, 0, 255, cv::NORM_MINMAX, CV_8U);
+    cheshm::normalise_to_u8(pic, pic);
 
     double border = 0.1;
     int peek_detector_factor = 10;
@@ -1163,7 +1148,7 @@ findPupilEllipse(const cv::Mat& frame, int max_ellipse_radi, int good_ellipse_th
     }
 
     cv::Mat target;
-    cv::normalize(downscaled, target, 0, 255, cv::NORM_MINMAX, CV_8U);
+    cheshm::normalise_to_u8(downscaled, target);
 
     cv::Mat pic_th = cv::Mat::zeros(target.rows, target.cols, CV_8U);
     cv::Mat th_edges = cv::Mat::zeros(target.rows, target.cols, CV_8U);

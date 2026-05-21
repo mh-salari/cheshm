@@ -1,6 +1,6 @@
 // PupilLabs2D pupil detector — Python binding.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "PupilLabs2D/defaults.hpp"
 #include "PupilLabs2D/pupil_labs_2d.hpp"

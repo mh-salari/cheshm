@@ -1,6 +1,6 @@
 // Starburst pupil detector — Python binding.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "Starburst/corneal_reflection.hpp"
 #include "Starburst/defaults.hpp"

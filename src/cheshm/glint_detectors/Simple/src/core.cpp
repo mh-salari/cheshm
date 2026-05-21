@@ -2,9 +2,9 @@
 // ROI / half-plane filtering → shape-quality walk → optional
 // widest-blob split → centre per glint.
 
-#include "cheshm/roi.hpp"
-#include "cheshm/shape_quality.hpp"
-#include "cheshm/spline.hpp"
+#include "cheshm/image/roi.hpp"
+#include "cheshm/shape/shape_quality.hpp"
+#include "cheshm/shape/spline.hpp"
 
 #include "Simple/defaults.hpp"
 

@@ -2,9 +2,9 @@
 // filter → shape-quality walk → convex-hull-ellipse fit → centre via
 // the requested method.
 
-#include "cheshm/roi.hpp"
-#include "cheshm/shape_quality.hpp"
-#include "cheshm/spline.hpp"
+#include "cheshm/image/roi.hpp"
+#include "cheshm/shape/shape_quality.hpp"
+#include "cheshm/shape/spline.hpp"
 
 #include "Simple/defaults.hpp"
 

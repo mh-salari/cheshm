@@ -1,6 +1,6 @@
 // PuRe pupil detector — Python binding.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "PuRe/defaults.hpp"
 #include "PuRe/pure.hpp"

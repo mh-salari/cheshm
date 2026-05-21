@@ -10,7 +10,7 @@
 //
 // Returned coordinates are in full-image (not crop-local) space.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "ElSe/defaults.hpp"
 #include "ElSe/else.hpp"

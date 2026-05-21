@@ -1,6 +1,6 @@
 // Swirski 2D pupil detector — Python binding.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "Swirski2D/defaults.hpp"
 #include "Swirski2D/pupil_tracker.hpp"

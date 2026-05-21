@@ -2,10 +2,11 @@
 
 #include "PuReST/purest.hpp"
 
-#include "cheshm/canny.hpp"
-#include "cheshm/contour_deduplication.hpp"
-#include "cheshm/ellipse_sampling.hpp"
-#include "cheshm/outline_confidence.hpp"
+#include "cheshm/edges/canny.hpp"
+#include "cheshm/edges/edge_filter.hpp"
+#include "cheshm/ellipses/ellipse_sampling.hpp"
+#include "cheshm/ellipses/outline_confidence.hpp"
+#include "cheshm/shape/contour_deduplication.hpp"
 
 #include "PuRe/defaults.hpp"
 #include "PuRe/pure.hpp"

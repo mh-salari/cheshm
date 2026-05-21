@@ -1,6 +1,6 @@
 // ExCuSe pupil detector — Python binding.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "ExCuSe/excuse.hpp"
 

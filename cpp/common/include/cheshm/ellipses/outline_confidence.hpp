@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "cheshm/ellipse_sampling.hpp"
+#include "cheshm/ellipses/ellipse_sampling.hpp"
 
 #include <cmath>
 #include <cstdlib>

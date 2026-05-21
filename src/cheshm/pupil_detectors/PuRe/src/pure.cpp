@@ -2,10 +2,12 @@
 
 #include "PuRe/pure.hpp"
 
-#include "cheshm/canny.hpp"
-#include "cheshm/contour_deduplication.hpp"
-#include "cheshm/ellipse_sampling.hpp"
-#include "cheshm/outline_confidence.hpp"
+#include "cheshm/edges/canny.hpp"
+#include "cheshm/edges/edge_filter.hpp"
+#include "cheshm/ellipses/ellipse_sampling.hpp"
+#include "cheshm/ellipses/outline_confidence.hpp"
+#include "cheshm/image/normalise.hpp"
+#include "cheshm/shape/contour_deduplication.hpp"
 
 #include "PuRe/defaults.hpp"
 
@@ -300,7 +302,7 @@ std::optional<DetectResult> detect(const cv::Mat& frame,
     cv::resize(frame, downscaled, cv::Size(), scalingRatio, scalingRatio, cv::INTER_LINEAR);
 
     cv::Mat input;
-    cv::normalize(downscaled, input, 0, 255, cv::NORM_MINMAX, CV_8U);
+    cheshm::normalise_to_u8(downscaled, input);
 
     const cv::Size workingSize{static_cast<int>(std::floor(scalingRatio * frame.cols)),
                                static_cast<int>(std::floor(scalingRatio * frame.rows))};

@@ -1,6 +1,6 @@
 // PuReST tracker — Python binding.
 
-#include "cheshm/roi.hpp"
+#include "cheshm/image/roi.hpp"
 
 #include "PuRe/defaults.hpp"
 #include "PuReST/defaults.hpp"
