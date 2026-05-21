@@ -18,7 +18,6 @@ See COPYING and COPYING.LESSER for license details.
 #include "singleeyefitter/fun.h"
 #include "singleeyefitter/mathHelper.h"
 #include "singleeyefitter/utils.h"
-#include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
