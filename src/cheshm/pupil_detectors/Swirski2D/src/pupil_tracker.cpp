@@ -239,7 +239,7 @@ bool findPupilEllipse(const TrackerParams& params, const cv::Mat& m, findPupilEl
         }
     }
     // Paradoxically, a good Haar fit won't catch the entire pupil, so expand it a bit
-    haarRadius = (int)(haarRadius * SQRT_2);
+    haarRadius = static_cast<int>(haarRadius * SQRT_2);
 
     // ---------------------------
     // Pupil ROI around Haar point
