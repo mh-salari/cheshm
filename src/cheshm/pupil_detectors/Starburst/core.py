@@ -10,7 +10,6 @@ seed is either supplied by the caller or auto-derived from the image
 centroid of pixels below a threshold (a rough dark-blob centre).
 """
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import PupilResult
@@ -71,33 +70,6 @@ _OVERLAYS = (
 )
 
 
-def _touches_border(contour: np.ndarray, shape: tuple[int, ...]) -> bool:
-    h, w = shape[:2]
-    x, y, cw, ch = cv2.boundingRect(contour)
-    return x == 0 or y == 0 or x + cw == w or y + ch == h
-
-
-def _auto_seed(img: np.ndarray, seed_threshold: int) -> tuple[float, float]:
-    """Initial pupil-seed centre: centroid of the largest interior dark blob.
-
-    Thresholds the image at ``seed_threshold``, drops contours that
-    touch the image border (eyelashes and frame vignette), and takes
-    the largest remaining contour's moments centroid. Falls back to
-    the image centre when no candidate is found.
-    """
-    h, w = img.shape
-    _, mask = cv2.threshold(img, seed_threshold, 255, cv2.THRESH_BINARY_INV)
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    interior = [c for c in contours if cv2.contourArea(c) > 0 and not _touches_border(c, img.shape)]
-    if not interior:
-        return (w / 2.0, h / 2.0)
-    largest = max(interior, key=cv2.contourArea)
-    m = cv2.moments(largest)
-    if m["m00"] <= 0:
-        return (w / 2.0, h / 2.0)
-    return (m["m10"] / m["m00"], m["m01"] / m["m00"])
-
-
 def detect_pupil(
     img: np.ndarray,
     pupil_center: tuple[float, float] | None = None,
@@ -132,10 +104,9 @@ def detect_pupil(
     glints).
     """
 
-    if pupil_center is None:
-        seed_x, seed_y = _auto_seed(img, seed_threshold)
-    else:
-        seed_x, seed_y = float(pupil_center[0]), float(pupil_center[1])
+    use_auto_seed = pupil_center is None
+    seed_x = 0.0 if use_auto_seed else float(pupil_center[0])
+    seed_y = 0.0 if use_auto_seed else float(pupil_center[1])
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0
@@ -143,11 +114,13 @@ def detect_pupil(
         roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
     result = _core.detect(
-        img,
+        np.ascontiguousarray(img, dtype=np.uint8),
         roi_x,
         roi_y,
         roi_w,
         roi_h,
+        use_auto_seed,
+        int(seed_threshold),
         seed_x,
         seed_y,
         edge_threshold,

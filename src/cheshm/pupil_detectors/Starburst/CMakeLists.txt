@@ -1,8 +1,9 @@
 nanobind_add_module(Starburst_core_nb
   STABLE_ABI
   NB_STATIC
-  src/core.cpp
+  src/auto_seed.cpp
   src/contour_detection.cpp
+  src/core.cpp
   src/corneal_reflection.cpp
   src/ransac_ellipse.cpp
 )

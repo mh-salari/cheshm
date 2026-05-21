@@ -2,6 +2,7 @@
 
 #include "cheshm/image/roi.hpp"
 
+#include "Starburst/auto_seed.hpp"
 #include "Starburst/corneal_reflection.hpp"
 #include "Starburst/defaults.hpp"
 #include "Starburst/ransac_ellipse.hpp"
@@ -35,6 +36,8 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>
                   int roi_y,
                   int roi_w,
                   int roi_h,
+                  bool use_auto_seed,
+                  int seed_threshold,
                   double seed_x,
                   double seed_y,
                   int edge_threshold,
@@ -71,6 +74,13 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>
     cv::Mat working_mat = full(crop).clone();
     const int local_w = working_mat.cols;
     const int local_h = working_mat.rows;
+
+    if (use_auto_seed)
+    {
+        const cv::Point2d s = auto_seed(working_mat, seed_threshold);
+        seed_x = s.x + crop.x;
+        seed_y = s.y + crop.y;
+    }
     const double local_seed_x = seed_x - crop.x;
     const double local_seed_y = seed_y - crop.y;
 
@@ -147,6 +157,8 @@ NB_MODULE(_core, m)
           "roi_y"_a,
           "roi_w"_a,
           "roi_h"_a,
+          "use_auto_seed"_a,
+          "seed_threshold"_a,
           "seed_x"_a,
           "seed_y"_a,
           "edge_threshold"_a,
