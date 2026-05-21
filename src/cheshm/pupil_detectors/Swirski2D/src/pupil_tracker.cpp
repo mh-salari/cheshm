@@ -495,19 +495,11 @@ bool findPupilEllipse(const TrackerParams& params, const cv::Mat& m, findPupilEl
     }
     else
     {
-        {
-            for (int y = 0; y < mPupilEdges.rows; y++)
-            {
-                uchar* val = mPupilEdges[y];
-                for (int x = 0; x < mPupilEdges.cols; x++, val++)
-                {
-                    if (*val == 0)
-                        continue;
-
-                    edgePoints.push_back(cv::Point2f(x + 0.5f, y + 0.5f));
-                }
-            }
-        }
+        std::vector<cv::Point> nz;
+        cv::findNonZero(mPupilEdges, nz);
+        edgePoints.reserve(nz.size());
+        for (const auto& p : nz)
+            edgePoints.emplace_back(p.x + 0.5f, p.y + 0.5f);
     }
 
 
