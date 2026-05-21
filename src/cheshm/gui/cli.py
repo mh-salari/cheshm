@@ -10,15 +10,21 @@ def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``cheshm-gui`` script."""
     parser = argparse.ArgumentParser(
         prog="cheshm-gui",
-        description="Interactive workbench for tuning cheshm detectors on a directory of eye images.",
+        description="Interactive workbench for tuning cheshm detectors on eye images.",
     )
     parser.add_argument(
-        "dir",
+        "paths",
         type=Path,
-        nargs="?",
-        default=None,
-        help="Optional directory of eye images (PNG / JPG / TIFF / BMP). "
-        "If omitted, open a folder or add files from the GUI.",
+        nargs="*",
+        help="Either a directory of eye images, a single image, or multiple "
+        "image paths. If omitted, open a folder or add files from the GUI.",
     )
     args = parser.parse_args(argv)
-    run(args.dir)
+    paths: list[Path] = args.paths
+
+    if not paths:
+        run(None)
+    elif len(paths) == 1:
+        run(paths[0])
+    else:
+        run(paths)

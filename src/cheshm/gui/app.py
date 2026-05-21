@@ -80,12 +80,19 @@ def _initial_overlay_state(detectors: list[Detector]) -> tuple[dict, dict, dict,
 class _State:
     """Application state mutated by widget callbacks."""
 
-    def __init__(self, img_dir: Path | None = None) -> None:
-        self.img_dir: Path | None = img_dir
-        if img_dir is not None:
-            self.images: list[Path] = sorted(p for p in img_dir.iterdir() if p.suffix.lower() in _IMAGE_EXTS)
+    def __init__(self, source: Path | list[Path] | None = None) -> None:
+        if source is None:
+            self.img_dir: Path | None = None
+            self.images: list[Path] = []
+        elif isinstance(source, list):
+            self.img_dir = None
+            self.images = sorted(source)
+        elif source.is_dir():
+            self.img_dir = source
+            self.images = sorted(p for p in source.iterdir() if p.suffix.lower() in _IMAGE_EXTS)
         else:
-            self.images = []
+            self.img_dir = None
+            self.images = [source]
         self.idx = 0
         self.zoom = 1.0
         self.brightness = 0
@@ -703,9 +710,18 @@ def _placeholder_canvas(w: int, h: int) -> np.ndarray:
     return np.full((h, w, 3), 60, dtype=np.uint8)
 
 
-def run(img_dir: str | Path | None = None) -> None:
-    """Launch the cheshm GUI on ``img_dir`` (or an empty workbench when ``None``)."""
-    state = _State(Path(img_dir).expanduser().resolve()) if img_dir is not None else _State(None)
+def run(source: str | Path | list[str | Path] | None = None) -> None:
+    """Launch the cheshm GUI.
+
+    ``source`` may be a directory, a single image path, a list of image
+    paths, or ``None`` to open an empty workbench.
+    """
+    if source is None:
+        state = _State(None)
+    elif isinstance(source, list):
+        state = _State([Path(p).expanduser().resolve() for p in source])
+    else:
+        state = _State(Path(source).expanduser().resolve())
 
     if state.images:
         first = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
