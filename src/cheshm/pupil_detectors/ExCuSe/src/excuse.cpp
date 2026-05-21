@@ -335,9 +335,6 @@ std::vector<std::vector<cv::Point>> get_curves(const cv::Mat& pic,
                                                double mean_dist,
                                                int inner_color_range)
 {
-    std::vector<std::vector<cv::Point>> all_curves;
-    std::vector<cv::Point> curve;
-
     if (start_x < 2)
         start_x = 2;
     if (start_y < 2)
@@ -347,181 +344,141 @@ std::vector<std::vector<cv::Point>> get_curves(const cv::Mat& pic,
     if (end_y > pic.rows - 2)
         end_y = pic.rows - 2;
 
-    int curve_idx = 0;
-    cv::Point mean_p;
-    bool add_curve;
-    int mean_inner_gray;
+    const cv::Rect walk_roi(start_x, start_y, end_x - start_x, end_y - start_y);
+    cv::Mat labels;
+    const int n_labels = cv::connectedComponents(edge(walk_roi), labels, 8, CV_32S);
+
+    // Bucket every foreground pixel under its component label, in row-major
+    // scan order. Component 0 is the background and is skipped.
+    std::vector<std::vector<cv::Point>> components(n_labels > 0 ? n_labels : 0);
+    for (int j = 0; j < labels.rows; ++j)
+    {
+        const int32_t* row = labels.ptr<int32_t>(j);
+        for (int i = 0; i < labels.cols; ++i)
+        {
+            const int label = row[i];
+            if (label != 0)
+                components[label].emplace_back(i + start_x, j + start_y);
+        }
+    }
+
+    // Sort labels by their column-major seed (smallest x, ties on smallest y);
+    // the per-curve loop's tie-break is iteration-order-sensitive.
+    std::vector<int> order;
+    order.reserve(n_labels > 1 ? n_labels - 1 : 0);
+    for (int label = 1; label < n_labels; ++label)
+        if (!components[label].empty())
+            order.push_back(label);
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+        auto seed = [](const std::vector<cv::Point>& c) {
+            cv::Point s = c[0];
+            for (const auto& p : c)
+                if (p.x < s.x || (p.x == s.x && p.y < s.y))
+                    s = p;
+            return s;
+        };
+        const cv::Point sa = seed(components[a]);
+        const cv::Point sb = seed(components[b]);
+        return sa.x < sb.x || (sa.x == sb.x && sa.y < sb.y);
+    });
+
+    std::vector<std::vector<cv::Point>> all_curves;
     int mean_inner_gray_last = 1000000;
 
-    // curve.reserve(1000);
-    // all_curves.reserve(1000);
+    for (int label : order)
+    {
+        std::vector<cv::Point>& curve = components[label];
 
-    all_curves.clear();
-
-    bool check[IMG_SIZE][IMG_SIZE];
-
-    for (int i = 0; i < IMG_SIZE; i++)
-        for (int j = 0; j < IMG_SIZE; j++)
-            check[i][j] = 0;
-
-    for (int i = start_x; i < end_x; i++)
-        for (int j = start_y; j < end_y; j++)
+        long long sx = 0, sy = 0;
+        for (const auto& p : curve)
         {
-            if (edge.data[(edge.cols * (j)) + (i)] == 255 && !check[i][j])
-            {
-                check[i][j] = 1;
+            sx += p.x;
+            sy += p.y;
+        }
+        const auto n = static_cast<double>(curve.size());
+        cv::Point mean_p(static_cast<int>(std::floor(sx / n + 0.5)), static_cast<int>(std::floor(sy / n + 0.5)));
 
-                curve.clear();
-                curve_idx = 0;
+        bool add_curve = true;
+        for (const auto& p : curve)
+            if (std::abs(mean_p.x - p.x) <= mean_dist && std::abs(mean_p.y - p.y) <= mean_dist)
+                add_curve = false;
 
-                curve.push_back(cv::Point(i, j));
-                mean_p.x = i;
-                mean_p.y = j;
-                curve_idx++;
-
-                int akt_idx = 0;
-
-                while (akt_idx < curve_idx)
-                {
-                    cv::Point akt_pos = curve[akt_idx];
-                    for (int k1 = -1; k1 < 2; k1++)
-                        for (int k2 = -1; k2 < 2; k2++)
-                        {
-                            if (akt_pos.x + k1 >= start_x && akt_pos.x + k1 < end_x && akt_pos.y + k2 >= start_y &&
-                                akt_pos.y + k2 < end_y)
-                                if (!check[akt_pos.x + k1][akt_pos.y + k2])
-                                    if (edge.data[(edge.cols * (akt_pos.y + k2)) + (akt_pos.x + k1)] == 255)
-                                    {
-                                        check[akt_pos.x + k1][akt_pos.y + k2] = 1;
-
-                                        mean_p.x += akt_pos.x + k1;
-                                        mean_p.y += akt_pos.y + k2;
-                                        curve.push_back(cv::Point(akt_pos.x + k1, akt_pos.y + k2));
-                                        curve_idx++;
-                                    }
-                        }
-                    akt_idx++;
-                }
-
-                if (curve_idx > 0 && curve.size() > 0)
-                {
-                    add_curve = true;
-                    mean_p.x = floor((double(mean_p.x) / double(curve_idx)) + 0.5);
-                    mean_p.y = floor((double(mean_p.y) / double(curve_idx)) + 0.5);
-
-                    for (int i = 0; i < curve.size(); i++)
-                        if (abs(mean_p.x - curve[i].x) <= mean_dist && abs(mean_p.y - curve[i].y) <= mean_dist)
-                            add_curve = false;
-
-                    // is ellipse fit possible
-                    if (add_curve)
-                    {
-                        cv::RotatedRect ellipse = cv::fitEllipse(cv::Mat(curve));
-
-                        if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic.cols ||
-                            ellipse.center.y > pic.rows)
-                        {
-                            add_curve = false;
-                        }
-
-                        if (ellipse.size.height > 2.0 * ellipse.size.width ||
-                            ellipse.size.width > 2.0 * ellipse.size.height)
-                        {
-                            add_curve = false;
-                        }
-                    }
-
-                    if (add_curve)
-                    {
-                        if (inner_color_range > 0)
-                        {
-                            mean_inner_gray = 0;
-
-                            // calc inner mean
-                            for (int i = 0; i < curve.size(); i++)
-                            {
-                                if (pic.data[(pic.cols * (curve[i].y + 1)) + (curve[i].x)] != 0 ||
-                                    pic.data[(pic.cols * (curve[i].y - 1)) + (curve[i].x)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y), 2) +
-                                             pow(double(curve[i].x - mean_p.x) + 2, 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y), 2) +
-                                             pow(double(curve[i].x - mean_p.x) - 2, 2)))
-
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y)) + (curve[i].x + 2)]);
-                                    else
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y)) + (curve[i].x - 2)]);
-
-                                else if (pic.data[(pic.cols * (curve[i].y)) + (curve[i].x + 1)] != 0 ||
-                                         pic.data[(pic.cols * (curve[i].y)) + (curve[i].x - 1)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) +
-                                             pow(double(curve[i].x - mean_p.x), 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) +
-                                             pow(double(curve[i].x - mean_p.x), 2)))
-
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y + 2)) + (curve[i].x)]);
-                                    else
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y - 2)) + (curve[i].x)]);
-
-                                else if (pic.data[(pic.cols * (curve[i].y + 1)) + (curve[i].x + 1)] != 0 ||
-                                         pic.data[(pic.cols * (curve[i].y - 1)) + (curve[i].x - 1)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) +
-                                             pow(double(curve[i].x - mean_p.x + 2), 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) +
-                                             pow(double(curve[i].x - mean_p.x - 2), 2)))
-
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y - 2)) + (curve[i].x + 2)]);
-                                    else
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y + 2)) + (curve[i].x - 2)]);
-
-                                else if (pic.data[(pic.cols * (curve[i].y - 1)) + (curve[i].x + 1)] != 0 ||
-                                         pic.data[(pic.cols * (curve[i].y + 1)) + (curve[i].x - 1)] != 0)
-                                    if (sqrt(pow(double(curve[i].y - mean_p.y + 2), 2) +
-                                             pow(double(curve[i].x - mean_p.x + 2), 2)) <
-                                        sqrt(pow(double(curve[i].y - mean_p.y - 2), 2) +
-                                             pow(double(curve[i].x - mean_p.x - 2), 2)))
-
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y + 2)) + (curve[i].x + 2)]);
-                                    else
-                                        mean_inner_gray +=
-                                            static_cast<unsigned char>(pic.data[(pic.cols * (curve[i].y - 2)) + (curve[i].x - 2)]);
-
-                                // mean_inner_gray+=pic.data[( pic.cols*( curve[i].y+((mean_p.y-curve[i].y)/2) ) ) +
-                                // ( curve[i].x+((mean_p.x-curve[i].x)/2) )];
-                            }
-
-                            mean_inner_gray = floor((double(mean_inner_gray) / double(curve.size())) + 0.5);
-
-                            if (mean_inner_gray_last > (mean_inner_gray + inner_color_range))
-                            {
-                                mean_inner_gray_last = mean_inner_gray;
-                                all_curves.clear();
-                                all_curves.push_back(curve);
-                            }
-                            else if (mean_inner_gray_last <= (mean_inner_gray + inner_color_range) &&
-                                     mean_inner_gray_last >= (mean_inner_gray - inner_color_range))
-                            {
-                                if (curve.size() > all_curves[0].size())
-                                {
-                                    mean_inner_gray_last = mean_inner_gray;
-                                    all_curves.clear();
-                                    all_curves.push_back(curve);
-                                }
-                            }
-                        }
-                        else
-                            all_curves.push_back(curve);
-                    }
-                }
-            }
+        if (add_curve)
+        {
+            cv::RotatedRect ellipse = cv::fitEllipse(cv::Mat(curve));
+            if (ellipse.center.x < 0 || ellipse.center.y < 0 || ellipse.center.x > pic.cols ||
+                ellipse.center.y > pic.rows)
+                add_curve = false;
+            if (ellipse.size.height > 2.0 * ellipse.size.width || ellipse.size.width > 2.0 * ellipse.size.height)
+                add_curve = false;
         }
 
+        if (!add_curve)
+            continue;
+
+        if (inner_color_range <= 0)
+        {
+            all_curves.push_back(curve);
+            continue;
+        }
+
+        // For each edge pixel, decide which side of the curve is the
+        // pupil interior by probing the 4 neighbour pairs and keeping
+        // the pixel two steps farther from the curve's centroid.
+        int mean_inner_gray = 0;
+        for (const auto& q : curve)
+        {
+            const int x = q.x;
+            const int y = q.y;
+            const auto* row = pic.ptr<std::uint8_t>(y);
+            const auto* row_up = pic.ptr<std::uint8_t>(y - 1);
+            const auto* row_dn = pic.ptr<std::uint8_t>(y + 1);
+
+            if (row_dn[x] != 0 || row_up[x] != 0)
+            {
+                const double dx = x - mean_p.x;
+                mean_inner_gray += (dx + 2) * (dx + 2) < (dx - 2) * (dx - 2)
+                                       ? pic.ptr<std::uint8_t>(y)[x + 2]
+                                       : pic.ptr<std::uint8_t>(y)[x - 2];
+            }
+            else if (row[x + 1] != 0 || row[x - 1] != 0)
+            {
+                const double dy = y - mean_p.y;
+                mean_inner_gray += (dy + 2) * (dy + 2) < (dy - 2) * (dy - 2) ? pic.ptr<std::uint8_t>(y + 2)[x]
+                                                                             : pic.ptr<std::uint8_t>(y - 2)[x];
+            }
+            else if (row_dn[x + 1] != 0 || row_up[x - 1] != 0)
+            {
+                const double a = (y - mean_p.y - 2) * (y - mean_p.y - 2) + (x - mean_p.x + 2) * (x - mean_p.x + 2);
+                const double b = (y - mean_p.y + 2) * (y - mean_p.y + 2) + (x - mean_p.x - 2) * (x - mean_p.x - 2);
+                mean_inner_gray +=
+                    a < b ? pic.ptr<std::uint8_t>(y - 2)[x + 2] : pic.ptr<std::uint8_t>(y + 2)[x - 2];
+            }
+            else if (row_up[x + 1] != 0 || row_dn[x - 1] != 0)
+            {
+                const double a = (y - mean_p.y + 2) * (y - mean_p.y + 2) + (x - mean_p.x + 2) * (x - mean_p.x + 2);
+                const double b = (y - mean_p.y - 2) * (y - mean_p.y - 2) + (x - mean_p.x - 2) * (x - mean_p.x - 2);
+                mean_inner_gray +=
+                    a < b ? pic.ptr<std::uint8_t>(y + 2)[x + 2] : pic.ptr<std::uint8_t>(y - 2)[x - 2];
+            }
+        }
+        mean_inner_gray = static_cast<int>(std::floor(mean_inner_gray / n + 0.5));
+
+        if (mean_inner_gray_last > mean_inner_gray + inner_color_range)
+        {
+            mean_inner_gray_last = mean_inner_gray;
+            all_curves.clear();
+            all_curves.push_back(curve);
+        }
+        else if (mean_inner_gray_last <= mean_inner_gray + inner_color_range
+                 && mean_inner_gray_last >= mean_inner_gray - inner_color_range
+                 && curve.size() > all_curves[0].size())
+        {
+            mean_inner_gray_last = mean_inner_gray;
+            all_curves.clear();
+            all_curves.push_back(curve);
+        }
+    }
 
     return all_curves;
 }
@@ -1124,25 +1081,14 @@ runexcuse(cv::Mat& pic, cv::Mat& pic_th, cv::Mat& th_edges, int good_ellipse_thr
     threshold_up = ceil(stddev / 2);
     threshold_up--;
 
-    cv::Mat picpic = cv::Mat::zeros(end_y - start_y, end_x - start_x, CV_8U);
+    const cv::Rect inner_rect(start_x, start_y, end_x - start_x, end_y - start_y);
+    const cv::Mat picpic = pic(inner_rect);
 
-    for (int i = 0; i < picpic.cols; i++)
-        for (int j = 0; j < picpic.rows; j++)
-        {
-            picpic.data[(picpic.cols * j) + i] = pic.data[(pic.cols * (start_y + j)) + (start_x + i)];
-        }
-
-    // Canny( detected_edges2, detected_edges2, stddev*0.4, stddev, 3 );
     const int non_edge_pixel_count = static_cast<int>(0.7 * picpic.cols * picpic.rows);
-    cv::Mat detected_edges2 = cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64);
+    const cv::Mat detected_edges2 = cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64);
 
     cv::Mat detected_edges = cv::Mat::zeros(pic.rows, pic.cols, CV_8U);
-    for (int i = 0; i < detected_edges2.cols; i++)
-        for (int j = 0; j < detected_edges2.rows; j++)
-        {
-            detected_edges.data[(detected_edges.cols * (start_y + j)) + (start_x + i)] =
-                detected_edges2.data[(detected_edges2.cols * j) + i];
-        }
+    detected_edges2.copyTo(detected_edges(inner_rect));
 
     remove_points_with_low_angle(detected_edges, start_x, end_x, start_y, end_y);
 
