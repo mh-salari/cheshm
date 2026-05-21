@@ -94,7 +94,10 @@ def detect_pupil(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         float(min_pupil_diameter_mm),
         float(max_pupil_diameter_mm),
         float(canthi_distance_mm),

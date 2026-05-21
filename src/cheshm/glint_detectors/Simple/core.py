@@ -168,9 +168,14 @@ def detect_glints(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         1 if has_pupil else 0,
-        cx, cy, pr,
+        cx,
+        cy,
+        pr,
         glint_threshold,
         float(search_radius_factor),
         -1 if search_radius_max_px is None else int(search_radius_max_px),

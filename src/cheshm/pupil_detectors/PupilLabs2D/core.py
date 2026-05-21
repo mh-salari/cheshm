@@ -152,7 +152,10 @@ def detect_pupil(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         int(intensity_range),
         int(blur_size),
         float(canny_threshold),

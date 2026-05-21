@@ -216,7 +216,7 @@ def detect_limbus(
     search produced no candidate.
     """
     op = IntegroDifferentialOperator(img, r_min=r_min, r_max=r_max, c_type=c_type)
-    cx, cy = int(round(seed_center[0])), int(round(seed_center[1]))
+    cx, cy = round(seed_center[0]), round(seed_center[1])
     results = op.search(cx, cy, range_, step)
     if len(results) == 0:
         return None

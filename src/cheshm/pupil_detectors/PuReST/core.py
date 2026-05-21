@@ -87,6 +87,7 @@ class PuReST:
         canthi_distance_mm: float = _core.CANTHI_DISTANCE_MM,
         outline_bias: int = _core.OUTLINE_BIAS,
     ) -> None:
+        """Construct a tracker with PuRe's pupil-size and outline-bias defaults."""
         self._tracker = _core.Tracker(
             float(min_pupil_diameter_mm),
             float(max_pupil_diameter_mm),

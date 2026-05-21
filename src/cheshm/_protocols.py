@@ -16,9 +16,10 @@ permits extras by default.
 
 from __future__ import annotations
 
-from typing import NotRequired, Protocol, TypedDict
+from typing import TYPE_CHECKING, NotRequired, Protocol, TypedDict
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 Ellipse = tuple[tuple[float, float], tuple[float, float], float]
 """``((cx, cy), (w, h), angle_deg)`` — ``cv::RotatedRect`` convention."""

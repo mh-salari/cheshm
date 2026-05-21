@@ -83,7 +83,10 @@ def detect_pupil(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         float(min_area_ratio),
         float(max_area_ratio),
     )

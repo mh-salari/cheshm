@@ -147,8 +147,12 @@ def detect_pupil(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
-        seed_x, seed_y,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
+        seed_x,
+        seed_y,
         edge_threshold,
         rays,
         min_feature_candidates,

@@ -16,7 +16,10 @@ import inspect
 import pkgutil
 import types
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Union, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Any, Literal, Union, get_args, get_origin, get_type_hints
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Each top-level category: parent package + the conventional detect
 # function name to look for inside each leaf module.
@@ -69,7 +72,7 @@ def _auto_label(name: str) -> str:
     return label[:1].upper() + label[1:] if label else label
 
 
-def _is_optional(annotation: Any) -> tuple[bool, Any]:
+def _is_optional(annotation: object) -> tuple[bool, object]:
     """Detect ``X | None`` / ``Optional[X]`` and return ``(True, X)``; else ``(False, None)``."""
     origin = get_origin(annotation)
     if origin is Union or origin is types.UnionType:
@@ -80,7 +83,7 @@ def _is_optional(annotation: Any) -> tuple[bool, Any]:
     return False, None
 
 
-def _infer_type_and_choices(annotation: Any, ui_meta: dict) -> tuple[str, list[str]]:
+def _infer_type_and_choices(annotation: object, ui_meta: dict) -> tuple[str, list[str]]:
     """Map a parameter's annotation to a UI type tag (+ choices list for ``choice``)."""
     if ui_meta.get("widget") == "roi":
         return "roi", []
@@ -109,7 +112,7 @@ def _infer_type_and_choices(annotation: Any, ui_meta: dict) -> tuple[str, list[s
     return "any", []
 
 
-def _build_setting(name: str, param: inspect.Parameter, annotation: Any, ui_meta: dict) -> Setting:
+def _build_setting(name: str, param: inspect.Parameter, annotation: object, ui_meta: dict) -> Setting:
     ttype, choices = _infer_type_and_choices(annotation, ui_meta)
     return Setting(
         name=name,
@@ -120,7 +123,7 @@ def _build_setting(name: str, param: inspect.Parameter, annotation: Any, ui_meta
         choices=choices,
         min=ui_meta.get("min"),
         max=ui_meta.get("max"),
-        hidden=bool(ui_meta.get("hidden", False)),
+        hidden=bool(ui_meta.get("hidden")),
     )
 
 

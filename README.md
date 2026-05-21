@@ -32,14 +32,14 @@ Cheshm's framework code is MIT-licensed (see [`LICENSE`](LICENSE)). Each detecto
 Each detector is imported explicitly — the licence of the detectors you import is the licence that governs your use. `pip install cheshm` installs all of them, but only the ones you `import` are loaded into your process:
 
 ```python
-from cheshm.pupil_detectors.Simple import detect_pupil       # MIT
-from cheshm.pupil_detectors.Starburst import detect_pupil    # GPL
-from cheshm.pupil_detectors.ExCuSe import detect_pupil       # non-commercial
-from cheshm.pupil_detectors.ElSe import detect_pupil         # non-commercial
-from cheshm.pupil_detectors.PuRe import detect_pupil         # non-commercial
-from cheshm.pupil_detectors.PuReST import PuReST             # non-commercial (stateful tracker)
+from cheshm.pupil_detectors.Simple import detect_pupil  # MIT
+from cheshm.pupil_detectors.Starburst import detect_pupil  # GPL
+from cheshm.pupil_detectors.ExCuSe import detect_pupil  # non-commercial
+from cheshm.pupil_detectors.ElSe import detect_pupil  # non-commercial
+from cheshm.pupil_detectors.PuRe import detect_pupil  # non-commercial
+from cheshm.pupil_detectors.PuReST import PuReST  # non-commercial (stateful tracker)
 from cheshm.pupil_detectors.PupilLabs2D import detect_pupil  # LGPL-3.0
-from cheshm.glint_detectors.Simple import detect_glints      # MIT
+from cheshm.glint_detectors.Simple import detect_glints  # MIT
 from cheshm.limbus_detectors.daugman.integro_differential import detect_limbus  # MIT
 ```
 

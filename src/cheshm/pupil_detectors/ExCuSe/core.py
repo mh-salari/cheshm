@@ -73,7 +73,10 @@ def detect_pupil(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         max_ellipse_radi,
         good_ellipse_threshold,
     )

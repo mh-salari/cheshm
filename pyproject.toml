@@ -204,8 +204,9 @@ lint.ignore = [
 ]
 
 # Greek letters + typographic minus that appear in paper-faithful docstrings
-# (σ in Gaussian-kernel sizing, α for ellipse rotation, θ angles, − minus in math).
-lint.allowed-confusables = ["σ", "α", "−", "θ"]
+# (σ in Gaussian-kernel sizing, α for ellipse rotation, θ angles, − minus in math),
+# plus typographic × and – used in GUI status text and degree ranges.
+lint.allowed-confusables = ["σ", "α", "−", "θ", "×", "–"]
 
 [tool.ruff.lint.per-file-ignores]
 # C-compilation orchestration: argv is hardcoded literal strings, not user input.

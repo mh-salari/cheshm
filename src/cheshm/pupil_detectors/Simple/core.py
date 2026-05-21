@@ -127,7 +127,10 @@ def detect_pupil(
 
     result = _core.detect(
         img,
-        roi_x, roi_y, roi_w, roi_h,
+        roi_x,
+        roi_y,
+        roi_w,
+        roi_h,
         pupil_threshold,
         _CENTER_METHOD_CODE[pupil_center_method],
         -1.0 if min_ellipse_fit_ratio is None else float(min_ellipse_fit_ratio),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,12 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 
 from .registry import Detector, Setting, discover_detectors
+
+# Dear PyGui callback shape. ``sender`` is the widget tag (int or
+# string); ``app_data`` and ``user_data`` are heterogeneous payloads
+# whose concrete type depends on the widget and the caller.
+DpgTag = int | str
+DpgCallback = Callable[[DpgTag, object, object], None]
 
 
 def _set_macos_dock_icon(icon_path: str) -> None:
@@ -30,6 +37,7 @@ def _set_macos_dock_icon(icon_path: str) -> None:
     image = NSImage.alloc().initWithContentsOfFile_(icon_path)
     if image is not None:
         NSApplication.sharedApplication().setApplicationIconImage_(image)
+
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
@@ -89,8 +97,7 @@ class _State:
         }
         # Overlay state is keyed by f"{kind}_{overlay_key}" and seeded
         # from the union of every detector's declared _OVERLAYS.
-        (self.show, self.colors, self.alpha,
-         self.thickness) = _initial_overlay_state(self.detectors)
+        (self.show, self.colors, self.alpha, self.thickness) = _initial_overlay_state(self.detectors)
         # Detection-result cache. Re-runs detection only when the
         # detection-affecting inputs (image path, active detectors,
         # detector settings) change — overlay show/colour/alpha/thickness
@@ -198,7 +205,7 @@ def _run_detections(state: _State, img: np.ndarray) -> tuple[dict | None, dict |
 # ---------------------------------------------------------------------------
 
 
-def _alpha_layer(canvas: np.ndarray, alpha: float, draw_fn) -> None:
+def _alpha_layer(canvas: np.ndarray, alpha: float, draw_fn: Callable[[np.ndarray], None]) -> None:
     """Apply ``draw_fn(canvas)`` blended at ``alpha`` against the pre-draw canvas."""
     if alpha >= 0.999:
         draw_fn(canvas)
@@ -208,11 +215,18 @@ def _alpha_layer(canvas: np.ndarray, alpha: float, draw_fn) -> None:
     canvas[:] = cv2.addWeighted(pre, 1.0 - alpha, canvas, alpha, 0.0)
 
 
-def _draw_polyline(canvas: np.ndarray, pts: np.ndarray, color, thickness: int) -> None:
+def _draw_polyline(canvas: np.ndarray, pts: np.ndarray, color: tuple[int, int, int], thickness: int) -> None:
     cv2.polylines(canvas, [pts], isClosed=True, color=color, thickness=thickness)
 
 
-def _draw_ellipse(canvas: np.ndarray, center, axes, angle: float, color, thickness: int) -> None:
+def _draw_ellipse(
+    canvas: np.ndarray,
+    center: tuple[int, int],
+    axes: tuple[int, int],
+    angle: float,
+    color: tuple[int, int, int],
+    thickness: int,
+) -> None:
     cv2.ellipse(canvas, center, axes, angle, 0, 360, color, thickness)
 
 
@@ -233,32 +247,39 @@ def _draw_pupil(canvas: np.ndarray, pupil: dict | None, state: _State) -> None:
 
     if "mask" in enabled and state.show.get("pupil_mask") and pupil.get("contour") is not None:
         color = state.colors["pupil_mask"]
-        _alpha_layer(canvas, state.alpha["pupil_mask"],
-                     lambda c: cv2.drawContours(c, [pupil["contour"]], -1, color, thickness=-1))
+        _alpha_layer(
+            canvas,
+            state.alpha["pupil_mask"],
+            lambda c: cv2.drawContours(c, [pupil["contour"]], -1, color, thickness=-1),
+        )
 
     if "contour" in enabled and state.show.get("pupil_contour") and pupil.get("contour") is not None:
         color = state.colors["pupil_contour"]
         th = state.thickness["pupil_contour"]
         pts = _contour_pts(pupil["contour"])
-        _alpha_layer(canvas, state.alpha["pupil_contour"],
-                     lambda c: _draw_polyline(c, pts, color, th))
+        _alpha_layer(canvas, state.alpha["pupil_contour"], lambda c: _draw_polyline(c, pts, color, th))
 
     if "ellipse" in enabled and state.show.get("pupil_ellipse") and pupil.get("ellipse") is not None:
         (cx, cy), (w, h), angle = pupil["ellipse"]
         color = state.colors["pupil_ellipse"]
         th = state.thickness["pupil_ellipse"]
-        _alpha_layer(canvas, state.alpha["pupil_ellipse"],
-                     lambda c: _draw_ellipse(
-                         c, (round(cx), round(cy)),
-                         (max(round(w / 2), 1), max(round(h / 2), 1)),
-                         float(angle), color, th))
+        _alpha_layer(
+            canvas,
+            state.alpha["pupil_ellipse"],
+            lambda c: _draw_ellipse(
+                c, (round(cx), round(cy)), (max(round(w / 2), 1), max(round(h / 2), 1)), float(angle), color, th
+            ),
+        )
 
     if "center" in enabled and state.show.get("pupil_center") and pupil.get("center") is not None:
         cx, cy = pupil["center"]
         color = state.colors["pupil_center"]
         size = state.thickness["pupil_center"]
-        _alpha_layer(canvas, state.alpha["pupil_center"],
-                     lambda c: cv2.circle(c, (round(cx), round(cy)), size, color, thickness=-1))
+        _alpha_layer(
+            canvas,
+            state.alpha["pupil_center"],
+            lambda c: cv2.circle(c, (round(cx), round(cy)), size, color, thickness=-1),
+        )
 
 
 def _draw_glints(canvas: np.ndarray, glints: dict | None, state: _State) -> None:
@@ -270,22 +291,29 @@ def _draw_glints(canvas: np.ndarray, glints: dict | None, state: _State) -> None
         contours = [g["contour"] for g in (glints.get("glints") or []) if g.get("contour") is not None]
         if contours:
             color = state.colors["glint_mask"]
-            _alpha_layer(canvas, state.alpha["glint_mask"],
-                         lambda c: cv2.drawContours(c, contours, -1, color, thickness=-1))
+            _alpha_layer(
+                canvas, state.alpha["glint_mask"], lambda c: cv2.drawContours(c, contours, -1, color, thickness=-1)
+            )
 
     for g in glints.get("glints", []) or []:
         if "contour" in enabled and state.show.get("glint_contour") and g.get("contour") is not None:
             color = state.colors["glint_contour"]
             th = state.thickness["glint_contour"]
             pts = _contour_pts(g["contour"])
-            _alpha_layer(canvas, state.alpha["glint_contour"],
-                         lambda c, p=pts: _draw_polyline(c, p, color, th))
+            _alpha_layer(
+                canvas,
+                state.alpha["glint_contour"],
+                lambda c, p=pts, col=color, t=th: _draw_polyline(c, p, col, t),
+            )
         if "center" in enabled and state.show.get("glint_center") and g.get("center") is not None:
             gx, gy = g["center"]
             color = state.colors["glint_center"]
             size = state.thickness["glint_center"]
-            _alpha_layer(canvas, state.alpha["glint_center"],
-                         lambda c, x=gx, y=gy: cv2.circle(c, (round(x), round(y)), size, color, thickness=-1))
+            _alpha_layer(
+                canvas,
+                state.alpha["glint_center"],
+                lambda c, x=gx, y=gy, s=size, col=color: cv2.circle(c, (round(x), round(y)), s, col, thickness=-1),
+            )
 
 
 def _limbus_polygon(limbus: dict) -> np.ndarray | None:
@@ -308,28 +336,34 @@ def _draw_limbus(canvas: np.ndarray, limbus: dict | None, state: _State) -> None
     if "mask" in enabled and state.show.get("limbus_mask"):
         color = state.colors["limbus_mask"]
         if poly is not None:
-            _alpha_layer(canvas, state.alpha["limbus_mask"],
-                         lambda c: cv2.fillPoly(c, [poly], color))
+            _alpha_layer(canvas, state.alpha["limbus_mask"], lambda c: cv2.fillPoly(c, [poly], color))
         elif radius is not None:
-            _alpha_layer(canvas, state.alpha["limbus_mask"],
-                         lambda c: cv2.circle(c, (round(cx), round(cy)), radius, color, thickness=-1))
+            _alpha_layer(
+                canvas,
+                state.alpha["limbus_mask"],
+                lambda c: cv2.circle(c, (round(cx), round(cy)), radius, color, thickness=-1),
+            )
 
     if "curve" in enabled and state.show.get("limbus_curve"):
         color = state.colors["limbus_curve"]
         th = state.thickness["limbus_curve"]
         if poly is not None:
-            _alpha_layer(canvas, state.alpha["limbus_curve"],
-                         lambda c: _draw_polyline(c, poly, color, th))
+            _alpha_layer(canvas, state.alpha["limbus_curve"], lambda c: _draw_polyline(c, poly, color, th))
         elif radius is not None:
-            _alpha_layer(canvas, state.alpha["limbus_curve"],
-                         lambda c: _draw_ellipse(c, (round(cx), round(cy)),
-                                                  (radius, radius), 0.0, color, th))
+            _alpha_layer(
+                canvas,
+                state.alpha["limbus_curve"],
+                lambda c: _draw_ellipse(c, (round(cx), round(cy)), (radius, radius), 0.0, color, th),
+            )
 
     if "center" in enabled and state.show.get("limbus_center"):
         color = state.colors["limbus_center"]
         size = state.thickness["limbus_center"]
-        _alpha_layer(canvas, state.alpha["limbus_center"],
-                     lambda c: cv2.circle(c, (round(cx), round(cy)), size, color, thickness=-1))
+        _alpha_layer(
+            canvas,
+            state.alpha["limbus_center"],
+            lambda c: cv2.circle(c, (round(cx), round(cy)), size, color, thickness=-1),
+        )
 
 
 def _to_rgba_float(canvas_bgr: np.ndarray) -> np.ndarray:
@@ -361,7 +395,13 @@ def _add_label(text: str) -> None:
     dpg.add_text(text, wrap=_LABEL_WRAP, color=(220, 220, 220))
 
 
-def _build_setting_widget(state: _State, kind: str, det_id: str, setting: Setting, on_change) -> None:
+def _build_setting_widget(
+    state: _State,
+    kind: str,
+    det_id: str,
+    setting: Setting,
+    on_change: DpgCallback,
+) -> None:
     if setting.hidden:
         return
     label = setting.label
@@ -373,50 +413,74 @@ def _build_setting_widget(state: _State, kind: str, det_id: str, setting: Settin
         _add_label(label)
         lo, hi = _slider_int_bounds(setting, value if value is not None else 0)
         widget = dpg.add_slider_int(
-            default_value=int(value), min_value=lo, max_value=hi, width=fill_width,
-            callback=on_change, user_data=user_data,
+            default_value=int(value),
+            min_value=lo,
+            max_value=hi,
+            width=fill_width,
+            callback=on_change,
+            user_data=user_data,
         )
     elif setting.type == "float":
         _add_label(label)
         lo, hi = _slider_float_bounds(setting, value if value is not None else 0.0)
         widget = dpg.add_slider_float(
-            default_value=float(value), min_value=lo, max_value=hi, width=fill_width,
-            callback=on_change, user_data=user_data,
+            default_value=float(value),
+            min_value=lo,
+            max_value=hi,
+            width=fill_width,
+            callback=on_change,
+            user_data=user_data,
         )
     elif setting.type == "bool":
-        widget = dpg.add_checkbox(label=label, default_value=bool(value),
-                                   callback=on_change, user_data=user_data)
+        widget = dpg.add_checkbox(label=label, default_value=bool(value), callback=on_change, user_data=user_data)
     elif setting.type == "choice":
         _add_label(label)
         widget = dpg.add_combo(
-            items=setting.choices, default_value=str(value), width=fill_width,
-            callback=on_change, user_data=user_data,
+            items=setting.choices,
+            default_value=str(value),
+            width=fill_width,
+            callback=on_change,
+            user_data=user_data,
         )
     elif setting.type == "optional_int":
         enabled = value is not None
         slider_tag = dpg.generate_uuid()
         enabled_tag = dpg.add_checkbox(
-            label=f"{label} (enable)", default_value=enabled,
-            callback=on_change, user_data=("_opt_enable_int", *user_data, slider_tag),
+            label=f"{label} (enable)",
+            default_value=enabled,
+            callback=on_change,
+            user_data=("_opt_enable_int", *user_data, slider_tag),
         )
         lo, hi = _slider_int_bounds(setting, value if value is not None else 0)
         widget = dpg.add_slider_int(
-            tag=slider_tag, default_value=int(value) if value is not None else lo,
-            min_value=lo, max_value=hi, width=fill_width, enabled=enabled,
-            callback=on_change, user_data=("_opt_value_int", *user_data, enabled_tag),
+            tag=slider_tag,
+            default_value=int(value) if value is not None else lo,
+            min_value=lo,
+            max_value=hi,
+            width=fill_width,
+            enabled=enabled,
+            callback=on_change,
+            user_data=("_opt_value_int", *user_data, enabled_tag),
         )
     elif setting.type == "optional_float":
         enabled = value is not None
         slider_tag = dpg.generate_uuid()
         enabled_tag = dpg.add_checkbox(
-            label=f"{label} (enable)", default_value=enabled,
-            callback=on_change, user_data=("_opt_enable_float", *user_data, slider_tag),
+            label=f"{label} (enable)",
+            default_value=enabled,
+            callback=on_change,
+            user_data=("_opt_enable_float", *user_data, slider_tag),
         )
         lo, hi = _slider_float_bounds(setting, value if value is not None else 0.0)
         widget = dpg.add_slider_float(
-            tag=slider_tag, default_value=float(value) if value is not None else lo,
-            min_value=lo, max_value=hi, width=fill_width, enabled=enabled,
-            callback=on_change, user_data=("_opt_value_float", *user_data, enabled_tag),
+            tag=slider_tag,
+            default_value=float(value) if value is not None else lo,
+            min_value=lo,
+            max_value=hi,
+            width=fill_width,
+            enabled=enabled,
+            callback=on_change,
+            user_data=("_opt_value_float", *user_data, enabled_tag),
         )
     elif setting.type == "roi":
         _add_label(f"{label} (x, y, w, h)")
@@ -424,8 +488,10 @@ def _build_setting_widget(state: _State, kind: str, det_id: str, setting: Settin
         with dpg.group(horizontal=True):
             for i in range(4):
                 dpg.add_input_int(
-                    default_value=int(roi[i]), width=70,
-                    callback=on_change, user_data=("_roi_field", *user_data, i),
+                    default_value=int(roi[i]),
+                    width=70,
+                    callback=on_change,
+                    user_data=("_roi_field", *user_data, i),
                 )
         widget = None
     else:
@@ -437,8 +503,8 @@ def _build_setting_widget(state: _State, kind: str, det_id: str, setting: Settin
             dpg.add_text(setting.help, wrap=300)
 
 
-def _on_setting_change(state: _State, redraw_cb):
-    def callback(sender, app_data, user_data):
+def _on_setting_change(state: _State, redraw_cb: Callable[[], None]) -> DpgCallback:
+    def callback(_sender: DpgTag, app_data: object, user_data: object) -> None:
         tag = (
             user_data[0]
             if isinstance(user_data, tuple) and isinstance(user_data[0], str) and user_data[0].startswith("_")
@@ -447,7 +513,7 @@ def _on_setting_change(state: _State, redraw_cb):
         if tag is None:
             kind, det_id, name = user_data
             state.values[kind][det_id][name] = app_data
-        elif tag in ("_opt_enable_int", "_opt_enable_float"):
+        elif tag in {"_opt_enable_int", "_opt_enable_float"}:
             _, kind, det_id, name, slider_tag = user_data
             if app_data:
                 # Restore the slider's current value, or 0 if it was None.
@@ -455,7 +521,7 @@ def _on_setting_change(state: _State, redraw_cb):
             else:
                 state.values[kind][det_id][name] = None
             dpg.configure_item(slider_tag, enabled=bool(app_data))
-        elif tag in ("_opt_value_int", "_opt_value_float"):
+        elif tag in {"_opt_value_int", "_opt_value_float"}:
             _, kind, det_id, name, enabled_tag = user_data
             if dpg.get_value(enabled_tag):
                 state.values[kind][det_id][name] = app_data
@@ -474,18 +540,17 @@ def _on_setting_change(state: _State, redraw_cb):
 # ---------------------------------------------------------------------------
 
 
-def _build_overlay_row(state: _State, kind: str, redraw_cb) -> None:
+def _build_overlay_row(state: _State, kind: str, redraw_cb: Callable[[], None]) -> None:
     """Per-element overlay row, sourced from the active detector's ``_OVERLAYS``."""
-
     det = state.detector(kind, state.active[kind])
     if det is None or not det.overlays:
         return
 
-    def on_toggle(sender, app_data, user_data) -> None:
+    def on_toggle(_sender: DpgTag, app_data: object, user_data: object) -> None:
         state.show[user_data] = bool(app_data)
         redraw_cb()
 
-    def on_color(sender, app_data, user_data) -> None:
+    def on_color(_sender: DpgTag, app_data: object, user_data: object) -> None:
         r, g, b = float(app_data[0]), float(app_data[1]), float(app_data[2])
         # dpg returns colors as floats in [0, 1] in 2.x but as 0..255 in
         # 1.x — detect by magnitude and rescale.
@@ -494,11 +559,11 @@ def _build_overlay_row(state: _State, kind: str, redraw_cb) -> None:
         state.colors[user_data] = (int(b), int(g), int(r))
         redraw_cb()
 
-    def on_alpha(sender, app_data, user_data) -> None:
+    def on_alpha(_sender: DpgTag, app_data: object, user_data: object) -> None:
         state.alpha[user_data] = float(app_data)
         redraw_cb()
 
-    def on_thickness(sender, app_data, user_data) -> None:
+    def on_thickness(_sender: DpgTag, app_data: object, user_data: object) -> None:
         state.thickness[user_data] = max(1, int(app_data))
         redraw_cb()
 
@@ -506,34 +571,49 @@ def _build_overlay_row(state: _State, kind: str, redraw_cb) -> None:
         for key, elem_type in det.overlays:
             full = f"{kind}_{key}"
             with dpg.group(horizontal=True):
-                dpg.add_checkbox(default_value=state.show.get(full, True),
-                                  callback=on_toggle, user_data=full)
+                dpg.add_checkbox(default_value=state.show.get(full, True), callback=on_toggle, user_data=full)
                 dpg.add_text(key)
                 b, g, r = state.colors.get(full, (255, 255, 255))
                 dpg.add_color_edit(
-                    default_value=[r, g, b], no_inputs=True, no_label=True, no_alpha=True,
-                    callback=on_color, user_data=full,
+                    default_value=[r, g, b],
+                    no_inputs=True,
+                    no_label=True,
+                    no_alpha=True,
+                    callback=on_color,
+                    user_data=full,
                 )
-                dpg.add_slider_float(default_value=state.alpha.get(full, 1.0),
-                                      min_value=0.0, max_value=1.0, width=70, format="α %.2f",
-                                      callback=on_alpha, user_data=full)
-                if elem_type in ("line", "point"):
-                    dpg.add_input_int(default_value=state.thickness.get(full, 1),
-                                       min_value=1, max_value=20, step=0, width=50,
-                                       callback=on_thickness, user_data=full)
+                dpg.add_slider_float(
+                    default_value=state.alpha.get(full, 1.0),
+                    min_value=0.0,
+                    max_value=1.0,
+                    width=70,
+                    format="α %.2f",
+                    callback=on_alpha,
+                    user_data=full,
+                )
+                if elem_type in {"line", "point"}:
+                    dpg.add_input_int(
+                        default_value=state.thickness.get(full, 1),
+                        min_value=1,
+                        max_value=20,
+                        step=0,
+                        width=50,
+                        callback=on_thickness,
+                        user_data=full,
+                    )
 
 
 _SECTION_TITLE_COLOR = (160, 220, 255)
 
 
-def _build_settings_panel(state: _State, on_change, redraw_cb) -> None:
-    def on_pick(sender, app_data, user_data) -> None:
+def _build_settings_panel(state: _State, on_change: DpgCallback, redraw_cb: Callable[[], None]) -> None:
+    def on_pick(_sender: DpgTag, app_data: object, user_data: object) -> None:
         kind = user_data
         state.active[kind] = None if app_data == "-off-" else app_data
         _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset)
         redraw_cb()
 
-    def on_reset(sender, app_data, user_data) -> None:
+    def on_reset(_sender: DpgTag, _app_data: object, user_data: object) -> None:
         kind, det_id = user_data
         det = state.detector(kind, det_id)
         if det is None:
@@ -563,22 +643,27 @@ def _build_settings_panel(state: _State, on_change, redraw_cb) -> None:
             _add_label("detector")
             options = ["-off-"] + [d.id for d in state.by_kind[kind]]
             current = state.active[kind] or "-off-"
-            dpg.add_combo(items=options, default_value=current, width=-1,
-                          callback=on_pick, user_data=kind)
+            dpg.add_combo(items=options, default_value=current, width=-1, callback=on_pick, user_data=kind)
             dpg.add_group(tag=f"settings_group_{kind}")
             _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset)
 
-    with dpg.theme() as card_theme:
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [56, 62, 78])
-            dpg.add_theme_color(dpg.mvThemeCol_Border, [110, 130, 170])
-            dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 8.0)
-            dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 1.0)
+    with dpg.theme() as card_theme, dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [56, 62, 78])
+        dpg.add_theme_color(dpg.mvThemeCol_Border, [110, 130, 170])
+        dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 8.0)
+        dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 1.0)
     for t in card_tags:
         dpg.bind_item_theme(t, card_theme)
 
 
-def _refresh_settings_group(state: _State, kind: str, on_change, redraw_cb, *, on_reset_cb=None) -> None:
+def _refresh_settings_group(
+    state: _State,
+    kind: str,
+    on_change: DpgCallback,
+    redraw_cb: Callable[[], None],
+    *,
+    on_reset_cb: DpgCallback | None = None,
+) -> None:
     group_tag = f"settings_group_{kind}"
     dpg.delete_item(group_tag, children_only=True)
     det = state.detector(kind, state.active[kind])
@@ -590,8 +675,9 @@ def _refresh_settings_group(state: _State, kind: str, on_change, redraw_cb, *, o
         _build_overlay_row(state, kind, redraw_cb)
         dpg.add_separator()
         if on_reset_cb is not None:
-            dpg.add_button(label="Reset settings to defaults", width=-1,
-                           callback=on_reset_cb, user_data=(kind, det.id))
+            dpg.add_button(
+                label="Reset settings to defaults", width=-1, callback=on_reset_cb, user_data=(kind, det.id)
+            )
         dpg.add_spacer(height=4)
         for s in det.settings:
             _build_setting_widget(state, kind, det.id, s, on_change)
@@ -618,10 +704,8 @@ def _placeholder_canvas(w: int, h: int) -> np.ndarray:
 
 
 def run(img_dir: str | Path | None = None) -> None:
-    if img_dir is not None:
-        state = _State(Path(img_dir).expanduser().resolve())
-    else:
-        state = _State(None)
+    """Launch the cheshm GUI on ``img_dir`` (or an empty workbench when ``None``)."""
+    state = _State(Path(img_dir).expanduser().resolve()) if img_dir is not None else _State(None)
 
     if state.images:
         first = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
@@ -634,14 +718,15 @@ def run(img_dir: str | Path | None = None) -> None:
 
     dpg.create_context()
     with dpg.texture_registry():
-        dpg.add_dynamic_texture(state.canvas_w, state.canvas_h,
-                                _to_rgba_float(initial_canvas),
-                                tag="image_texture")
+        dpg.add_dynamic_texture(state.canvas_w, state.canvas_h, _to_rgba_float(initial_canvas), tag="image_texture")
 
     def _rebuild_texture_for_current() -> None:
-        """Recreate the texture + image widget to match the current
-        image's dimensions; Dear PyGui binds an image widget's texture
-        at creation, so swapping the texture alone won't take effect."""
+        """Recreate the texture + image widget to match the current image.
+
+        Dear PyGui binds an image widget's texture at creation, so
+        swapping the texture alone won't take effect when image
+        dimensions change.
+        """
         if not state.images:
             return
         img = cv2.imread(str(state.current_path), cv2.IMREAD_GRAYSCALE)
@@ -656,17 +741,19 @@ def run(img_dir: str | Path | None = None) -> None:
         if dpg.does_item_exist("image_texture"):
             dpg.delete_item("image_texture")
         with dpg.texture_registry():
-            dpg.add_dynamic_texture(state.canvas_w, state.canvas_h,
-                                    _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)),
-                                    tag="image_texture")
-        dpg.add_image("image_texture", tag="image_widget",
-                      width=state.canvas_w, height=state.canvas_h,
-                      parent="image_panel")
+            dpg.add_dynamic_texture(
+                state.canvas_w,
+                state.canvas_h,
+                _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)),
+                tag="image_texture",
+            )
+        dpg.add_image(
+            "image_texture", tag="image_widget", width=state.canvas_w, height=state.canvas_h, parent="image_panel"
+        )
 
     def redraw() -> None:
         if not state.images:
-            dpg.set_value("image_texture",
-                          _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)))
+            dpg.set_value("image_texture", _to_rgba_float(_placeholder_canvas(state.canvas_w, state.canvas_h)))
             dpg.set_value("status_text", "no images loaded — use Open Folder or Add Files")
             disp_w = int(state.canvas_w * state.zoom)
             disp_h = int(state.canvas_h * state.zoom)
@@ -709,18 +796,21 @@ def run(img_dir: str | Path | None = None) -> None:
         pos_x = max((panel_w - disp_w) // 2, 0)
         pos_y = max((panel_h - disp_h) // 2, 0)
         dpg.configure_item("image_widget", width=disp_w, height=disp_h, pos=[pos_x, pos_y])
-        dpg.set_value("status_text", f"{state.idx + 1}/{len(state.images)}  "
-                                       f"{state.current_path.name}  "
-                                       f"({state.canvas_w}×{state.canvas_h})  "
-                                       f"zoom×{state.zoom:.2f}  β={state.brightness:+d}")
+        dpg.set_value(
+            "status_text",
+            f"{state.idx + 1}/{len(state.images)}  "
+            f"{state.current_path.name}  "
+            f"({state.canvas_w}×{state.canvas_h})  "
+            f"zoom×{state.zoom:.2f}  β={state.brightness:+d}",
+        )
 
     on_change = _on_setting_change(state, redraw)
 
-    def on_zoom(sender, app_data) -> None:
+    def on_zoom(_sender: DpgTag, app_data: object) -> None:
         state.zoom = float(app_data)
         redraw()
 
-    def on_brightness(sender, app_data) -> None:
+    def on_brightness(_sender: DpgTag, app_data: object) -> None:
         state.brightness = int(app_data)
         redraw()
 
@@ -738,12 +828,19 @@ def run(img_dir: str | Path | None = None) -> None:
         dpg.add_text("", tag="status_text")
         with dpg.group(horizontal=True):
             dpg.add_button(label="zoom", small=True, callback=reset_zoom)
-            dpg.add_slider_float(tag="zoom_slider", default_value=1.0,
-                                  min_value=0.1, max_value=4.0, width=150, callback=on_zoom)
+            dpg.add_slider_float(
+                tag="zoom_slider", default_value=1.0, min_value=0.1, max_value=4.0, width=150, callback=on_zoom
+            )
             dpg.add_spacer(width=10)
             dpg.add_button(label="brightness", small=True, callback=reset_brightness)
-            dpg.add_slider_int(tag="brightness_slider", default_value=0,
-                                min_value=-100, max_value=100, width=150, callback=on_brightness)
+            dpg.add_slider_int(
+                tag="brightness_slider",
+                default_value=0,
+                min_value=-100,
+                max_value=100,
+                width=150,
+                callback=on_brightness,
+            )
 
         def _refresh_image_widgets() -> None:
             """Rebuild the listbox + path-text after ``state.images`` changes."""
@@ -754,7 +851,7 @@ def run(img_dir: str | Path | None = None) -> None:
             else:
                 dpg.set_value("img_dir_text", "(no images)")
 
-        def _on_folder_picked(sender, app_data) -> None:
+        def _on_folder_picked(_sender: DpgTag, app_data: object) -> None:
             picked = Path(app_data["file_path_name"])
             if not picked.is_dir():
                 return
@@ -772,7 +869,7 @@ def run(img_dir: str | Path | None = None) -> None:
             dpg.set_value("zoom_slider", state.zoom)
             redraw()
 
-        def _on_files_picked(sender, app_data) -> None:
+        def _on_files_picked(_sender: DpgTag, app_data: object) -> None:
             picked_paths = [Path(p) for p in app_data.get("selections", {}).values()]
             new_files = [p for p in picked_paths if p.is_file() and p.suffix.lower() in _IMAGE_EXTS]
             if not new_files:
@@ -795,14 +892,26 @@ def run(img_dir: str | Path | None = None) -> None:
             _refresh_image_widgets()
             redraw()
 
-        with dpg.file_dialog(directory_selector=True, show=False, modal=True,
-                              callback=_on_folder_picked, tag="folder_dialog",
-                              width=700, height=400):
+        with dpg.file_dialog(
+            directory_selector=True,
+            show=False,
+            modal=True,
+            callback=_on_folder_picked,
+            tag="folder_dialog",
+            width=700,
+            height=400,
+        ):
             pass
 
-        with dpg.file_dialog(directory_selector=False, show=False, modal=True,
-                              callback=_on_files_picked, tag="files_dialog",
-                              width=700, height=400):
+        with dpg.file_dialog(
+            directory_selector=False,
+            show=False,
+            modal=True,
+            callback=_on_files_picked,
+            tag="files_dialog",
+            width=700,
+            height=400,
+        ):
             for ext in sorted(_IMAGE_EXTS):
                 dpg.add_file_extension(ext)
             dpg.add_file_extension(".*")
@@ -810,12 +919,14 @@ def run(img_dir: str | Path | None = None) -> None:
         with dpg.group(horizontal=True):
             with dpg.child_window(width=_LEFT_W, autosize_y=True):
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label="Open Folder",
-                                   callback=lambda: dpg.show_item("folder_dialog"))
-                    dpg.add_button(label="Add Files",
-                                   callback=lambda: dpg.show_item("files_dialog"))
-                dpg.add_text(str(state.img_dir) if state.img_dir else "(no images)",
-                             wrap=220, color=(180, 180, 180), tag="img_dir_text")
+                    dpg.add_button(label="Open Folder", callback=lambda: dpg.show_item("folder_dialog"))
+                    dpg.add_button(label="Add Files", callback=lambda: dpg.show_item("files_dialog"))
+                dpg.add_text(
+                    str(state.img_dir) if state.img_dir else "(no images)",
+                    wrap=220,
+                    color=(180, 180, 180),
+                    tag="img_dir_text",
+                )
 
                 def on_prev() -> None:
                     if state.images and state.idx > 0:
@@ -833,7 +944,7 @@ def run(img_dir: str | Path | None = None) -> None:
                     dpg.add_button(label="<", callback=on_prev)
                     dpg.add_button(label=">", callback=on_next)
 
-                def on_pick_image(sender, app_data) -> None:
+                def on_pick_image(_sender: DpgTag, app_data: object) -> None:
                     for i, p in enumerate(state.images):
                         if p.name == app_data:
                             state.idx = i
@@ -843,22 +954,21 @@ def run(img_dir: str | Path | None = None) -> None:
                 dpg.add_listbox(
                     items=[p.name for p in state.images],
                     default_value=state.current_path.name if state.images else "",
-                    tag="image_list", num_items=20, width=220, callback=on_pick_image,
+                    tag="image_list",
+                    num_items=20,
+                    width=220,
+                    callback=on_pick_image,
                 )
 
-            with dpg.child_window(tag="image_panel", width=-_RIGHT_W, autosize_y=True,
-                                   horizontal_scrollbar=True):
-                dpg.add_image("image_texture", tag="image_widget",
-                              width=state.canvas_w, height=state.canvas_h)
+            with dpg.child_window(tag="image_panel", width=-_RIGHT_W, autosize_y=True, horizontal_scrollbar=True):
+                dpg.add_image("image_texture", tag="image_widget", width=state.canvas_w, height=state.canvas_h)
 
-            with dpg.child_window(tag="settings_panel", width=_RIGHT_W - 20, autosize_y=True,
-                                   border=True):
+            with dpg.child_window(tag="settings_panel", width=_RIGHT_W - 20, autosize_y=True, border=True):
                 _build_settings_panel(state, on_change, redraw)
 
-    with dpg.theme() as settings_theme:
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [42, 46, 54])
-            dpg.add_theme_color(dpg.mvThemeCol_Border, [120, 140, 170])
+    with dpg.theme() as settings_theme, dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [42, 46, 54])
+        dpg.add_theme_color(dpg.mvThemeCol_Border, [120, 140, 170])
     dpg.bind_item_theme("settings_panel", settings_theme)
 
     icon_path = str(Path(__file__).parent / "icon.png")
@@ -878,6 +988,6 @@ def run(img_dir: str | Path | None = None) -> None:
     redraw()
     # After dpg has rendered a couple of frames the panel size resolves
     # to its real value; redraw once more so the centring is exact.
-    dpg.set_frame_callback(3, lambda: redraw())
+    dpg.set_frame_callback(3, redraw)
     dpg.start_dearpygui()
     dpg.destroy_context()
