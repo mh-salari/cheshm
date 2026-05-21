@@ -11,7 +11,6 @@ points, and a RANSAC ellipse fit with image-aware support produces the
 final pupil ellipse.
 """
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import PupilResult
@@ -131,9 +130,6 @@ def detect_pupil(
     sub-image; the crop and all coordinate translations happen in the
     C++ kernel so the caller always sees full-image coordinates.
     """
-    if img.ndim != 2:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.ascontiguousarray(img, dtype=np.uint8)
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0

@@ -9,7 +9,6 @@ glint's centre is computed via one of five methods.
 
 from typing import Literal
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import GlintResult
@@ -151,9 +150,6 @@ def detect_glints(
     payload is the post-filter (threshold ∧ search) image — useful as a
     live overlay for tuning.
     """
-    if img.ndim != 2:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.ascontiguousarray(img, dtype=np.uint8)
     height, width = img.shape
 
     if glint_roi is None:

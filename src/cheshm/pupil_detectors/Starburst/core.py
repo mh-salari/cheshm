@@ -131,9 +131,6 @@ def detect_pupil(
     the corneal-reflection pre-pass (faster, less robust on bright
     glints).
     """
-    if img.ndim != 2:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.ascontiguousarray(img, dtype=np.uint8)
 
     if pupil_center is None:
         seed_x, seed_y = _auto_seed(img, seed_threshold)

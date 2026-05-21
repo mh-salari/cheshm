@@ -10,7 +10,6 @@ hull, with Green's-theorem centroid of the enclosed area).
 
 from typing import Literal
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import PupilResult
@@ -116,9 +115,6 @@ def detect_pupil(
     satisfies both active gates is chosen. ``None`` is returned only if
     every candidate fails.
     """
-    if img.ndim != 2:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.ascontiguousarray(img, dtype=np.uint8)
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0

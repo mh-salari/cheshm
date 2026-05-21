@@ -13,7 +13,6 @@ candidate. Returns the ellipse plus a confidence score from the
 outline-contrast vote ratio.
 """
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import PupilResult
@@ -83,9 +82,6 @@ def detect_pupil(
     ``pupil_roi=(x, y, w, h)`` runs the algorithm on the cropped
     sub-image and translates outputs back to full-image coordinates.
     """
-    if img.ndim != 2:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.ascontiguousarray(img, dtype=np.uint8)
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0

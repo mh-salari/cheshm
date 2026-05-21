@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <memory>
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <vector>
 
 namespace nb = nanobind;
@@ -26,7 +27,7 @@ namespace
 //   ellipse params: cv::RotatedRect with centre in full-image coords.
 //   inliers: ``(N, 2)`` float64 ndarray of RANSAC inlier points in
 //            full-image coords.
-nb::object detect(nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu> img,
                   int roi_x,
                   int roi_y,
                   int roi_w,
@@ -49,7 +50,13 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb:
 
     const int height = static_cast<int>(img.shape(0));
     const int width = static_cast<int>(img.shape(1));
-    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t*>(img.data()));
+    const bool is_color = (img.ndim() == 3 && img.shape(2) == 3);
+    const cv::Mat raw(height, width, is_color ? CV_8UC3 : CV_8U, const_cast<std::uint8_t*>(img.data()));
+    cv::Mat full;
+    if (is_color)
+        cv::cvtColor(raw, full, cv::COLOR_BGR2GRAY);
+    else
+        full = raw;
 
     cv::Rect crop(0, 0, width, height);
     if (cheshm::roi_is_active(roi_w, roi_h))

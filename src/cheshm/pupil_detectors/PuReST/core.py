@@ -23,7 +23,6 @@ benefit but matches the single-image-per-call contract the GUI and the
 other detectors use.
 """
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import PupilResult
@@ -101,16 +100,12 @@ class PuReST:
         pupil_roi: tuple[int, int, int, int] | None = None,
     ) -> PupilResult | None:
         """Run one detection on ``img`` using the tracker's accumulated state."""
-        if img.ndim != 2:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img = np.ascontiguousarray(img, dtype=np.uint8)
-
         if pupil_roi is None:
             roi_x = roi_y = roi_w = roi_h = 0
         else:
             roi_x, roi_y, roi_w, roi_h = (int(v) for v in pupil_roi)
 
-        result = self._tracker.detect(img, roi_x, roi_y, roi_w, roi_h)
+        result = self._tracker.detect(np.ascontiguousarray(img, dtype=np.uint8), roi_x, roi_y, roi_w, roi_h)
         if result is None:
             return None
 

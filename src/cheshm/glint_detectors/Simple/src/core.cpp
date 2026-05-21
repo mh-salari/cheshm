@@ -477,7 +477,7 @@ nb::tuple pack_glint(const cheshm::SimpleGlint::Glint& g)
 // Returns ``None`` on error (e.g. ROI fully outside the image),
 // otherwise a 2-tuple ``(list_of_glints, search_mask)`` where
 // search_mask is ``(H, W)`` uint8 with the post-filter mask.
-nb::object detect(nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb::device::cpu> img,
+nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu> img,
                   int roi_x,
                   int roi_y,
                   int roi_w,
@@ -503,7 +503,13 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::ndim<2>, nb::c_contig, nb:
 {
     const int height = static_cast<int>(img.shape(0));
     const int width = static_cast<int>(img.shape(1));
-    const cv::Mat full(height, width, CV_8U, const_cast<std::uint8_t*>(img.data()));
+    const bool is_color = (img.ndim() == 3 && img.shape(2) == 3);
+    const cv::Mat raw(height, width, is_color ? CV_8UC3 : CV_8U, const_cast<std::uint8_t*>(img.data()));
+    cv::Mat full;
+    if (is_color)
+        cv::cvtColor(raw, full, cv::COLOR_BGR2GRAY);
+    else
+        full = raw;
 
     auto result = cheshm::SimpleGlint::detect_impl(full,
                                                    roi_x,

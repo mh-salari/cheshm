@@ -7,7 +7,6 @@ Recognition of Persons by a Test of Statistical Independence." IEEE Trans.
 PAMI, 15(11), 1148-1161.
 """
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import LimbusResult
@@ -67,8 +66,6 @@ def detect_limbus(
     mean circle intensity. Returns ``{"center": (cx, cy), "radius": r}`` or
     ``None`` if the search produced no candidate.
     """
-    if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     result = _core.detect_limbus(
         np.ascontiguousarray(img, dtype=np.uint8),
         float(seed_center[0]),

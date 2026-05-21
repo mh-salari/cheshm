@@ -12,7 +12,6 @@ strong/final perimeter and area ratio gates, and ellipse fitting with
 support-pixel scoring.
 """
 
-import cv2
 import numpy as np
 
 from cheshm._protocols import PupilResult
@@ -141,9 +140,6 @@ def detect_pupil(
     ``pupil_roi=(x, y, w, h)`` constrains the search region. ``None`` =
     whole image.
     """
-    if img.ndim != 2:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img = np.ascontiguousarray(img, dtype=np.uint8)
 
     if pupil_roi is None:
         roi_x = roi_y = roi_w = roi_h = 0
