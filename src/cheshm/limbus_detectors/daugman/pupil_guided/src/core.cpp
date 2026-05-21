@@ -2,13 +2,13 @@
 
 #include "pupil_guided/contour.hpp"
 #include "pupil_guided/defaults.hpp"
+#include "daugman/nb_to_numpy.hpp"
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/tuple.h>
 
 #include <cstdint>
-#include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <vector>
@@ -18,15 +18,6 @@ using namespace nb::literals;
 
 namespace
 {
-
-nb::ndarray<nb::numpy, double, nb::ndim<1>> _to_numpy(std::vector<double> data)
-{
-    auto owner = std::make_unique<std::vector<double>>(std::move(data));
-    double* ptr = owner->data();
-    const std::size_t shape[1] = {owner->size()};
-    nb::capsule cap(owner.release(), [](void* p) noexcept { delete static_cast<std::vector<double>*>(p); });
-    return nb::ndarray<nb::numpy, double, nb::ndim<1>>(ptr, 1, shape, cap);
-}
 
 nb::object detect_limbus(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu> img,
                          double seed_x,
@@ -68,7 +59,7 @@ nb::object detect_limbus(nb::ndarray<const std::uint8_t, nb::c_contig, nb::devic
         return nb::none();
 
     return nb::make_tuple(
-        result->center.x, result->center.y, _to_numpy(std::move(result->thetas)), _to_numpy(std::move(result->R_theta)));
+        result->center.x, result->center.y, cheshm::Daugman::nb_to_numpy(std::move(result->thetas)), cheshm::Daugman::nb_to_numpy(std::move(result->R_theta)));
 }
 
 } // namespace

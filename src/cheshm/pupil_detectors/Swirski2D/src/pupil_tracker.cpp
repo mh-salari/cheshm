@@ -255,16 +255,9 @@ bool findPupilEllipse(const TrackerParams& params, const cv::Mat& m, findPupilEl
     // Get histogram of pupil region, segment with KMeans
     // --------------------------------------------------
 
-    const int bins = 256;
-
+    constexpr int bins = 256;
     cv::Mat_<float> hist;
-    {
-        int channels[] = {0};
-        int sizes[] = {bins};
-        float range[2] = {0, 256};
-        const float* ranges[] = {range};
-        cv::calcHist(&mHaarPupil, 1, channels, cv::Mat(), hist, 1, sizes, ranges);
-    }
+    cv::calcHist(std::vector<cv::Mat>{mHaarPupil}, {0}, cv::Mat(), hist, {bins}, {0.0f, 256.0f});
 
     out.histPupil = hist;
 

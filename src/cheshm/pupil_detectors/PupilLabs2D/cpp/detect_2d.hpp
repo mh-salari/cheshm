@@ -83,12 +83,7 @@ std::shared_ptr<Detector2DResult> Detector2D::detect(Detector2DProperties& props
     const int spectral_offset = 5;
 
     cv::Mat histogram;
-    int histSize;
-    histSize = 256; // from 0 to 255
-    /// Set the ranges
-    float range[] = {0, 256}; // the upper boundary is exclusive
-    const float* histRange = {range};
-    cv::calcHist(&pupil_image, 1, 0, cv::Mat(), histogram, 1, &histSize, &histRange, true, false);
+    cv::calcHist(std::vector<cv::Mat>{pupil_image}, {0}, cv::Mat(), histogram, {256}, {0.0f, 256.0f});
 
     int lowest_spike_index = 255;
     int highest_spike_index = 0;
