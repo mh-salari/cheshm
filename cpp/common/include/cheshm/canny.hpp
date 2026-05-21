@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "cheshm/edge_hysteresis.hpp"
+
 #include <algorithm>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -48,22 +50,21 @@ inline cv::Mat canny(const cv::Mat& in,
 
     magnitude = magnitude / maxMag;
 
-    std::vector<int> histogram(bins, 0);
     cv::Mat res_idx = (bins - 1) * magnitude;
     res_idx.convertTo(res_idx, CV_16U);
-    for (int i = 0; i < res_idx.rows; ++i)
-    {
-        const short* p = res_idx.ptr<short>(i);
-        for (int j = 0; j < res_idx.cols; ++j)
-            ++histogram[p[j]];
-    }
+
+    const std::vector<int> channels = {0};
+    const std::vector<int> hist_size = {bins};
+    const std::vector<float> ranges = {0.0f, static_cast<float>(bins)};
+    cv::Mat hist_mat;
+    cv::calcHist(std::vector<cv::Mat>{res_idx}, channels, cv::Mat(), hist_mat, hist_size, ranges);
 
     int sum = 0;
     const int nonEdgePixels = static_cast<int>(non_edge_pixels_ratio * in.rows * in.cols);
     float high_th = 0;
     for (int i = 0; i < bins; ++i)
     {
-        sum += histogram[i];
+        sum += static_cast<int>(hist_mat.at<float>(i));
         if (sum > nonEdgePixels)
         {
             high_th = static_cast<float>(i + 1) / bins;
@@ -129,52 +130,11 @@ inline cv::Mat canny(const cv::Mat& in,
         }
     }
 
-    // Hysteresis: every strong-edge pixel seeds a flood fill that pulls
-    // in connected weak-edge pixels.
-    const int pic_x = edgeType.cols;
-    const int pic_y = edgeType.rows;
-    const int area = pic_x * pic_y;
-    int lines_idx = 0;
-    int idx = 0;
-
-    std::vector<int> lines;
-    edge.setTo(0);
-    for (int i = 1; i < pic_y - 1; ++i)
-    {
-        for (int j = 1; j < pic_x - 1; ++j)
-        {
-            if (edgeType.data[idx + j] != 255 || edge.data[idx + j] != 0)
-                continue;
-
-            edge.data[idx + j] = 255;
-            lines_idx = 1;
-            lines.clear();
-            lines.push_back(idx + j);
-            int akt_idx = 0;
-
-            while (akt_idx < lines_idx)
-            {
-                const int akt_pos = lines[akt_idx];
-                ++akt_idx;
-
-                if (akt_pos - pic_x - 1 < 0 || akt_pos + pic_x + 1 >= area)
-                    continue;
-
-                for (int k1 = -1; k1 < 2; ++k1)
-                    for (int k2 = -1; k2 < 2; ++k2)
-                    {
-                        const int neighbour = (akt_pos + (k1 * pic_x)) + k2;
-                        if (edge.data[neighbour] != 0 || edgeType.data[neighbour] == 0)
-                            continue;
-                        edge.data[neighbour] = 255;
-                        lines.push_back(neighbour);
-                        ++lines_idx;
-                    }
-            }
-        }
-        idx += pic_x;
-    }
-
+    cv::Mat strong;
+    cv::Mat weak;
+    cv::compare(edgeType, 255, strong, cv::CMP_EQ);
+    cv::compare(edgeType, 0, weak, cv::CMP_NE);
+    edge = hysteresis_flood_fill(strong, weak);
     return edge;
 }
 

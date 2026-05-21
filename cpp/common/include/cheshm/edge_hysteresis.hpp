@@ -7,32 +7,35 @@
 
 #pragma once
 
+#include <limits>
 #include <opencv2/core.hpp>
+#include <optional>
 #include <vector>
 
 namespace cheshm
 {
 
-// Per-seed flood-fill cap. Bounds runtime on pathological inputs where
-// the weak-edge mask is densely connected.
-inline constexpr int HYSTERESIS_MAX_FILL_PIXELS = 10000;
-
 // Returns a new uint8 single-channel mask the size of ``strong`` /
 // ``weak``. A pixel is lit (255) when it is set in ``strong`` or when
 // it is reachable from a ``strong`` seed through 8-connected
-// neighbours that are set in ``weak``.
-inline cv::Mat hysteresis_flood_fill(const cv::Mat& strong, const cv::Mat& weak)
+// neighbours that are set in ``weak``. ``max_fill_pixels`` caps the
+// per-seed fill queue; pass ``std::nullopt`` for an uncapped fill.
+inline cv::Mat hysteresis_flood_fill(const cv::Mat& strong,
+                                     const cv::Mat& weak,
+                                     std::optional<int> max_fill_pixels = std::nullopt)
 {
     const int pic_x = strong.cols;
     const int pic_y = strong.rows;
     const int area = pic_x * pic_y;
+    const int cap = max_fill_pixels.value_or(std::numeric_limits<int>::max());
 
     cv::Mat check = cv::Mat::zeros(pic_y, pic_x, CV_8U);
 
-    std::vector<int> lines(HYSTERESIS_MAX_FILL_PIXELS, 0);
-    int lines_idx = 0;
-    int idx = 0;
+    std::vector<int> lines;
+    if (max_fill_pixels)
+        lines.reserve(*max_fill_pixels);
 
+    int idx = 0;
     for (int i = 1; i < pic_y - 1; ++i)
     {
         for (int j = 1; j < pic_x - 1; ++j)
@@ -41,11 +44,11 @@ inline cv::Mat hysteresis_flood_fill(const cv::Mat& strong, const cv::Mat& weak)
                 continue;
 
             check.data[idx + j] = 255;
-            lines_idx = 1;
-            lines[0] = idx + j;
+            lines.clear();
+            lines.push_back(idx + j);
 
-            int akt_idx = 0;
-            while (akt_idx < lines_idx && lines_idx < HYSTERESIS_MAX_FILL_PIXELS)
+            std::size_t akt_idx = 0;
+            while (akt_idx < lines.size() && static_cast<int>(lines.size()) < cap)
             {
                 const int akt_pos = lines[akt_idx++];
                 if (akt_pos - pic_x - 1 < 0 || akt_pos + pic_x + 1 >= area)
@@ -59,10 +62,8 @@ inline cv::Mat hysteresis_flood_fill(const cv::Mat& strong, const cv::Mat& weak)
                         if (check.data[neighbour] != 0 || weak.data[neighbour] == 0)
                             continue;
                         check.data[neighbour] = 255;
-                        if (lines_idx < HYSTERESIS_MAX_FILL_PIXELS)
-                        {
-                            lines[lines_idx++] = neighbour;
-                        }
+                        if (static_cast<int>(lines.size()) < cap)
+                            lines.push_back(neighbour);
                     }
                 }
             }

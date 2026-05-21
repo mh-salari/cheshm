@@ -88,13 +88,11 @@ canny_gaussian16(const cv::Mat& image, int non_edge_pixel_count, int bins, cv::M
 
     cv::Mat res_idx_f32;
     res_idx.convertTo(res_idx_f32, CV_32F);
-    const float hist_range_max = static_cast<float>(bins);
-    const float range_array[] = {0.0f, hist_range_max};
-    const float* hist_range[] = {range_array};
-    const int hist_size = bins;
-    const int channels[] = {0};
+    const std::vector<int> channels = {0};
+    const std::vector<int> hist_size = {bins};
+    const std::vector<float> ranges = {0.0f, static_cast<float>(bins)};
     cv::Mat hist_mat;
-    cv::calcHist(&res_idx_f32, 1, channels, cv::Mat(), hist_mat, 1, &hist_size, hist_range);
+    cv::calcHist(std::vector<cv::Mat>{res_idx_f32}, channels, cv::Mat(), hist_mat, hist_size, ranges);
 
     float high_th = 0.0f;
     int sum = 0;
@@ -188,7 +186,7 @@ canny_gaussian16(const cv::Mat& image, int non_edge_pixel_count, int bins, cv::M
     if (magnitude_out)
         *magnitude_out = magnitude;
 
-    return hysteresis_flood_fill(non_ms_hth, non_ms);
+    return hysteresis_flood_fill(non_ms_hth, non_ms, 10000);
 }
 
 } // namespace cheshm
