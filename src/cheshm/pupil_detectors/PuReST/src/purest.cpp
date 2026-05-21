@@ -100,15 +100,6 @@ float pupilConfidence(const Mat& frame, const RotatedRect& pupil, const std::vec
 }
 
 
-void calculateHistogram(const Mat& in, Mat& histogram, int bins)
-{
-    int channels[] = {0};
-    int histSize[] = {bins};
-    float range[] = {0, 256};
-    const float* ranges[] = {range};
-    calcHist(&in, 1, channels, Mat(), histogram, 1, histSize, ranges, true, false);
-}
-
 void getThresholds(const Mat& input,
                    const Mat& histogram,
                    const RotatedRect& pupil,
@@ -442,7 +433,7 @@ bool runTracking(const Mat& frame,
     basePupil.size.height *= localScalingRatio;
 
     Mat histogram;
-    calculateHistogram(input, histogram, 256);
+    calcHist(std::vector<cv::Mat>{input}, {0}, Mat(), histogram, {256}, {0.0f, 256.0f});
 
     int lowTh, highTh;
     Mat bright, dark;
