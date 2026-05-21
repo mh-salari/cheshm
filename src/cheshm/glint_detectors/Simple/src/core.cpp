@@ -4,6 +4,7 @@
 
 #include "Simple/defaults.hpp"
 #include "cheshm/roi.hpp"
+#include "cheshm/shape_quality.hpp"
 #include "cheshm/spline.hpp"
 
 #include <algorithm>
@@ -37,42 +38,6 @@ struct Candidate {
     bool has_fit;
     cv::RotatedRect fit;
 };
-
-bool passes_shape_quality(
-    const std::vector<cv::Point> &contour,
-    bool has_fit,
-    const cv::RotatedRect &ellipse_fit,
-    double min_ellipse_fit_ratio,
-    double min_roundness_ratio)
-{
-    if (min_ellipse_fit_ratio < 0.0 && min_roundness_ratio < 0.0) {
-        return true;
-    }
-    const double area = cv::contourArea(contour);
-    if (min_ellipse_fit_ratio >= 0.0) {
-        if (!has_fit) {
-            return false;
-        }
-        const double ellipse_area = CV_PI * (ellipse_fit.size.width / 2.0) * (ellipse_fit.size.height / 2.0);
-        if (ellipse_area <= 0.0) {
-            return false;
-        }
-        if (area / ellipse_area < min_ellipse_fit_ratio) {
-            return false;
-        }
-    }
-    if (min_roundness_ratio >= 0.0) {
-        const double perimeter = cv::arcLength(contour, true);
-        if (perimeter <= 0.0) {
-            return false;
-        }
-        const double roundness = 4.0 * CV_PI * area / (perimeter * perimeter);
-        if (roundness < min_roundness_ratio) {
-            return false;
-        }
-    }
-    return true;
-}
 
 bool passes_half_plane(
     const std::vector<cv::Point> &contour,
@@ -354,7 +319,9 @@ std::optional<DetectResult> detect_impl(
         if (cand.has_fit) {
             cand.fit = cv::fitEllipse(c);
         }
-        if (!passes_shape_quality(c, cand.has_fit, cand.fit, min_ellipse_fit_ratio, min_roundness_ratio)) {
+        const std::optional<cv::RotatedRect> fit_opt =
+            cand.has_fit ? std::optional<cv::RotatedRect>{cand.fit} : std::nullopt;
+        if (!cheshm::passes_shape_quality(c, fit_opt, min_ellipse_fit_ratio, min_roundness_ratio)) {
             continue;
         }
         cand.contour = std::move(c);

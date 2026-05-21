@@ -4,6 +4,7 @@
 
 #include "Simple/defaults.hpp"
 #include "cheshm/roi.hpp"
+#include "cheshm/shape_quality.hpp"
 #include "cheshm/spline.hpp"
 
 #include <algorithm>
@@ -34,38 +35,6 @@ bool touches_border(const std::vector<cv::Point> &contour, int view_w, int view_
 {
     const cv::Rect br = cv::boundingRect(contour);
     return br.x == 0 || br.y == 0 || br.x + br.width == view_w || br.y + br.height == view_h;
-}
-
-bool passes_shape_quality(
-    const std::vector<cv::Point> &contour,
-    const cv::RotatedRect &ellipse_fit,
-    double min_ellipse_fit_ratio,
-    double min_roundness_ratio)
-{
-    if (min_ellipse_fit_ratio < 0.0 && min_roundness_ratio < 0.0) {
-        return true;
-    }
-    const double area = cv::contourArea(contour);
-    if (min_ellipse_fit_ratio >= 0.0) {
-        const double ellipse_area = CV_PI * (ellipse_fit.size.width / 2.0) * (ellipse_fit.size.height / 2.0);
-        if (ellipse_area <= 0.0) {
-            return false;
-        }
-        if (area / ellipse_area < min_ellipse_fit_ratio) {
-            return false;
-        }
-    }
-    if (min_roundness_ratio >= 0.0) {
-        const double perimeter = cv::arcLength(contour, true);
-        if (perimeter <= 0.0) {
-            return false;
-        }
-        const double roundness = 4.0 * CV_PI * area / (perimeter * perimeter);
-        if (roundness < min_roundness_ratio) {
-            return false;
-        }
-    }
-    return true;
 }
 
 // Convex hull walked in source-contour traversal order. Anchors the
@@ -151,7 +120,7 @@ std::optional<DetectResult> detect_impl(
             continue;
         }
         const cv::RotatedRect candidate_fit = cv::fitEllipse(candidate_hull);
-        if (!passes_shape_quality(contours[idx], candidate_fit, min_ellipse_fit_ratio, min_roundness_ratio)) {
+        if (!cheshm::passes_shape_quality(contours[idx], candidate_fit, min_ellipse_fit_ratio, min_roundness_ratio)) {
             continue;
         }
         winning = idx;

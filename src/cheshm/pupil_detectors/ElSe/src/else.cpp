@@ -1,8 +1,10 @@
-// ElSe pupil detector algorithm body. Public surface declared in
-// include/ElSe/else.hpp.
+// ElSe pupil detector algorithm body.
 
 #include "ElSe/else.hpp"
 #include "ElSe/defaults.hpp"
+#include "cheshm/canny.hpp"
+#include "cheshm/canny_gaussian16.hpp"
+#include "cheshm/ellipse_intensity_gap.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,7 +22,6 @@ using namespace cv;   // NOLINT(google-build-using-namespace)
 using namespace std;  // NOLINT(google-build-using-namespace)
 
 using defaults::IMG_SIZE;
-using defaults::MAX_LINE;
 
 // Intensity gap (inside-ellipse mean vs surrounding-band mean) below
 // which a candidate ellipse is rejected by the ellipse-quality gates.
@@ -31,71 +32,35 @@ constexpr float INNER_OUTER_INTENSITY_GAP_MIN = 10.0f;
 // erg receives the integer-rounded mean difference.
 bool is_good_ellipse_eval(RotatedRect *ellipse, Mat *pic, int *erg)
 {
-
     if (ellipse->center.x == 0 && ellipse->center.y == 0)
         return false;
 
-    float x0 = ellipse->center.x;
-    float y0 = ellipse->center.y;
+    const float x0 = ellipse->center.x;
+    const float y0 = ellipse->center.y;
 
-    int st_x = static_cast<int>(ceil(x0 - (ellipse->size.width / 4.0)));
-    int st_y = static_cast<int>(ceil(y0 - (ellipse->size.height / 4.0)));
-    int en_x = static_cast<int>(floor(x0 + (ellipse->size.width / 4.0)));
-    int en_y = static_cast<int>(floor(y0 + (ellipse->size.height / 4.0)));
+    const cheshm::PixelBox inner = {
+        static_cast<int>(std::ceil(x0 - ellipse->size.width / 4.0)),
+        static_cast<int>(std::floor(x0 + ellipse->size.width / 4.0)),
+        static_cast<int>(std::ceil(y0 - ellipse->size.height / 4.0)),
+        static_cast<int>(std::floor(y0 + ellipse->size.height / 4.0)),
+    };
+    const cheshm::PixelBox outer = {
+        static_cast<int>(x0 - ellipse->size.width * 0.75),
+        static_cast<int>(x0 + ellipse->size.width * 0.75),
+        static_cast<int>(y0 - ellipse->size.height * 0.75),
+        static_cast<int>(y0 + ellipse->size.height * 0.75),
+    };
+    const cheshm::PixelBox cutout = {
+        static_cast<int>(std::ceil(x0 - ellipse->size.width / 2)),
+        static_cast<int>(std::floor(x0 + ellipse->size.width / 2)) + 1,
+        static_cast<int>(std::ceil(y0 - ellipse->size.height / 2)),
+        static_cast<int>(std::floor(y0 + ellipse->size.height / 2)) + 1,
+    };
 
-    float val = 0.0;
-    float val_cnt = 0;
-    float ext_val = 0.0;
-
-    for (int i = st_x; i < en_x; i++)
-        for (int j = st_y; j < en_y; j++)
-        {
-
-            if (i > 0 && i < pic->cols && j > 0 && j < pic->rows)
-            {
-                val += pic->data[(pic->cols * j) + i];
-                val_cnt++;
-            }
-        }
-
-    if (val_cnt > 0)
-        val = val / val_cnt;
-    else
-        return false;
-
-    val_cnt = 0;
-
-    st_x = static_cast<int>(x0 - (ellipse->size.width * 0.75));
-    st_y = static_cast<int>(y0 - (ellipse->size.height * 0.75));
-    en_x = static_cast<int>(x0 + (ellipse->size.width * 0.75));
-    en_y = static_cast<int>(y0 + (ellipse->size.height * 0.75));
-
-    int in_st_x = static_cast<int>(ceil(x0 - (ellipse->size.width / 2)));
-    int in_st_y = static_cast<int>(ceil(y0 - (ellipse->size.height / 2)));
-    int in_en_x = static_cast<int>(floor(x0 + (ellipse->size.width / 2)));
-    int in_en_y = static_cast<int>(floor(y0 + (ellipse->size.height / 2)));
-
-    for (int i = st_x; i < en_x; i++)
-        for (int j = st_y; j < en_y; j++)
-        {
-            if (!(i >= in_st_x && i <= in_en_x && j >= in_st_y && j <= in_en_y))
-                if (i > 0 && i < pic->cols && j > 0 && j < pic->rows)
-                {
-                    ext_val += pic->data[(pic->cols * j) + i];
-                    val_cnt++;
-                }
-        }
-
-    if (val_cnt > 0)
-        ext_val = ext_val / val_cnt;
-    else
-        return false;
-
-    val = ext_val - val;
-
-    *erg = static_cast<int>(val);
-
-    return val > INNER_OUTER_INTENSITY_GAP_MIN;
+    const auto r = cheshm::check_ellipse_intensity_gap(
+        *pic, inner, outer, cutout, INNER_OUTER_INTENSITY_GAP_MIN);
+    *erg = static_cast<int>(r.diff);
+    return r.passes;
 }
 
 // Returns the mean intensity sampled at scaled-down copies of the
@@ -368,561 +333,6 @@ RotatedRect find_best_edge(
     return ellipse;
 }
 
-// Cleans the edge image in three passes:
-//   1) Thin 2x2 corner clusters down to a single edge pixel.
-//   2) Drop pixels with more than 3 lit neighbours (over-connected).
-//   3) Local-pattern rewrites that straighten short staircase / spur
-//      segments produced by the Canny step.
-void filter_edges(Mat *edge, int start_xx, int end_xx, int start_yy, int end_yy)
-{
-
-    int start_x = start_xx + 5;
-    int end_x = end_xx - 5;
-    int start_y = start_yy + 5;
-    int end_y = end_yy - 5;
-
-    if (start_x < 5)
-        start_x = 5;
-    if (end_x > edge->cols - 5)
-        end_x = edge->cols - 5;
-    if (start_y < 5)
-        start_y = 5;
-    if (end_y > edge->rows - 5)
-        end_y = edge->rows - 5;
-
-    for (int j = start_y; j < end_y; j++)
-        for (int i = start_x; i < end_x; i++)
-        {
-            int box[9];
-
-            box[4] = static_cast<int>(edge->data[(edge->cols * (j)) + (i)]);
-
-            if (box[4])
-            {
-                box[1] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i)]);
-                box[3] = static_cast<int>(edge->data[(edge->cols * (j)) + (i - 1)]);
-                box[5] = static_cast<int>(edge->data[(edge->cols * (j)) + (i + 1)]);
-                box[7] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i)]);
-
-                if ((box[5] && box[7]))
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if ((box[5] && box[1]))
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if ((box[3] && box[7]))
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if ((box[3] && box[1]))
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-            }
-        }
-
-    // too many neighbours
-    for (int j = start_y; j < end_y; j++)
-        for (int i = start_x; i < end_x; i++)
-        {
-            int neig = 0;
-
-            for (int k1 = -1; k1 < 2; k1++)
-                for (int k2 = -1; k2 < 2; k2++)
-                {
-
-                    if (edge->data[(edge->cols * (j + k1)) + (i + k2)] > 0)
-                        neig++;
-                }
-
-            if (neig > 3)
-                edge->data[(edge->cols * (j)) + (i)] = 0;
-        }
-
-    for (int j = start_y; j < end_y; j++)
-        for (int i = start_x; i < end_x; i++)
-        {
-            int box[17];
-
-            box[4] = static_cast<int>(edge->data[(edge->cols * (j)) + (i)]);
-
-            if (box[4])
-            {
-                box[0] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i - 1)]);
-                box[1] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i)]);
-                box[2] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i + 1)]);
-
-                box[3] = static_cast<int>(edge->data[(edge->cols * (j)) + (i - 1)]);
-                box[5] = static_cast<int>(edge->data[(edge->cols * (j)) + (i + 1)]);
-
-                box[6] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i - 1)]);
-                box[7] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i)]);
-                box[8] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i + 1)]);
-
-                // external
-                box[9] = static_cast<int>(edge->data[(edge->cols * (j)) + (i + 2)]);
-                box[10] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i)]);
-
-                box[11] = static_cast<int>(edge->data[(edge->cols * (j)) + (i + 3)]);
-                box[12] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i + 2)]);
-                box[13] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i + 2)]);
-
-                box[14] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i)]);
-                box[15] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i - 1)]);
-                box[16] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i + 1)]);
-
-                if ((box[10] && !box[7]) && (box[8] || box[6]))
-                {
-                    edge->data[(edge->cols * (j + 1)) + (i - 1)] = 0;
-                    edge->data[(edge->cols * (j + 1)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j + 1)) + (i)] = 255;
-                }
-
-                if ((box[14] && !box[7] && !box[10]) && ((box[8] || box[6]) && (box[16] || box[15])))
-                {
-                    edge->data[(edge->cols * (j + 1)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j + 1)) + (i - 1)] = 0;
-                    edge->data[(edge->cols * (j + 2)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j + 2)) + (i - 1)] = 0;
-                    edge->data[(edge->cols * (j + 1)) + (i)] = 255;
-                    edge->data[(edge->cols * (j + 2)) + (i)] = 255;
-                }
-
-                if ((box[9] && !box[5]) && (box[8] || box[2]))
-                {
-                    edge->data[(edge->cols * (j + 1)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j - 1)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j)) + (i + 1)] = 255;
-                }
-
-                if ((box[11] && !box[5] && !box[9]) && ((box[8] || box[2]) && (box[13] || box[12])))
-                {
-                    edge->data[(edge->cols * (j + 1)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j - 1)) + (i + 1)] = 0;
-                    edge->data[(edge->cols * (j + 1)) + (i + 2)] = 0;
-                    edge->data[(edge->cols * (j - 1)) + (i + 2)] = 0;
-                    edge->data[(edge->cols * (j)) + (i + 1)] = 255;
-                    edge->data[(edge->cols * (j)) + (i + 2)] = 255;
-                }
-            }
-        }
-
-    for (int j = start_y; j < end_y; j++)
-        for (int i = start_x; i < end_x; i++)
-        {
-
-            int box[33];
-
-            box[4] = static_cast<int>(edge->data[(edge->cols * (j)) + (i)]);
-
-            if (box[4])
-            {
-                box[0] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i - 1)]);
-                box[1] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i)]);
-                box[2] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i + 1)]);
-
-                box[3] = static_cast<int>(edge->data[(edge->cols * (j)) + (i - 1)]);
-                box[5] = static_cast<int>(edge->data[(edge->cols * (j)) + (i + 1)]);
-
-                box[6] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i - 1)]);
-                box[7] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i)]);
-                box[8] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i + 1)]);
-
-                box[9] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i + 2)]);
-                box[10] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i - 2)]);
-                box[11] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i + 2)]);
-                box[12] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i - 2)]);
-
-                box[13] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i - 1)]);
-                box[14] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i + 1)]);
-                box[15] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i - 1)]);
-                box[16] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i + 1)]);
-
-                box[17] = static_cast<int>(edge->data[(edge->cols * (j - 3)) + (i - 1)]);
-                box[18] = static_cast<int>(edge->data[(edge->cols * (j - 3)) + (i + 1)]);
-                box[19] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i - 1)]);
-                box[20] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i + 1)]);
-
-                box[21] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i + 3)]);
-                box[22] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i - 3)]);
-                box[23] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i + 3)]);
-                box[24] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i - 3)]);
-
-                box[25] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i - 2)]);
-                box[26] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i + 2)]);
-                box[27] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i + 2)]);
-                box[28] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i - 2)]);
-
-                box[29] = static_cast<int>(edge->data[(edge->cols * (j - 3)) + (i - 3)]);
-                box[30] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i + 3)]);
-                box[31] = static_cast<int>(edge->data[(edge->cols * (j - 3)) + (i + 3)]);
-                box[32] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i - 3)]);
-
-                if (box[7] && box[2] && box[9])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[7] && box[0] && box[10])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[1] && box[8] && box[11])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[1] && box[6] && box[12])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-
-                if (box[0] && box[13] && box[17] && box[8] && box[11] && box[21])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[2] && box[14] && box[18] && box[6] && box[12] && box[22])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[6] && box[15] && box[19] && box[2] && box[9] && box[23])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[8] && box[16] && box[20] && box[0] && box[10] && box[24])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-
-                if (box[0] && box[25] && box[2] && box[27])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[0] && box[25] && box[6] && box[28])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[8] && box[26] && box[2] && box[27])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box[8] && box[26] && box[6] && box[28])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-
-                int box2[18];
-                box2[1] = static_cast<int>(edge->data[(edge->cols * (j)) + (i - 1)]);
-
-                box2[2] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i - 2)]);
-                box2[3] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i - 3)]);
-
-                box2[4] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i + 1)]);
-                box2[5] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i + 2)]);
-
-                box2[6] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i - 2)]);
-                box2[7] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i - 3)]);
-
-                box2[8] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i + 1)]);
-                box2[9] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i + 2)]);
-
-                box2[10] = static_cast<int>(edge->data[(edge->cols * (j + 1)) + (i)]);
-
-                box2[15] = static_cast<int>(edge->data[(edge->cols * (j - 1)) + (i - 1)]);
-                box2[16] = static_cast<int>(edge->data[(edge->cols * (j - 2)) + (i - 2)]);
-
-                box2[11] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i + 1)]);
-                box2[12] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i + 2)]);
-
-                box2[13] = static_cast<int>(edge->data[(edge->cols * (j + 2)) + (i - 1)]);
-                box2[14] = static_cast<int>(edge->data[(edge->cols * (j + 3)) + (i - 2)]);
-
-                if (box2[1] && box2[2] && box2[3] && box2[4] && box2[5])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box2[1] && box2[6] && box2[7] && box2[8] && box2[9])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box2[10] && box2[11] && box2[12] && box2[4] && box2[5])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-                if (box2[10] && box2[13] && box2[14] && box2[15] && box2[16])
-                    edge->data[(edge->cols * (j)) + (i)] = 0;
-            }
-        }
-}
-
-// Hysteresis-style edge propagation. Each strong-edge pixel seeds a
-// flood that pulls in connected weak-edge pixels, marking accepted
-// pixels in `check`. Mutates a caller-supplied `check` buffer.
-void bwselect(Mat *strong, Mat *weak, Mat *check)
-{
-
-    int pic_x = strong->cols;
-    int pic_y = strong->rows;
-
-    int lines[MAX_LINE];
-    int lines_idx = 0;
-
-    int idx = 0;
-
-    for (int i = 1; i < pic_y - 1; i++)
-    {
-        for (int j = 1; j < pic_x - 1; j++)
-        {
-
-            if (strong->data[idx + j] != 0 && check->data[idx + j] == 0)
-            {
-
-                check->data[idx + j] = 255;
-                lines_idx = 1;
-                lines[0] = idx + j;
-
-                int akt_idx = 0;
-
-                while (akt_idx < lines_idx && lines_idx < MAX_LINE - 1)
-                {
-
-                    int akt_pos = lines[akt_idx];
-
-                    if (akt_pos - pic_x - 1 >= 0 && akt_pos + pic_x + 1 < pic_x * pic_y)
-                    {
-                        for (int k1 = -1; k1 < 2; k1++)
-                        {
-                            for (int k2 = -1; k2 < 2; k2++)
-                            {
-                                if (check->data[(akt_pos + (k1 * pic_x)) + k2] == 0 && weak->data[(akt_pos + (k1 * pic_x)) + k2] != 0)
-                                {
-                                    check->data[(akt_pos + (k1 * pic_x)) + k2] = 255;
-                                    lines_idx++;
-                                    lines[lines_idx - 1] = (akt_pos + (k1 * pic_x)) + k2;
-                                }
-                            }
-                        }
-                    }
-                    akt_idx++;
-                }
-            }
-        }
-        idx += pic_x;
-    }
-}
-
-// Hysteresis-style edge propagation that allocates and returns its own
-// `check` mask instead of writing into a caller buffer.
-Mat cbwselect(const Mat &strong, const Mat &weak)
-{
-
-    int pic_x = strong.cols;
-    int pic_y = strong.rows;
-
-    Mat check = Mat::zeros(pic_y, pic_x, CV_8U);
-
-    int lines[MAX_LINE] = {0};
-    int lines_idx = 0;
-
-    int idx = 0;
-
-    for (int i = 1; i < pic_y - 1; i++)
-    {
-        for (int j = 1; j < pic_x - 1; j++)
-        {
-
-            if (strong.at<uchar>(idx + j) != 0 && check.at<uchar>(idx + j) == 0)
-            {
-
-                check.at<uchar>(idx + j) = 255;
-                lines_idx = 1;
-                lines[0] = idx + j;
-
-                int akt_idx = 0;
-
-                while (akt_idx < lines_idx && lines_idx < MAX_LINE)
-                {
-
-                    int akt_pos = lines[akt_idx];
-
-                    if (akt_pos - pic_x - 1 >= 0 && akt_pos + pic_x + 1 < pic_x * pic_y)
-                    {
-                        for (int k1 = -1; k1 < 2; k1++)
-                        {
-                            for (int k2 = -1; k2 < 2; k2++)
-                            {
-
-                                if (check.at<uchar>((akt_pos + (k1 * pic_x)) + k2) == 0 && weak.at<uchar>((akt_pos + (k1 * pic_x)) + k2) != 0)
-                                {
-                                    check.at<uchar>((akt_pos + (k1 * pic_x)) + k2) = 255;
-                                    if (lines_idx < MAX_LINE)
-                                    {
-                                        lines[lines_idx] = (akt_pos + (k1 * pic_x)) + k2;
-                                        lines_idx++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    akt_idx++;
-                }
-            }
-        }
-        idx += pic_x;
-    }
-
-    return check;
-}
-
-// Custom Canny edge detector: 16-tap Gaussian + its derivative for the
-// gradient, high threshold from a 64-bin histogram of normalised
-// magnitudes at the 70th percentile, low = 0.4 * high, non-maximum
-// suppression with bilinear interpolation, then hysteresis via
-// cbwselect.
-Mat canny_impl(Mat *pic, Mat *magni)
-{
-    int k_sz = 16;
-
-    float gau[16] = {0.000000220358050f, 0.000007297256405f, 0.000146569312970f, 0.001785579770079f,
-                     0.013193749090229f, 0.059130281094460f, 0.160732768610747f, 0.265003534507060f, 0.265003534507060f,
-                     0.160732768610747f, 0.059130281094460f, 0.013193749090229f, 0.001785579770079f, 0.000146569312970f,
-                     0.000007297256405f, 0.000000220358050f};
-    float deriv_gau[16] = {-0.000026704586264f, -0.000276122963398f, -0.003355163265098f, -0.024616683775044f, -0.108194751875585f,
-                           -0.278368310241814f, -0.388430056419619f, -0.196732206873178f, 0.196732206873178f, 0.388430056419619f,
-                           0.278368310241814f, 0.108194751875585f, 0.024616683775044f, 0.003355163265098f, 0.000276122963398f, 0.000026704586264f};
-
-    Point anchor = Point(-1, -1);
-    float delta = 0;
-    int ddepth = -1;
-
-    pic->convertTo(*pic, CV_32FC1);
-
-    Mat gau_x = Mat(1, k_sz, CV_32FC1, &gau);
-    Mat deriv_gau_x = Mat(1, k_sz, CV_32FC1, &deriv_gau);
-
-    Mat res_x;
-    Mat res_y;
-
-    transpose(*pic, *pic);
-    filter2D(*pic, res_x, ddepth, gau_x, anchor, delta, BORDER_REPLICATE);
-    transpose(*pic, *pic);
-    transpose(res_x, res_x);
-
-    filter2D(res_x, res_x, ddepth, deriv_gau_x, anchor, delta, BORDER_REPLICATE);
-    filter2D(*pic, res_y, ddepth, gau_x, anchor, delta, BORDER_REPLICATE);
-
-    transpose(res_y, res_y);
-    filter2D(res_y, res_y, ddepth, deriv_gau_x, anchor, delta, BORDER_REPLICATE);
-    transpose(res_y, res_y);
-
-    *magni = Mat::zeros(pic->rows, pic->cols, CV_32FC1);
-
-    float *p_res, *p_x, *p_y;
-    for (int i = 0; i < magni->rows; i++)
-    {
-        p_res = magni->ptr<float>(i);
-        p_x = res_x.ptr<float>(i);
-        p_y = res_y.ptr<float>(i);
-
-        for (int j = 0; j < magni->cols; j++)
-        {
-            p_res[j] = hypot(p_x[j], p_y[j]);
-        }
-    }
-
-    // threshold selection
-    int PercentOfPixelsNotEdges = static_cast<int>(round(0.7 * magni->cols * magni->rows));
-    float ThresholdRatio = 0.4f;
-
-    float high_th = 0;
-    float low_th = 0;
-
-    int h_sz = 64;
-    int hist[64];
-    for (int i = 0; i < h_sz; i++)
-        hist[i] = 0;
-
-    normalize(*magni, *magni, 0, 1, NORM_MINMAX, CV_32FC1);
-
-    Mat res_idx = Mat::zeros(pic->rows, pic->cols, CV_8U);
-    normalize(*magni, res_idx, 0, 63, NORM_MINMAX, CV_32S);
-
-    int *p_res_idx = 0;
-    for (int i = 0; i < magni->rows; i++)
-    {
-        p_res_idx = res_idx.ptr<int>(i);
-        for (int j = 0; j < magni->cols; j++)
-        {
-            hist[p_res_idx[j]]++;
-        }
-    }
-
-    int sum = 0;
-    for (int i = 0; i < h_sz; i++)
-    {
-        sum += hist[i];
-        if (sum > PercentOfPixelsNotEdges)
-        {
-            high_th = float(i + 1) / float(h_sz);
-            break;
-        }
-    }
-
-    low_th = ThresholdRatio * high_th;
-    (void)low_th;  // computed but unused; preserved to match reference behaviour.
-
-    // non-maximum suppression + interpolation
-    Mat non_ms = Mat::zeros(pic->rows, pic->cols, CV_8U);
-    Mat non_ms_hth = Mat::zeros(pic->rows, pic->cols, CV_8U);
-
-    float ix, iy, grad1, grad2, d;
-
-    char *p_non_ms, *p_non_ms_hth;
-    float *p_res_t, *p_res_b;
-    for (int i = 1; i < magni->rows - 1; i++)
-    {
-        p_non_ms = non_ms.ptr<char>(i);
-        p_non_ms_hth = non_ms_hth.ptr<char>(i);
-
-        p_res = magni->ptr<float>(i);
-        p_res_t = magni->ptr<float>(i - 1);
-        p_res_b = magni->ptr<float>(i + 1);
-
-        p_x = res_x.ptr<float>(i);
-        p_y = res_y.ptr<float>(i);
-
-        for (int j = 1; j < magni->cols - 1; j++)
-        {
-
-            iy = p_y[j];
-            ix = p_x[j];
-
-            if ((iy <= 0 && ix > -iy) || (iy >= 0 && ix < -iy))
-            {
-
-                d = abs(iy / ix);
-                grad1 = (p_res[j + 1] * (1 - d)) + (p_res_t[j + 1] * d);
-                grad2 = (p_res[j - 1] * (1 - d)) + (p_res_b[j - 1] * d);
-
-                if (p_res[j] >= grad1 && p_res[j] >= grad2)
-                {
-                    p_non_ms[j] = static_cast<char>(255);
-
-                    if (p_res[j] > high_th)
-                        p_non_ms_hth[j] = static_cast<char>(255);
-                }
-            }
-
-            if ((ix > 0 && -iy >= ix) || (ix < 0 && -iy <= ix))
-            {
-                d = abs(ix / iy);
-                grad1 = (p_res_t[j] * (1 - d)) + (p_res_t[j + 1] * d);
-                grad2 = (p_res_b[j] * (1 - d)) + (p_res_b[j - 1] * d);
-
-                if (p_res[j] >= grad1 && p_res[j] >= grad2)
-                {
-                    p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th)
-                        p_non_ms_hth[j] = static_cast<char>(255);
-                }
-            }
-
-            if ((ix <= 0 && ix > iy) || (ix >= 0 && ix < iy))
-            {
-                d = abs(ix / iy);
-                grad1 = (p_res_t[j] * (1 - d)) + (p_res_t[j - 1] * d);
-                grad2 = (p_res_b[j] * (1 - d)) + (p_res_b[j + 1] * d);
-
-                if (p_res[j] >= grad1 && p_res[j] >= grad2)
-                {
-                    p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th)
-                        p_non_ms_hth[j] = static_cast<char>(255);
-                }
-            }
-
-            if ((iy < 0 && ix <= iy) || (iy > 0 && ix >= iy))
-            {
-                d = abs(iy / ix);
-                grad1 = (p_res[j - 1] * (1 - d)) + (p_res_t[j - 1] * d);
-                grad2 = (p_res[j + 1] * (1 - d)) + (p_res_b[j + 1] * d);
-
-                if (p_res[j] >= grad1 && p_res[j] >= grad2)
-                {
-                    p_non_ms[j] = static_cast<char>(255);
-                    if (p_res[j] > high_th)
-                        p_non_ms_hth[j] = static_cast<char>(255);
-                }
-            }
-        }
-    }
-
-    Mat res_lin = cbwselect(non_ms_hth, non_ms);
-
-    return res_lin;
-}
 
 // Coarse downsample + dark-pixel mean. For each output cell averages
 // the input window centred on the corresponding source pixel, then
@@ -1068,69 +478,33 @@ void gen_blob_neu(int rad, Mat *all_mat, Mat *all_mat_neg)
 // inside-vs-outside intensity-gap test, no `erg` output param.
 bool is_good_ellipse_evaluation(RotatedRect *ellipse, Mat *pic)
 {
-
     if (ellipse->center.x == 0 && ellipse->center.y == 0)
         return false;
 
-    float x0 = ellipse->center.x;
-    float y0 = ellipse->center.y;
+    const float x0 = ellipse->center.x;
+    const float y0 = ellipse->center.y;
 
-    int st_x = static_cast<int>(ceil(x0 - (ellipse->size.width / 4.0)));
-    int st_y = static_cast<int>(ceil(y0 - (ellipse->size.height / 4.0)));
-    int en_x = static_cast<int>(floor(x0 + (ellipse->size.width / 4.0)));
-    int en_y = static_cast<int>(floor(y0 + (ellipse->size.height / 4.0)));
+    const cheshm::PixelBox inner = {
+        static_cast<int>(std::ceil(x0 - ellipse->size.width / 4.0)),
+        static_cast<int>(std::floor(x0 + ellipse->size.width / 4.0)),
+        static_cast<int>(std::ceil(y0 - ellipse->size.height / 4.0)),
+        static_cast<int>(std::floor(y0 + ellipse->size.height / 4.0)),
+    };
+    const cheshm::PixelBox outer = {
+        static_cast<int>(std::ceil(x0 - ellipse->size.width * 0.75)),
+        static_cast<int>(std::floor(x0 + ellipse->size.width * 0.75)),
+        static_cast<int>(std::ceil(y0 - ellipse->size.height * 0.75)),
+        static_cast<int>(std::floor(y0 + ellipse->size.height * 0.75)),
+    };
+    const cheshm::PixelBox cutout = {
+        static_cast<int>(std::ceil(x0 - ellipse->size.width / 2)),
+        static_cast<int>(std::floor(x0 + ellipse->size.width / 2)) + 1,
+        static_cast<int>(std::ceil(y0 - ellipse->size.height / 2)),
+        static_cast<int>(std::floor(y0 + ellipse->size.height / 2)) + 1,
+    };
 
-    float val = 0.0;
-    float val_cnt = 0;
-    float ext_val = 0.0;
-
-    for (int i = st_x; i < en_x; i++)
-        for (int j = st_y; j < en_y; j++)
-        {
-
-            if (i > 0 && i < pic->cols && j > 0 && j < pic->rows)
-            {
-                val += pic->data[(pic->cols * j) + i];
-                val_cnt++;
-            }
-        }
-
-    if (val_cnt > 0)
-        val = val / val_cnt;
-    else
-        return false;
-
-    val_cnt = 0;
-
-    st_x = static_cast<int>(ceil(x0 - (ellipse->size.width * 0.75)));
-    st_y = static_cast<int>(ceil(y0 - (ellipse->size.height * 0.75)));
-    en_x = static_cast<int>(floor(x0 + (ellipse->size.width * 0.75)));
-    en_y = static_cast<int>(floor(y0 + (ellipse->size.height * 0.75)));
-
-    int in_st_x = static_cast<int>(ceil(x0 - (ellipse->size.width / 2)));
-    int in_st_y = static_cast<int>(ceil(y0 - (ellipse->size.height / 2)));
-    int in_en_x = static_cast<int>(floor(x0 + (ellipse->size.width / 2)));
-    int in_en_y = static_cast<int>(floor(y0 + (ellipse->size.height / 2)));
-
-    for (int i = st_x; i < en_x; i++)
-        for (int j = st_y; j < en_y; j++)
-        {
-            if (!(i >= in_st_x && i <= in_en_x && j >= in_st_y && j <= in_en_y))
-                if (i > 0 && i < pic->cols && j > 0 && j < pic->rows)
-                {
-                    ext_val += pic->data[(pic->cols * j) + i];
-                    val_cnt++;
-                }
-        }
-
-    if (val_cnt > 0)
-        ext_val = ext_val / val_cnt;
-    else
-        return false;
-
-    val = ext_val - val;
-
-    return val > INNER_OUTER_INTENSITY_GAP_MIN;
+    return cheshm::check_ellipse_intensity_gap(
+        *pic, inner, outer, cutout, INNER_OUTER_INTENSITY_GAP_MIN).passes;
 }
 
 // Coarse-blob fallback. Convolves a circular template against the
@@ -1341,7 +715,10 @@ std::optional<DetectResult> detect(
         }
     }
 
-    cv::Mat detected_edges2 = canny_impl(&picpic, &magni);
+    const int non_edge_pixel_count =
+        static_cast<int>(std::round(0.7 * picpic.cols * picpic.rows));
+    cv::Mat detected_edges2 =
+        cheshm::canny_gaussian16(picpic, non_edge_pixel_count, 64, &magni);
 
     cv::Mat detected_edges = cv::Mat::zeros(pic.rows, pic.cols, CV_8U);
     for (int i = 0; i < detected_edges2.cols; i++)
@@ -1352,7 +729,7 @@ std::optional<DetectResult> detect(
         }
     }
 
-    filter_edges(&detected_edges, start_x, end_x, start_y, end_y);
+    cheshm::filter_edges(detected_edges, start_x, end_x, start_y, end_y);
 
     cv::RotatedRect ellipse = find_best_edge(
         &pic, &detected_edges, &magni, start_x, end_x, start_y, end_y,
