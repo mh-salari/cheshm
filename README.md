@@ -43,6 +43,34 @@ from cheshm.glint_detectors.Simple import detect_glints      # MIT
 from cheshm.limbus_detectors.daugman.integro_differential import detect_limbus  # MIT
 ```
 
+## Development
+
+Cheshm ships precompiled wheels on PyPI, so end users never need to build anything. This section is for users who want to build from source.
+
+The project uses `uv` for environment management and `scikit-build-core` to drive CMake. First-time setup, from inside the project directory:
+
+```
+cd path/to/cheshm
+uv sync
+```
+
+This creates `.venv/`, installs runtime + build deps, and builds the C/C++ extensions in editable mode (per `[tool.scikit-build]` in `pyproject.toml`).
+
+After changing any C/C++ source, force a recompile:
+
+```
+uv sync --reinstall-package cheshm
+```
+
+Note: plain `uv sync` will **not** notice C/C++ source edits — only `pyproject.toml` changes.
+
+The compiled extensions are written next to each detector's `core.py`, one `.so` per Python minor version:
+
+```
+src/cheshm/pupil_detectors/ElSe/_core.cpython-312-darwin.so
+src/cheshm/pupil_detectors/ElSe/_core.cpython-314-darwin.so
+```
+
 ## Name
 
 In Persian (Farsi), Cheshm (چشم) literally means "eye".
