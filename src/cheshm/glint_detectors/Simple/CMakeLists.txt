@@ -7,6 +7,7 @@ set_target_properties(Simple_glint_core_nb PROPERTIES OUTPUT_NAME "_core")
 
 target_include_directories(Simple_glint_core_nb
   PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
 )
 

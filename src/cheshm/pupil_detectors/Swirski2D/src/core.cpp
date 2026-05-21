@@ -1,5 +1,6 @@
 // Swirski 2D pupil detector — Python binding.
 
+#include "Swirski2D/defaults.hpp"
 #include "Swirski2D/pupil_tracker.hpp"
 #include "cheshm/roi.hpp"
 
@@ -101,6 +102,8 @@ nb::object detect(
 
 NB_MODULE(_core, m)
 {
+    namespace d = cheshm::Swirski2D::defaults;
+
     m.def("detect", &detect,
           "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
           "radius_min"_a, "radius_max"_a,
@@ -111,4 +114,18 @@ NB_MODULE(_core, m)
           "early_termination_percentage"_a, "early_rejection"_a,
           "seed"_a,
           "max_inliers"_a);
+
+    m.attr("RADIUS_MIN") = d::RADIUS_MIN;
+    m.attr("RADIUS_MAX") = d::RADIUS_MAX;
+    m.attr("CANNY_BLUR") = d::CANNY_BLUR;
+    m.attr("CANNY_THRESHOLD_1") = d::CANNY_THRESHOLD_1;
+    m.attr("CANNY_THRESHOLD_2") = d::CANNY_THRESHOLD_2;
+    m.attr("STARBURST_POINTS") = d::STARBURST_POINTS;
+    m.attr("PERCENTAGE_INLIERS") = d::PERCENTAGE_INLIERS;
+    m.attr("INLIER_ITERATIONS") = d::INLIER_ITERATIONS;
+    m.attr("IMAGE_AWARE_SUPPORT") = d::IMAGE_AWARE_SUPPORT;
+    m.attr("EARLY_TERMINATION_PERCENTAGE") = d::EARLY_TERMINATION_PERCENTAGE;
+    m.attr("EARLY_REJECTION") = d::EARLY_REJECTION;
+    m.attr("SEED") = d::SEED;
+    m.attr("MAX_INLIERS") = d::MAX_INLIERS;
 }

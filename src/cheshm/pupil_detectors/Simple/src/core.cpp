@@ -2,6 +2,7 @@
 // filter → shape-quality walk → convex-hull-ellipse fit → centre via
 // the requested method.
 
+#include "Simple/defaults.hpp"
 #include "cheshm/roi.hpp"
 #include "cheshm/spline.hpp"
 
@@ -297,9 +298,14 @@ nb::object detect(
 
 NB_MODULE(_core, m)
 {
+    namespace d = cheshm::Simple::defaults;
+
     m.def("detect", &detect,
           "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
           "pupil_threshold"_a, "pupil_center_method"_a,
           "min_ellipse_fit_ratio"_a, "min_roundness_ratio"_a,
           "max_contour_points"_a);
+
+    m.attr("PUPIL_THRESHOLD") = d::PUPIL_THRESHOLD;
+    m.attr("MAX_CONTOUR_POINTS") = d::MAX_CONTOUR_POINTS;
 }

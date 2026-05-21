@@ -85,6 +85,13 @@ _UI = {
     },
 }
 
+DEFAULT_N = 360
+DEFAULT_M = 3
+DEFAULT_GRADIENT_SIGMA = 1.0
+DEFAULT_RADIAL_SMOOTHING = 2.0
+DEFAULT_K_MIN = 2.0
+DEFAULT_K_MAX = 4.0
+
 _LIB_DIR = pathlib.Path(__file__).parent
 _LIB_NAME = "core"
 _lib_ext = {"Darwin": ".dylib", "Linux": ".so", "Windows": ".dll"}[platform.system()]
@@ -138,10 +145,10 @@ class PupilGuidedContour:
         image: np.ndarray,
         pupil_ellipse: tuple[tuple[float, float], tuple[float, float], float],
         *,
-        N: int = 360,
-        M: int = 3,
-        gradient_sigma: float = 1.0,
-        radial_smoothing: float = 2.0,
+        N: int = DEFAULT_N,
+        M: int = DEFAULT_M,
+        gradient_sigma: float = DEFAULT_GRADIENT_SIGMA,
+        radial_smoothing: float = DEFAULT_RADIAL_SMOOTHING,
     ) -> None:
         """Pre-compute the gradient fields + pupil radial profile; ``N`` angles, ``2M+1`` Fourier harmonics."""
         if image.ndim == 3:
@@ -253,12 +260,12 @@ def detect_limbus(
     seed_center: tuple[float, float],
     pupil_ellipse: tuple[tuple[float, float], tuple[float, float], float],
     *,
-    N: int = 360,
-    M: int = 3,
-    gradient_sigma: float = 1.0,
-    radial_smoothing: float = 2.0,
-    k_min: float = 2.0,
-    k_max: float = 4.0,
+    N: int = DEFAULT_N,
+    M: int = DEFAULT_M,
+    gradient_sigma: float = DEFAULT_GRADIENT_SIGMA,
+    radial_smoothing: float = DEFAULT_RADIAL_SMOOTHING,
+    k_min: float = DEFAULT_K_MIN,
+    k_max: float = DEFAULT_K_MAX,
 ) -> LimbusResult:
     """One-shot pupil-shape-prior active-contour limbus fit around ``seed_center``.
 

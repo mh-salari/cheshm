@@ -1,6 +1,7 @@
 // ExCuSe pupil detector algorithm body.
 
 #include "ExCuSe/excuse.hpp"
+#include "ExCuSe/defaults.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,14 +14,12 @@
 namespace cheshm::ExCuSe {
 namespace {
 
-// Local convenience inside this anonymous namespace only; the upstream
-// algorithm uses bare OpenCV / std identifiers throughout.
 using namespace cv;   // NOLINT(google-build-using-namespace)
 using namespace std;  // NOLINT(google-build-using-namespace)
 
-constexpr int MAX_LINE = 10000;
-constexpr int IMG_SIZE = 680;
-constexpr int DEF_SIZE = 800;
+using defaults::MAX_LINE;
+using defaults::IMG_SIZE;
+using defaults::DEF_SIZE;
 
 void bwselect(cv::Mat *strong, cv::Mat *weak, cv::Mat *check)
 {

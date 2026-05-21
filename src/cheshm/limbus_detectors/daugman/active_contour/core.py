@@ -88,6 +88,14 @@ _UI = {
     },
 }
 
+DEFAULT_N = 360
+DEFAULT_M = 5
+DEFAULT_GRADIENT_SIGMA = 1.0
+DEFAULT_RADIAL_SMOOTHING = 2.0
+DEFAULT_SKIP_EYELID_WEDGES = True
+DEFAULT_R_MIN = 30.0
+DEFAULT_R_MAX = 80.0
+
 # Image-coordinate angle range (y-down) typically occupied by the upper
 # eyelid in head-on eye-tracker frames; skipped during the radial search
 # and filled by cyclic linear interpolation before the FFT.
@@ -132,11 +140,11 @@ class DaugmanActiveContour:
         self,
         image: np.ndarray,
         *,
-        N: int = 360,
-        M: int = 5,
-        gradient_sigma: float = 1.0,
-        radial_smoothing: float = 2.0,
-        skip_eyelid_wedges: bool = True,
+        N: int = DEFAULT_N,
+        M: int = DEFAULT_M,
+        gradient_sigma: float = DEFAULT_GRADIENT_SIGMA,
+        radial_smoothing: float = DEFAULT_RADIAL_SMOOTHING,
+        skip_eyelid_wedges: bool = DEFAULT_SKIP_EYELID_WEDGES,
     ) -> None:
         """Pre-compute the gradient fields for ``image``; ``N`` angles, ``2M+1`` Fourier harmonics."""
         if image.ndim == 3:
@@ -252,13 +260,13 @@ def detect_limbus(
     img: np.ndarray,
     seed_center: tuple[float, float],
     *,
-    N: int = 360,
-    M: int = 5,
-    gradient_sigma: float = 1.0,
-    radial_smoothing: float = 2.0,
-    skip_eyelid_wedges: bool = True,
-    r_min: float = 30.0,
-    r_max: float = 80.0,
+    N: int = DEFAULT_N,
+    M: int = DEFAULT_M,
+    gradient_sigma: float = DEFAULT_GRADIENT_SIGMA,
+    radial_smoothing: float = DEFAULT_RADIAL_SMOOTHING,
+    skip_eyelid_wedges: bool = DEFAULT_SKIP_EYELID_WEDGES,
+    r_min: float = DEFAULT_R_MIN,
+    r_max: float = DEFAULT_R_MAX,
 ) -> LimbusResult:
     """One-shot Daugman 2007 active-contour limbus fit around ``seed_center``.
 

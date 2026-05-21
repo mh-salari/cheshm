@@ -1,6 +1,7 @@
 // Starburst pupil detector — Python binding.
 
 #include "Starburst/corneal_reflection.hpp"
+#include "Starburst/defaults.hpp"
 #include "Starburst/ransac_ellipse.hpp"
 #include "cheshm/roi.hpp"
 
@@ -124,10 +125,20 @@ nb::object detect(
 
 NB_MODULE(_core, m)
 {
+    namespace d = cheshm::Starburst::defaults;
+
     m.def("detect", &detect,
           "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
           "seed_x"_a, "seed_y"_a,
           "edge_threshold"_a, "rays"_a, "min_feature_candidates"_a,
           "cr_window_size"_a, "cr_ratio_to_image_height"_a,
           "max_edge_points"_a);
+
+    m.attr("EDGE_THRESHOLD") = d::EDGE_THRESHOLD;
+    m.attr("RAYS") = d::RAYS;
+    m.attr("MIN_FEATURE_CANDIDATES") = d::MIN_FEATURE_CANDIDATES;
+    m.attr("CR_WINDOW_SIZE") = d::CR_WINDOW_SIZE;
+    m.attr("CR_RATIO_TO_IMAGE_HEIGHT") = d::CR_RATIO_TO_IMAGE_HEIGHT;
+    m.attr("MAX_EDGE_POINTS") = d::MAX_EDGE_POINTS;
+    m.attr("SEED_THRESHOLD") = d::SEED_THRESHOLD;
 }

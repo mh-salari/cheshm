@@ -17,6 +17,12 @@ import numpy as np
 
 from cheshm._protocols import LimbusResult
 
+DEFAULT_R_MIN = 40
+DEFAULT_R_MAX = 62
+DEFAULT_C_TYPE = "half"
+DEFAULT_RANGE = 5
+DEFAULT_STEP = 1
+
 # Overlays this detector produces (limbus is returned as a circle).
 _OVERLAYS = (
     ("curve", "line"),
@@ -125,7 +131,13 @@ class IntegroDifferentialOperator:
     derivative magnitude (paper eq. 1).
     """
 
-    def __init__(self, image: np.ndarray, r_min: int = 40, r_max: int = 62, c_type: str = "half") -> None:
+    def __init__(
+        self,
+        image: np.ndarray,
+        r_min: int = DEFAULT_R_MIN,
+        r_max: int = DEFAULT_R_MAX,
+        c_type: str = DEFAULT_C_TYPE,
+    ) -> None:
         """Convert ``image`` to grayscale, apply the morphological open, store params."""
         if image.ndim == 3:
             self.image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -188,11 +200,11 @@ def detect_limbus(
     img: np.ndarray,
     seed_center: tuple[float, float],
     *,
-    r_min: int = 40,
-    r_max: int = 62,
-    c_type: Literal["half", "full"] = "half",
-    range_: int = 5,
-    step: int = 1,
+    r_min: int = DEFAULT_R_MIN,
+    r_max: int = DEFAULT_R_MAX,
+    c_type: Literal["half", "full"] = DEFAULT_C_TYPE,
+    range_: int = DEFAULT_RANGE,
+    step: int = DEFAULT_STEP,
 ) -> LimbusResult | None:
     """One-shot integro-differential limbus localization around ``seed_center``.
 

@@ -103,13 +103,13 @@ def detect_pupil(
     pupil_center: tuple[float, float] | None = None,
     pupil_roi: tuple[int, int, int, int] | None = None,
     *,
-    edge_threshold: int = 16,
-    rays: int = 18,
-    min_feature_candidates: int = 10,
-    corneal_reflection_window: int = 301,
-    corneal_reflection_ratio: int = 2,
-    max_edge_points: int = 1024,
-    seed_threshold: int = 30,
+    edge_threshold: int = _core.EDGE_THRESHOLD,
+    rays: int = _core.RAYS,
+    min_feature_candidates: int = _core.MIN_FEATURE_CANDIDATES,
+    corneal_reflection_window: int = _core.CR_WINDOW_SIZE,
+    corneal_reflection_ratio: int = _core.CR_RATIO_TO_IMAGE_HEIGHT,
+    max_edge_points: int = _core.MAX_EDGE_POINTS,
+    seed_threshold: int = _core.SEED_THRESHOLD,
 ) -> PupilResult | None:
     """Detect the pupil ellipse via Starburst (Li et al. 2005).
 

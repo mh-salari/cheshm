@@ -62,7 +62,7 @@ _CENTER_METHOD_CODE = {
 
 def detect_pupil(
     img: np.ndarray,
-    pupil_threshold: int = 30,
+    pupil_threshold: int = _core.PUPIL_THRESHOLD,
     pupil_center_method: Literal[
         "convex_hull_centroid",
         "center_of_mass",
@@ -74,7 +74,7 @@ def detect_pupil(
     *,
     min_ellipse_fit_ratio: float | None = None,
     min_roundness_ratio: float | None = None,
-    max_contour_points: int = 4096,
+    max_contour_points: int = _core.MAX_CONTOUR_POINTS,
 ) -> PupilResult | None:
     """Detect the pupil contour, centre, and fitted ellipse in a grayscale image.
 

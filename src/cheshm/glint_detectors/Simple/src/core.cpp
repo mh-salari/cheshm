@@ -2,6 +2,7 @@
 // ROI / half-plane filtering → shape-quality walk → optional
 // widest-blob split → centre per glint.
 
+#include "Simple/defaults.hpp"
 #include "cheshm/roi.hpp"
 #include "cheshm/spline.hpp"
 
@@ -504,6 +505,8 @@ nb::object detect(
 
 NB_MODULE(_core, m)
 {
+    namespace d = cheshm::SimpleGlint::defaults;
+
     m.def("detect", &detect,
           "img"_a, "roi_x"_a, "roi_y"_a, "roi_w"_a, "roi_h"_a,
           "has_pupil"_a, "pupil_cx"_a, "pupil_cy"_a, "pupil_radius"_a,
@@ -517,4 +520,14 @@ NB_MODULE(_core, m)
           "split_widest_for_target"_a,
           "min_ellipse_fit_ratio"_a,
           "min_roundness_ratio"_a);
+
+    m.attr("GLINT_THRESHOLD") = d::GLINT_THRESHOLD;
+    m.attr("SEARCH_RADIUS_FACTOR") = d::SEARCH_RADIUS_FACTOR;
+    m.attr("FILTER_MARGIN_PX") = d::FILTER_MARGIN_PX;
+    m.attr("GLINTS_TARGET") = d::GLINTS_TARGET;
+    m.attr("KEEP_ABOVE") = d::KEEP_ABOVE;
+    m.attr("KEEP_BELOW") = d::KEEP_BELOW;
+    m.attr("KEEP_LEFT") = d::KEEP_LEFT;
+    m.attr("KEEP_RIGHT") = d::KEEP_RIGHT;
+    m.attr("SPLIT_WIDEST_FOR_TARGET") = d::SPLIT_WIDEST_FOR_TARGET;
 }
