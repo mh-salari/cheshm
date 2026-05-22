@@ -12,7 +12,7 @@ set_target_properties(Swirski2D_core_nb PROPERTIES OUTPUT_NAME "_core")
 
 target_include_directories(Swirski2D_core_nb
   PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/pupil/Swirski2D/third_party
+    ${CMAKE_SOURCE_DIR}/third_party
     ${OpenCV_INCLUDE_DIRS}
 )
 

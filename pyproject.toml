@@ -43,7 +43,6 @@ classifiers = [
 ]
 dependencies = [
     "dearpygui",
-    "numba",
     "numpy",
     "opencv-python",
     # macOS dock icon: GLFW intentionally ignores window icons on Cocoa,
