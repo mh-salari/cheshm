@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/cheshm)](https://pypi.org/project/cheshm/)
 [![Downloads](https://static.pepy.tech/badge/cheshm)](https://pepy.tech/project/cheshm)
 [![License](https://img.shields.io/pypi/l/cheshm)](https://github.com/mh-salari/cheshm/blob/main/LICENSE)
-[![DOI](https://zenodo.org/badge/1242928603.svg)](https://doi.org/10.5281/zenodo.20308209)
+[![DOI](https://zenodo.org/badge/1242928603.svg)](https://doi.org/10.5281/zenodo.20284443)
 
 Cheshm is a cross-platform (Linux, macOS, Windows) C++ library with Python bindings. It packages pupil, glint, and limbus detectors for grayscale eye images, plus rigid alignment of two eye images (glint, pupil, or iris-texture based) and helpers for saving the resulting visualizations to PNG.
 
