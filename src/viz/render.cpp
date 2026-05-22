@@ -155,6 +155,35 @@ void save_alignment_comparison(const std::string& out_path,
     write_or_throw(out_path, composite);
 }
 
+namespace
+{
+
+void blend_overlay(cv::Mat& canvas, const cv::Mat& overlay, double alpha)
+{
+    cv::Mat gray;
+    cv::cvtColor(overlay, gray, cv::COLOR_BGR2GRAY);
+    cv::Mat mask;
+    cv::compare(gray, 0, mask, cv::CMP_GT);
+    if (alpha >= 1.0)
+    {
+        overlay.copyTo(canvas, mask);
+        return;
+    }
+    cv::Mat blended;
+    cv::addWeighted(canvas, 1.0 - alpha, overlay, alpha, 0.0, blended);
+    blended.copyTo(canvas, mask);
+}
+
+void draw_ellipse(cv::Mat& dst, const cv::RotatedRect& rr, const cv::Scalar& color, int thickness)
+{
+    const cv::Point center{static_cast<int>(std::lrint(rr.center.x)), static_cast<int>(std::lrint(rr.center.y))};
+    const cv::Size axes{std::max(static_cast<int>(std::lrint(rr.size.width / 2.0)), 1),
+                        std::max(static_cast<int>(std::lrint(rr.size.height / 2.0)), 1)};
+    cv::ellipse(dst, center, axes, rr.angle, 0, 360, color, thickness);
+}
+
+} // namespace
+
 void save_detection_overlay(const std::string& out_path,
                             const cv::Mat& img,
                             const DetectionOverlayInputs& inputs,
@@ -162,60 +191,72 @@ void save_detection_overlay(const std::string& out_path,
                             std::optional<std::string> label)
 {
     cv::Mat canvas = to_bgr(img);
+    const cv::Mat zero = cv::Mat::zeros(canvas.size(), canvas.type());
 
-    if (style.show_pupil_mask && inputs.pupil_mask.has_value() && inputs.pupil_mask->dims == 2)
+    if (style.pupil_mask.show && inputs.pupil_mask.has_value() && inputs.pupil_mask->dims == 2)
     {
-        cv::Mat tint(canvas.size(), canvas.type(), cv::Scalar::all(0.0));
-        tint.setTo(style.pupil_mask_color, *inputs.pupil_mask);
-        cv::Mat blended;
-        cv::addWeighted(canvas, 1.0, tint, style.mask_alpha, 0.0, blended);
-        canvas = blended;
+        cv::Mat overlay = zero.clone();
+        overlay.setTo(style.pupil_mask.color, *inputs.pupil_mask);
+        blend_overlay(canvas, overlay, style.pupil_mask.alpha);
     }
 
-    if (style.show_pupil_contour && inputs.pupil_contour.has_value())
+    if (style.pupil_contour.show && inputs.pupil_contour.has_value())
     {
+        cv::Mat overlay = zero.clone();
         std::vector<std::vector<cv::Point>> contours{*inputs.pupil_contour};
-        cv::drawContours(canvas, contours, -1, style.pupil_contour_color, defaults::OUTLINE_THICKNESS);
+        cv::drawContours(overlay, contours, -1, style.pupil_contour.color, style.pupil_contour.thickness);
+        blend_overlay(canvas, overlay, style.pupil_contour.alpha);
     }
 
-    if (style.show_pupil_ellipse && inputs.pupil_ellipse.has_value())
+    if (style.pupil_ellipse.show && inputs.pupil_ellipse.has_value())
     {
-        const auto& rr = *inputs.pupil_ellipse;
-        const cv::Point center{static_cast<int>(std::lrint(rr.center.x)), static_cast<int>(std::lrint(rr.center.y))};
-        const cv::Size axes{std::max(static_cast<int>(std::lrint(rr.size.width / 2.0)), 1),
-                            std::max(static_cast<int>(std::lrint(rr.size.height / 2.0)), 1)};
-        cv::ellipse(canvas, center, axes, rr.angle, 0, 360, style.pupil_ellipse_color, defaults::OUTLINE_THICKNESS);
+        cv::Mat overlay = zero.clone();
+        draw_ellipse(overlay, *inputs.pupil_ellipse, style.pupil_ellipse.color, style.pupil_ellipse.thickness);
+        blend_overlay(canvas, overlay, style.pupil_ellipse.alpha);
     }
 
-    if (style.show_pupil_center && inputs.pupil_center.has_value())
+    if (style.pupil_center.show && inputs.pupil_center.has_value())
     {
-        cv::circle(canvas, *inputs.pupil_center, defaults::PUPIL_CENTER_RADIUS, style.pupil_center_color, -1);
+        cv::Mat overlay = zero.clone();
+        cv::circle(overlay, *inputs.pupil_center, style.pupil_center.thickness, style.pupil_center.color, -1);
+        blend_overlay(canvas, overlay, style.pupil_center.alpha);
     }
 
-    if (style.show_glints)
+    for (const auto& glint : inputs.glints)
     {
-        for (const auto& glint : inputs.glints)
+        if (style.glint_contour.show && glint.contour.has_value())
         {
-            if (glint.contour.has_value())
-            {
-                std::vector<std::vector<cv::Point>> contours{*glint.contour};
-                cv::drawContours(canvas, contours, -1, style.glint_contour_color, defaults::OUTLINE_THICKNESS);
-            }
-            if (glint.ellipse.has_value())
-            {
-                const auto& rr = *glint.ellipse;
-                const cv::Point center{static_cast<int>(std::lrint(rr.center.x)),
-                                       static_cast<int>(std::lrint(rr.center.y))};
-                const cv::Size axes{std::max(static_cast<int>(std::lrint(rr.size.width / 2.0)), 1),
-                                    std::max(static_cast<int>(std::lrint(rr.size.height / 2.0)), 1)};
-                cv::ellipse(
-                    canvas, center, axes, rr.angle, 0, 360, style.glint_ellipse_color, defaults::OUTLINE_THICKNESS);
-            }
-            if (glint.center.has_value())
-            {
-                cv::circle(canvas, *glint.center, defaults::GLINT_CENTER_RADIUS, style.glint_center_color, -1);
-            }
+            cv::Mat overlay = zero.clone();
+            std::vector<std::vector<cv::Point>> contours{*glint.contour};
+            cv::drawContours(overlay, contours, -1, style.glint_contour.color, style.glint_contour.thickness);
+            blend_overlay(canvas, overlay, style.glint_contour.alpha);
         }
+        if (style.glint_ellipse.show && glint.ellipse.has_value())
+        {
+            cv::Mat overlay = zero.clone();
+            draw_ellipse(overlay, *glint.ellipse, style.glint_ellipse.color, style.glint_ellipse.thickness);
+            blend_overlay(canvas, overlay, style.glint_ellipse.alpha);
+        }
+        if (style.glint_center.show && glint.center.has_value())
+        {
+            cv::Mat overlay = zero.clone();
+            cv::circle(overlay, *glint.center, style.glint_center.thickness, style.glint_center.color, -1);
+            blend_overlay(canvas, overlay, style.glint_center.alpha);
+        }
+    }
+
+    if (style.limbus_curve.show && inputs.limbus_curve.has_value() && inputs.limbus_curve->size() >= 2)
+    {
+        cv::Mat overlay = zero.clone();
+        cv::polylines(overlay, *inputs.limbus_curve, true, style.limbus_curve.color, style.limbus_curve.thickness);
+        blend_overlay(canvas, overlay, style.limbus_curve.alpha);
+    }
+
+    if (style.limbus_center.show && inputs.limbus_center.has_value())
+    {
+        cv::Mat overlay = zero.clone();
+        cv::circle(overlay, *inputs.limbus_center, style.limbus_center.thickness, style.limbus_center.color, -1);
+        blend_overlay(canvas, overlay, style.limbus_center.alpha);
     }
 
     if (label.has_value())

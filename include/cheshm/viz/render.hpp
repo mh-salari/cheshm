@@ -10,6 +10,14 @@
 namespace cheshm::viz
 {
 
+struct ElementStyle
+{
+    bool show;
+    cv::Scalar color;
+    int thickness;
+    double alpha;
+};
+
 struct GlintOverlay
 {
     std::optional<std::vector<cv::Point>> contour;
@@ -24,23 +32,21 @@ struct DetectionOverlayInputs
     std::optional<cv::Point> pupil_center;
     std::optional<cv::Mat> pupil_mask;
     std::vector<GlintOverlay> glints;
+    std::optional<std::vector<cv::Point>> limbus_curve;
+    std::optional<cv::Point> limbus_center;
 };
 
 struct DetectionOverlayStyle
 {
-    cv::Scalar pupil_contour_color = defaults::PUPIL_CONTOUR_COLOR;
-    cv::Scalar pupil_ellipse_color = defaults::PUPIL_ELLIPSE_COLOR;
-    cv::Scalar pupil_center_color = defaults::PUPIL_CENTER_COLOR;
-    cv::Scalar pupil_mask_color = defaults::PUPIL_MASK_COLOR;
-    cv::Scalar glint_contour_color = defaults::GLINT_CONTOUR_COLOR;
-    cv::Scalar glint_ellipse_color = defaults::GLINT_ELLIPSE_COLOR;
-    cv::Scalar glint_center_color = defaults::GLINT_CENTER_COLOR;
-    bool show_pupil_contour = defaults::SHOW_PUPIL_CONTOUR;
-    bool show_pupil_ellipse = defaults::SHOW_PUPIL_ELLIPSE;
-    bool show_pupil_center = defaults::SHOW_PUPIL_CENTER;
-    bool show_pupil_mask = defaults::SHOW_PUPIL_MASK;
-    bool show_glints = defaults::SHOW_GLINTS;
-    double mask_alpha = defaults::MASK_ALPHA;
+    ElementStyle pupil_contour{true, defaults::PUPIL_CONTOUR_COLOR, 1, 1.0};
+    ElementStyle pupil_ellipse{true, defaults::PUPIL_ELLIPSE_COLOR, 1, 1.0};
+    ElementStyle pupil_center{true, defaults::PUPIL_CENTER_COLOR, defaults::PUPIL_CENTER_RADIUS, 1.0};
+    ElementStyle pupil_mask{false, defaults::PUPIL_MASK_COLOR, 0, defaults::MASK_ALPHA};
+    ElementStyle glint_contour{true, defaults::GLINT_CONTOUR_COLOR, 1, 1.0};
+    ElementStyle glint_ellipse{true, defaults::GLINT_ELLIPSE_COLOR, 1, 1.0};
+    ElementStyle glint_center{true, defaults::GLINT_CENTER_COLOR, defaults::GLINT_CENTER_RADIUS, 1.0};
+    ElementStyle limbus_curve{true, defaults::LIMBUS_CURVE_COLOR, 1, 1.0};
+    ElementStyle limbus_center{true, defaults::LIMBUS_CENTER_COLOR, defaults::LIMBUS_CENTER_RADIUS, 1.0};
 };
 
 cv::Mat add_label(const cv::Mat& img, const std::string& text, int height = defaults::LABEL_HEIGHT);

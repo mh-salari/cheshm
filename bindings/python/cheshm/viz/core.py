@@ -7,6 +7,7 @@ import numpy as np
 from . import _core
 
 BGRColor = tuple[int, int, int]
+ElementStyle = dict  # {"show": bool, "color": (B, G, R), "thickness": int, "alpha": float}
 
 
 def save_diff_heatmap(
@@ -65,27 +66,8 @@ def save_alignment_comparison(
     )
 
 
-_DEFAULT_COLORS = {
-    "pupil_contour": _core.PUPIL_CONTOUR_COLOR,
-    "pupil_ellipse": _core.PUPIL_ELLIPSE_COLOR,
-    "pupil_center": _core.PUPIL_CENTER_COLOR,
-    "pupil_mask": _core.PUPIL_MASK_COLOR,
-    "glint_contour": _core.GLINT_CONTOUR_COLOR,
-    "glint_ellipse": _core.GLINT_ELLIPSE_COLOR,
-    "glint_center": _core.GLINT_CENTER_COLOR,
-}
-
-_DEFAULT_SHOW = {
-    "pupil_contour": _core.SHOW_PUPIL_CONTOUR,
-    "pupil_ellipse": _core.SHOW_PUPIL_ELLIPSE,
-    "pupil_center": _core.SHOW_PUPIL_CENTER,
-    "pupil_mask": _core.SHOW_PUPIL_MASK,
-    "glints": _core.SHOW_GLINTS,
-}
-
-
 def _contour_to_xy(contour: np.ndarray | None) -> np.ndarray | None:
-    """Reshape (N, 1, 2) int32 contour to (N, 2) int32 for the C++ binding."""
+    """Reshape a (..., 2) int32 contour/curve to (N, 2) for the C++ binding."""
     if contour is None:
         return None
     return np.ascontiguousarray(np.asarray(contour, dtype=np.int32).reshape(-1, 2))
@@ -104,19 +86,58 @@ def _center_to_tuple(center: tuple | None) -> tuple[float, float] | None:
     return (float(center[0]), float(center[1]))
 
 
+def _style_tuple(style: ElementStyle | None) -> tuple[bool, tuple[float, float, float], int, float] | None:
+    """Convert a user style dict ``{show, color, thickness, alpha}`` to a 4-tuple."""
+    if style is None:
+        return None
+    return (
+        bool(style["show"]),
+        tuple(float(c) for c in style["color"]),
+        int(style["thickness"]),
+        float(style["alpha"]),
+    )
+
+
+_VALID_KEYS = (
+    "pupil_contour",
+    "pupil_ellipse",
+    "pupil_center",
+    "pupil_mask",
+    "glint_contour",
+    "glint_ellipse",
+    "glint_center",
+    "limbus_curve",
+    "limbus_center",
+)
+
+
 def save_detection_overlay(
     out_path: str | Path,
     img: np.ndarray,
     detections: dict,
     *,
-    colors: dict[str, BGRColor] | None = None,
-    show: dict[str, bool] | None = None,
-    mask_alpha: float = _core.MASK_ALPHA,
+    style: dict[str, ElementStyle] | None = None,
     label: str | None = None,
 ) -> None:
-    """Draw a pupil + glint detection overlay on ``img`` and save it."""
-    palette = {**_DEFAULT_COLORS, **(colors or {})}
-    visible = {**_DEFAULT_SHOW, **(show or {})}
+    """Draw pupil + glint + limbus overlays on ``img`` and save it.
+
+    ``detections`` recognised keys (all optional):
+
+      - ``contour`` / ``ellipse`` / ``center`` / ``mask`` — pupil fields.
+      - ``glints`` — list of dicts, each with ``contour`` / ``ellipse`` / ``center``.
+      - ``limbus_curve`` — closed polyline as ``np.ndarray`` of shape ``(N, 2)``.
+      - ``limbus_center`` — ``(cx, cy)``.
+
+    ``style`` mirrors the GUI overlay state: a dict keyed by element name
+    (``pupil_contour``, ``pupil_ellipse``, ``pupil_center``, ``pupil_mask``,
+    ``glint_contour``, ``glint_ellipse``, ``glint_center``, ``limbus_curve``,
+    ``limbus_center``) with values of ``{"show", "color", "thickness", "alpha"}``.
+    Missing element keys fall back to C++ defaults.
+    """
+    style = style or {}
+    unknown = set(style) - set(_VALID_KEYS)
+    if unknown:
+        raise ValueError(f"unknown style keys: {sorted(unknown)}")
 
     glints_payload = []
     for glint in detections.get("glints", []) or []:
@@ -138,18 +159,16 @@ def save_detection_overlay(
         _center_to_tuple(detections.get("center")),
         pupil_mask,
         glints_payload,
-        tuple(float(c) for c in palette["pupil_contour"]),
-        tuple(float(c) for c in palette["pupil_ellipse"]),
-        tuple(float(c) for c in palette["pupil_center"]),
-        tuple(float(c) for c in palette["pupil_mask"]),
-        tuple(float(c) for c in palette["glint_contour"]),
-        tuple(float(c) for c in palette["glint_ellipse"]),
-        tuple(float(c) for c in palette["glint_center"]),
-        bool(visible["pupil_contour"]),
-        bool(visible["pupil_ellipse"]),
-        bool(visible["pupil_center"]),
-        bool(visible["pupil_mask"]),
-        bool(visible["glints"]),
-        float(mask_alpha),
+        _contour_to_xy(detections.get("limbus_curve")),
+        _center_to_tuple(detections.get("limbus_center")),
+        _style_tuple(style.get("pupil_contour")),
+        _style_tuple(style.get("pupil_ellipse")),
+        _style_tuple(style.get("pupil_center")),
+        _style_tuple(style.get("pupil_mask")),
+        _style_tuple(style.get("glint_contour")),
+        _style_tuple(style.get("glint_ellipse")),
+        _style_tuple(style.get("glint_center")),
+        _style_tuple(style.get("limbus_curve")),
+        _style_tuple(style.get("limbus_center")),
         label,
     )

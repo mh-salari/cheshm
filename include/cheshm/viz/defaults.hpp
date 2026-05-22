@@ -25,16 +25,12 @@ inline const cv::Scalar PUPIL_MASK_COLOR{0.0, 60.0, 0.0};
 inline const cv::Scalar GLINT_CONTOUR_COLOR{0.0, 0.0, 255.0};
 inline const cv::Scalar GLINT_ELLIPSE_COLOR{0.0, 165.0, 255.0};
 inline const cv::Scalar GLINT_CENTER_COLOR{0.0, 0.0, 255.0};
+inline const cv::Scalar LIMBUS_CURVE_COLOR{255.0, 0.0, 255.0};
+inline const cv::Scalar LIMBUS_CENTER_COLOR{255.0, 0.0, 255.0};
 
-inline constexpr bool SHOW_PUPIL_CONTOUR = true;
-inline constexpr bool SHOW_PUPIL_ELLIPSE = true;
-inline constexpr bool SHOW_PUPIL_CENTER = true;
-inline constexpr bool SHOW_PUPIL_MASK = false;
-inline constexpr bool SHOW_GLINTS = true;
 inline constexpr double MASK_ALPHA = 0.3;
-
 inline constexpr int PUPIL_CENTER_RADIUS = 3;
 inline constexpr int GLINT_CENTER_RADIUS = 2;
-inline constexpr int OUTLINE_THICKNESS = 1;
+inline constexpr int LIMBUS_CENTER_RADIUS = 3;
 
 } // namespace cheshm::viz::defaults

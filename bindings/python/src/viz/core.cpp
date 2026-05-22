@@ -28,6 +28,7 @@ using EllipseTuple = std::tuple<double, double, double, double, double>;
 using CenterTuple = std::tuple<double, double>;
 using GlintTuple = std::tuple<std::optional<I32Array>, std::optional<EllipseTuple>, std::optional<CenterTuple>>;
 using ScalarTuple = std::tuple<double, double, double>;
+using StyleTuple = std::tuple<bool, ScalarTuple, int, double>;
 
 cv::Mat as_gray(U8Array img)
 {
@@ -65,6 +66,13 @@ cv::Scalar scalar_from_tuple(const ScalarTuple& t)
     return cv::Scalar(std::get<0>(t), std::get<1>(t), std::get<2>(t));
 }
 
+cheshm::viz::ElementStyle style_from_tuple(const std::optional<StyleTuple>& t, cheshm::viz::ElementStyle fallback)
+{
+    if (!t.has_value())
+        return fallback;
+    return {std::get<0>(*t), scalar_from_tuple(std::get<1>(*t)), std::get<2>(*t), std::get<3>(*t)};
+}
+
 double save_diff_heatmap(const std::string& out_path, U8Array ref, U8Array aligned, double vmax)
 {
     return cheshm::viz::save_diff_heatmap(out_path, as_gray(ref), as_gray(aligned), vmax);
@@ -95,19 +103,17 @@ void save_detection_overlay(const std::string& out_path,
                             std::optional<CenterTuple> pupil_center,
                             std::optional<U8Array> pupil_mask,
                             std::vector<GlintTuple> glints,
-                            ScalarTuple pupil_contour_color,
-                            ScalarTuple pupil_ellipse_color,
-                            ScalarTuple pupil_center_color,
-                            ScalarTuple pupil_mask_color,
-                            ScalarTuple glint_contour_color,
-                            ScalarTuple glint_ellipse_color,
-                            ScalarTuple glint_center_color,
-                            bool show_pupil_contour,
-                            bool show_pupil_ellipse,
-                            bool show_pupil_center,
-                            bool show_pupil_mask,
-                            bool show_glints,
-                            double mask_alpha,
+                            std::optional<I32Array> limbus_curve,
+                            std::optional<CenterTuple> limbus_center,
+                            std::optional<StyleTuple> pupil_contour_style,
+                            std::optional<StyleTuple> pupil_ellipse_style,
+                            std::optional<StyleTuple> pupil_center_style,
+                            std::optional<StyleTuple> pupil_mask_style,
+                            std::optional<StyleTuple> glint_contour_style,
+                            std::optional<StyleTuple> glint_ellipse_style,
+                            std::optional<StyleTuple> glint_center_style,
+                            std::optional<StyleTuple> limbus_curve_style,
+                            std::optional<StyleTuple> limbus_center_style,
                             std::optional<std::string> label)
 {
     cheshm::viz::DetectionOverlayInputs inputs;
@@ -135,20 +141,22 @@ void save_detection_overlay(const std::string& out_path,
         inputs.glints.push_back(std::move(g));
     }
 
+    if (limbus_curve.has_value())
+        inputs.limbus_curve = contour_from_ndarray(*limbus_curve);
+    if (limbus_center.has_value())
+        inputs.limbus_center = cv::Point(static_cast<int>(std::lrint(std::get<0>(*limbus_center))),
+                                         static_cast<int>(std::lrint(std::get<1>(*limbus_center))));
+
     cheshm::viz::DetectionOverlayStyle style;
-    style.pupil_contour_color = scalar_from_tuple(pupil_contour_color);
-    style.pupil_ellipse_color = scalar_from_tuple(pupil_ellipse_color);
-    style.pupil_center_color = scalar_from_tuple(pupil_center_color);
-    style.pupil_mask_color = scalar_from_tuple(pupil_mask_color);
-    style.glint_contour_color = scalar_from_tuple(glint_contour_color);
-    style.glint_ellipse_color = scalar_from_tuple(glint_ellipse_color);
-    style.glint_center_color = scalar_from_tuple(glint_center_color);
-    style.show_pupil_contour = show_pupil_contour;
-    style.show_pupil_ellipse = show_pupil_ellipse;
-    style.show_pupil_center = show_pupil_center;
-    style.show_pupil_mask = show_pupil_mask;
-    style.show_glints = show_glints;
-    style.mask_alpha = mask_alpha;
+    style.pupil_contour = style_from_tuple(pupil_contour_style, style.pupil_contour);
+    style.pupil_ellipse = style_from_tuple(pupil_ellipse_style, style.pupil_ellipse);
+    style.pupil_center = style_from_tuple(pupil_center_style, style.pupil_center);
+    style.pupil_mask = style_from_tuple(pupil_mask_style, style.pupil_mask);
+    style.glint_contour = style_from_tuple(glint_contour_style, style.glint_contour);
+    style.glint_ellipse = style_from_tuple(glint_ellipse_style, style.glint_ellipse);
+    style.glint_center = style_from_tuple(glint_center_style, style.glint_center);
+    style.limbus_curve = style_from_tuple(limbus_curve_style, style.limbus_curve);
+    style.limbus_center = style_from_tuple(limbus_center_style, style.limbus_center);
 
     cheshm::viz::save_detection_overlay(out_path, as_gray(img), inputs, style, label);
 }
@@ -188,40 +196,18 @@ NB_MODULE(_core, m)
           "pupil_center"_a.none(),
           "pupil_mask"_a.none(),
           "glints"_a,
-          "pupil_contour_color"_a,
-          "pupil_ellipse_color"_a,
-          "pupil_center_color"_a,
-          "pupil_mask_color"_a,
-          "glint_contour_color"_a,
-          "glint_ellipse_color"_a,
-          "glint_center_color"_a,
-          "show_pupil_contour"_a,
-          "show_pupil_ellipse"_a,
-          "show_pupil_center"_a,
-          "show_pupil_mask"_a,
-          "show_glints"_a,
-          "mask_alpha"_a,
+          "limbus_curve"_a.none(),
+          "limbus_center"_a.none(),
+          "pupil_contour_style"_a.none(),
+          "pupil_ellipse_style"_a.none(),
+          "pupil_center_style"_a.none(),
+          "pupil_mask_style"_a.none(),
+          "glint_contour_style"_a.none(),
+          "glint_ellipse_style"_a.none(),
+          "glint_center_style"_a.none(),
+          "limbus_curve_style"_a.none(),
+          "limbus_center_style"_a.none(),
           "label"_a.none());
 
     m.attr("ALIGNMENT_OVERLAY_REF_WEIGHT") = d::ALIGNMENT_OVERLAY_REF_WEIGHT;
-    m.attr("PUPIL_CONTOUR_COLOR") =
-        std::make_tuple(d::PUPIL_CONTOUR_COLOR[0], d::PUPIL_CONTOUR_COLOR[1], d::PUPIL_CONTOUR_COLOR[2]);
-    m.attr("PUPIL_ELLIPSE_COLOR") =
-        std::make_tuple(d::PUPIL_ELLIPSE_COLOR[0], d::PUPIL_ELLIPSE_COLOR[1], d::PUPIL_ELLIPSE_COLOR[2]);
-    m.attr("PUPIL_CENTER_COLOR") =
-        std::make_tuple(d::PUPIL_CENTER_COLOR[0], d::PUPIL_CENTER_COLOR[1], d::PUPIL_CENTER_COLOR[2]);
-    m.attr("PUPIL_MASK_COLOR") =
-        std::make_tuple(d::PUPIL_MASK_COLOR[0], d::PUPIL_MASK_COLOR[1], d::PUPIL_MASK_COLOR[2]);
-    m.attr("GLINT_CONTOUR_COLOR") =
-        std::make_tuple(d::GLINT_CONTOUR_COLOR[0], d::GLINT_CONTOUR_COLOR[1], d::GLINT_CONTOUR_COLOR[2]);
-    m.attr("GLINT_ELLIPSE_COLOR") =
-        std::make_tuple(d::GLINT_ELLIPSE_COLOR[0], d::GLINT_ELLIPSE_COLOR[1], d::GLINT_ELLIPSE_COLOR[2]);
-    m.attr("GLINT_CENTER_COLOR") =
-        std::make_tuple(d::GLINT_CENTER_COLOR[0], d::GLINT_CENTER_COLOR[1], d::GLINT_CENTER_COLOR[2]);
-    m.attr("SHOW_PUPIL_CONTOUR") = d::SHOW_PUPIL_CONTOUR;
-    m.attr("SHOW_PUPIL_ELLIPSE") = d::SHOW_PUPIL_ELLIPSE;
-    m.attr("SHOW_PUPIL_CENTER") = d::SHOW_PUPIL_CENTER;
-    m.attr("SHOW_PUPIL_MASK") = d::SHOW_PUPIL_MASK;
-    m.attr("SHOW_GLINTS") = d::SHOW_GLINTS;
-    m.attr("MASK_ALPHA") = d::MASK_ALPHA;
 }
