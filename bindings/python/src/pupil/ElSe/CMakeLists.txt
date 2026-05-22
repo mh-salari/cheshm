@@ -17,12 +17,15 @@ target_link_libraries(ElSe_core_nb
     cheshm::cpp
 )
 
-nanobind_add_stub(ElSe_core_stub
-  MODULE _core
-  OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/pupil_detectors/ElSe/_core.pyi
-  PYTHON_PATH $<TARGET_FILE_DIR:ElSe_core_nb>
-  DEPENDS ElSe_core_nb
-)
+if(CHESHM_BUILD_STUBS)
+  nanobind_add_stub(ElSe_core_stub
+    ALL
+    MODULE _core
+    OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/pupil_detectors/ElSe/_core.pyi
+    PYTHON_PATH $<TARGET_FILE_DIR:ElSe_core_nb>
+    DEPENDS ElSe_core_nb
+  )
+endif()
 
 install(TARGETS ElSe_core_nb
   LIBRARY DESTINATION cheshm/pupil_detectors/ElSe

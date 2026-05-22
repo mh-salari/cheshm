@@ -11,6 +11,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Generated .pyi files are committed alongside their .cpp sources. CI
+# wheel builds install them as-is. Enabling this option re-runs
+# nanobind's stub generator against the freshly built modules so the
+# .pyi files in the source tree are refreshed. Use scripts/regen_stubs.sh.
+option(CHESHM_BUILD_STUBS "Regenerate .pyi stubs from compiled bindings" OFF)
+
 if(NOT MSVC)
   set(CMAKE_C_FLAGS_RELEASE "-O3 ${CMAKE_C_FLAGS_RELEASE}")
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${CMAKE_CXX_FLAGS_RELEASE}")

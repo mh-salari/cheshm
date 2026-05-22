@@ -19,12 +19,15 @@ target_link_libraries(active_contour_core_nb
     cheshm::cpp
 )
 
-nanobind_add_stub(active_contour_core_stub
-  MODULE _core
-  OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/limbus_detectors/daugman/active_contour/_core.pyi
-  PYTHON_PATH $<TARGET_FILE_DIR:active_contour_core_nb>
-  DEPENDS active_contour_core_nb
-)
+if(CHESHM_BUILD_STUBS)
+  nanobind_add_stub(active_contour_core_stub
+    ALL
+    MODULE _core
+    OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/limbus_detectors/daugman/active_contour/_core.pyi
+    PYTHON_PATH $<TARGET_FILE_DIR:active_contour_core_nb>
+    DEPENDS active_contour_core_nb
+  )
+endif()
 
 install(TARGETS active_contour_core_nb
   LIBRARY DESTINATION cheshm/limbus_detectors/daugman/active_contour

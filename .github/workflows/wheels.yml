@@ -5,9 +5,29 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
+  check_stubs:
+    name: Check binding stubs are up to date
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y libopencv-dev libeigen3-dev
+      - run: pip install uv
+      - run: ./scripts/regen_stubs.sh
+      - name: Fail if stubs drifted
+        run: |
+          if ! git diff --exit-code -- '**/*.pyi'; then
+            echo '::error::Stubs are stale. Run scripts/regen_stubs.sh locally and commit the updated .pyi files.'
+            exit 1
+          fi
+
   build_wheels:
     name: ${{ matrix.os }} ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
@@ -32,39 +52,32 @@ jobs:
           # instead of a 0.0.0.devN placeholder.
           fetch-depth: 0
 
-      # OpenCV is not in any cibuildwheel image by default. macOS and
-      # Windows install on the host (where cibuildwheel runs); Linux
-      # builds from source inside the manylinux container via
-      # CIBW_BEFORE_ALL_LINUX.
-      - name: Install OpenCV (macOS)
+      # OpenCV and Eigen3 are not in any cibuildwheel image by default.
+      # macOS and Windows install on the host (where cibuildwheel runs);
+      # Linux runs scripts/manylinux-before-all.sh inside the container.
+      - name: Install OpenCV + Eigen3 (macOS)
         if: runner.os == 'macOS'
-        run: brew install opencv
+        run: brew install opencv eigen
 
       - name: Install OpenCV (Windows)
         if: runner.os == 'Windows'
         run: choco install opencv -y --version 4.10.0
 
+      - name: Install Eigen3 (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz | tar -xz
+          cd eigen-3.4.0
+          cmake -S . -B build -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=/c/eigen
+          cmake --install build
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4
         env:
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_BEFORE_ALL_LINUX: |
-            curl -L https://github.com/opencv/opencv/archive/refs/tags/4.10.0.tar.gz | tar -xz
-            cd opencv-4.10.0
-            cmake -S . -B build \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_LIST=core,imgproc \
-              -DBUILD_SHARED_LIBS=ON \
-              -DBUILD_TESTS=OFF \
-              -DBUILD_EXAMPLES=OFF \
-              -DBUILD_DOCS=OFF \
-              -DBUILD_PERF_TESTS=OFF \
-              -DBUILD_OPENCV_APPS=OFF \
-              -DBUILD_JAVA=OFF \
-              -DBUILD_opencv_python_bindings_generator=OFF \
-              -DCMAKE_INSTALL_PREFIX=/usr/local
-            cmake --build build -j --target install
-          CIBW_ENVIRONMENT_WINDOWS: 'OpenCV_DIR=C:\\tools\\opencv\\build'
+          CIBW_BEFORE_ALL_LINUX: bash {project}/scripts/manylinux-before-all.sh
+          CIBW_ENVIRONMENT_WINDOWS: 'OpenCV_DIR=C:\\tools\\opencv\\build CMAKE_PREFIX_PATH=C:\\eigen'
 
       - uses: actions/upload-artifact@v4
         with:
@@ -91,11 +104,12 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
-  # Publish to PyPI on tag pushes (vX.Y.Z).
+  # Publish to PyPI only when a GitHub Release is published. Tag pushes
+  # alone do not publish — they only build wheels for verification.
   publish_pypi:
     name: Publish to PyPI
     needs: [build_wheels, build_sdist]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

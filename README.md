@@ -111,6 +111,14 @@ uv sync --reinstall-package cheshm
 
 Plain `uv sync` will not notice C/C++ source edits — only `pyproject.toml` changes.
 
+After changing a binding's signature (a `core.cpp` under `bindings/python/src/`), regenerate the matching `_core.pyi`:
+
+```
+./scripts/regen_stubs.sh
+```
+
+Commit the updated `.pyi` alongside the `.cpp`. CI verifies the committed stubs match what stubgen would emit and fails the PR if they drift.
+
 ### Repo layout
 
 ```

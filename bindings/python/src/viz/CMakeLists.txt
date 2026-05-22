@@ -19,12 +19,15 @@ target_link_libraries(viz_core_nb
     cheshm::cpp
 )
 
-nanobind_add_stub(viz_core_stub
-  MODULE _core
-  OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/viz/_core.pyi
-  PYTHON_PATH $<TARGET_FILE_DIR:viz_core_nb>
-  DEPENDS viz_core_nb
-)
+if(CHESHM_BUILD_STUBS)
+  nanobind_add_stub(viz_core_stub
+    ALL
+    MODULE _core
+    OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/viz/_core.pyi
+    PYTHON_PATH $<TARGET_FILE_DIR:viz_core_nb>
+    DEPENDS viz_core_nb
+  )
+endif()
 
 install(TARGETS viz_core_nb
   LIBRARY DESTINATION cheshm/viz

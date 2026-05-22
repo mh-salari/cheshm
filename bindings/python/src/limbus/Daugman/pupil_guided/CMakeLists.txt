@@ -19,12 +19,15 @@ target_link_libraries(pupil_guided_core_nb
     cheshm::cpp
 )
 
-nanobind_add_stub(pupil_guided_core_stub
-  MODULE _core
-  OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/limbus_detectors/daugman/pupil_guided/_core.pyi
-  PYTHON_PATH $<TARGET_FILE_DIR:pupil_guided_core_nb>
-  DEPENDS pupil_guided_core_nb
-)
+if(CHESHM_BUILD_STUBS)
+  nanobind_add_stub(pupil_guided_core_stub
+    ALL
+    MODULE _core
+    OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/limbus_detectors/daugman/pupil_guided/_core.pyi
+    PYTHON_PATH $<TARGET_FILE_DIR:pupil_guided_core_nb>
+    DEPENDS pupil_guided_core_nb
+  )
+endif()
 
 install(TARGETS pupil_guided_core_nb
   LIBRARY DESTINATION cheshm/limbus_detectors/daugman/pupil_guided

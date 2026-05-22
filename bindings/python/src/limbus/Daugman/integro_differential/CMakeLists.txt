@@ -17,12 +17,15 @@ target_link_libraries(integro_differential_core_nb
     cheshm::cpp
 )
 
-nanobind_add_stub(integro_differential_core_stub
-  MODULE _core
-  OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/limbus_detectors/daugman/integro_differential/_core.pyi
-  PYTHON_PATH $<TARGET_FILE_DIR:integro_differential_core_nb>
-  DEPENDS integro_differential_core_nb
-)
+if(CHESHM_BUILD_STUBS)
+  nanobind_add_stub(integro_differential_core_stub
+    ALL
+    MODULE _core
+    OUTPUT ${CMAKE_SOURCE_DIR}/bindings/python/cheshm/limbus_detectors/daugman/integro_differential/_core.pyi
+    PYTHON_PATH $<TARGET_FILE_DIR:integro_differential_core_nb>
+    DEPENDS integro_differential_core_nb
+  )
+endif()
 
 install(TARGETS integro_differential_core_nb
   LIBRARY DESTINATION cheshm/limbus_detectors/daugman/integro_differential
