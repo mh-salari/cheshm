@@ -27,22 +27,22 @@ pip install cheshm
 
 ## Detectors
 
-| Kind | Detector | Paper | Subdirectory | Licence |
-|---|---|---|---|---|
-| pupil | Simple | — | `pupil_detectors/Simple/` | MIT |
-| pupil | Starburst | Li, Winfield, Parkhurst 2005 | `pupil_detectors/Starburst/` | GPL |
-| pupil | Swirski2D | Świrski, Bulling, Dodgson 2012 | `pupil_detectors/Swirski2D/` | MIT |
-| pupil | ExCuSe | Fuhl et al. 2015 | `pupil_detectors/ExCuSe/` | non-commercial |
-| pupil | ElSe | Fuhl et al. 2016 | `pupil_detectors/ElSe/` | non-commercial |
-| pupil | PuRe | Santini, Fuhl, Kasneci 2018 | `pupil_detectors/PuRe/` | non-commercial |
-| pupil | PuReST | Santini, Fuhl, Kasneci 2018 | `pupil_detectors/PuReST/` | non-commercial |
-| pupil | PupilLabs2D | Kassner, Patera, Bulling 2014 | `pupil_detectors/PupilLabs2D/` | LGPL-3.0-or-later |
-| glint | Simple | — | `glint_detectors/Simple/` | MIT |
-| limbus | Daugman integro-differential | Daugman 1993 | `limbus_detectors/daugman/integro_differential/` | MIT |
-| limbus | Daugman active contour | Daugman 2007 | `limbus_detectors/daugman/active_contour/` | MIT |
-| limbus | Pupil-guided active contour | Daugman 2007 variant | `limbus_detectors/daugman/pupil_guided/` | MIT |
+| Kind | Detector | Paper | Licence |
+|---|---|---|---|
+| pupil | Simple | — | MIT |
+| pupil | Starburst | Li, Winfield, Parkhurst 2005 | GPL |
+| pupil | Swirski2D | Świrski, Bulling, Dodgson 2012 | MIT |
+| pupil | ExCuSe | Fuhl et al. 2015 | non-commercial |
+| pupil | ElSe | Fuhl et al. 2016 | non-commercial |
+| pupil | PuRe | Santini, Fuhl, Kasneci 2018 | non-commercial |
+| pupil | PuReST | Santini, Fuhl, Kasneci 2018 | non-commercial |
+| pupil | PupilLabs2D | Kassner, Patera, Bulling 2014 | LGPL-3.0-or-later |
+| glint | Simple | — | MIT |
+| limbus | Daugman integro-differential | Daugman 1993 | MIT |
+| limbus | Daugman active contour | Daugman 2007 | MIT |
+| limbus | Pupil-guided active contour | Daugman 2007 variant | MIT |
 
-Subdirectories are relative to `bindings/python/cheshm/`. The top-level [`LICENSE`](LICENSE) is MIT and covers the framework code; each detector subdirectory carries its own `LICENSE` file with the detector's terms. Installing the project from PyPI installs all detectors, but only the ones you import are loaded into your process — so the licence that governs your use is the licence of the detectors you imported:
+The top-level [`LICENSE`](LICENSE) is MIT and covers the framework code; each detector ships its own `LICENSE` file with the detector's terms. Installing the project from PyPI installs all detectors, but only the ones you import are loaded into your process — so the licence that governs your use is the licence of the detectors you imported:
 
 ```python
 from cheshm.pupil_detectors.Simple import detect_pupil       # MIT
