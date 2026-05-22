@@ -40,6 +40,7 @@ add_library(cheshm::cpp ALIAS cheshm_cpp)
 target_include_directories(cheshm_cpp INTERFACE include)
 
 add_subdirectory(bindings/python/src/align)
+add_subdirectory(bindings/python/src/viz)
 add_subdirectory(bindings/python/src/limbus/Daugman)
 add_subdirectory(bindings/python/src/pupil/ElSe)
 add_subdirectory(bindings/python/src/pupil/ExCuSe)
