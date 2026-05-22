@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -120,6 +121,7 @@ class _State:
             kind: {det.id: {s.name: s.default for s in det.settings} for det in detectors}
             for kind, detectors in self.by_kind.items()
         }
+        self.pending_save_target: tuple[str, str] | None = None
 
     @property
     def current_path(self) -> Path | None:
@@ -618,11 +620,16 @@ def _build_overlay_row(state: _State, kind: str, redraw_cb: Callable[[], None]) 
 _SECTION_TITLE_COLOR = (160, 220, 255)
 
 
-def _build_settings_panel(state: _State, on_change: DpgCallback, redraw_cb: Callable[[], None]) -> None:
+def _build_settings_panel(
+    state: _State,
+    on_change: DpgCallback,
+    redraw_cb: Callable[[], None],
+    on_save_cb: DpgCallback,
+) -> None:
     def on_pick(_sender: DpgTag, app_data: object, user_data: object) -> None:
         kind = user_data
         state.active[kind] = None if app_data == "-off-" else app_data
-        _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset)
+        _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset, on_save_cb=on_save_cb)
         redraw_cb()
 
     def on_reset(_sender: DpgTag, _app_data: object, user_data: object) -> None:
@@ -640,7 +647,7 @@ def _build_settings_panel(state: _State, on_change: DpgCallback, redraw_cb: Call
             state.colors[full] = _DEFAULT_COLOURS_BY_FULL_KEY.get(full, (255, 255, 255))
             state.alpha[full] = _TYPE_DEFAULT_ALPHA.get(elem_type, 1.0)
             state.thickness[full] = _TYPE_DEFAULT_THICKNESS.get(elem_type, 1)
-        _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset)
+        _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset, on_save_cb=on_save_cb)
         redraw_cb()
 
     card_tags: list[str] = []
@@ -657,7 +664,7 @@ def _build_settings_panel(state: _State, on_change: DpgCallback, redraw_cb: Call
             current = state.active[kind] or "-off-"
             dpg.add_combo(items=options, default_value=current, width=-1, callback=on_pick, user_data=kind)
             dpg.add_group(tag=f"settings_group_{kind}")
-            _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset)
+            _refresh_settings_group(state, kind, on_change, redraw_cb, on_reset_cb=on_reset, on_save_cb=on_save_cb)
 
     with dpg.theme() as card_theme, dpg.theme_component(dpg.mvAll):
         dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [56, 62, 78])
@@ -675,6 +682,7 @@ def _refresh_settings_group(
     redraw_cb: Callable[[], None],
     *,
     on_reset_cb: DpgCallback | None = None,
+    on_save_cb: DpgCallback | None = None,
 ) -> None:
     group_tag = f"settings_group_{kind}"
     dpg.delete_item(group_tag, children_only=True)
@@ -693,6 +701,9 @@ def _refresh_settings_group(
         dpg.add_spacer(height=4)
         for s in det.settings:
             _build_setting_widget(state, kind, det.id, s, on_change)
+        if on_save_cb is not None:
+            dpg.add_spacer(height=4)
+            dpg.add_button(label="Save settings...", width=-1, callback=on_save_cb, user_data=(kind, det.id))
 
 
 # ---------------------------------------------------------------------------
@@ -944,6 +955,66 @@ def run(source: str | Path | list[str | Path] | None = None) -> None:
                 dpg.add_file_extension(ext)
             dpg.add_file_extension(".*")
 
+        def _write_settings(path: Path) -> None:
+            if state.pending_save_target is None:
+                return
+            kind, det_id = state.pending_save_target
+            state.pending_save_target = None
+            payload = {
+                "kind": kind,
+                "detector": det_id,
+                "settings": state.values[kind][det_id],
+            }
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            dpg.set_value("status_text", f"saved {kind}/{det_id} settings to {path}")
+
+        def _on_save_picked(_sender: DpgTag, app_data: object) -> None:
+            if state.pending_save_target is None:
+                return
+            path = Path(app_data["file_path_name"])
+            if path.suffix.lower() != ".json":
+                path = path.with_suffix(".json")
+            if path.exists():
+                dpg.set_value("overwrite_path_text", str(path))
+                dpg.set_item_user_data("overwrite_replace_btn", path)
+                # Defer one frame: opening a modal popup straight from a
+                # file_dialog callback often leaves it hidden (dearpygui
+                # issue #1791).
+                dpg.set_frame_callback(
+                    dpg.get_frame_count() + 2, lambda: dpg.configure_item("overwrite_modal", show=True)
+                )
+                return
+            _write_settings(path)
+
+        def _on_overwrite_replace(_sender: DpgTag, _app_data: object, user_data: object) -> None:
+            dpg.configure_item("overwrite_modal", show=False)
+            _write_settings(Path(user_data))
+
+        def _on_overwrite_cancel(_sender: DpgTag, _app_data: object, _user_data: object) -> None:
+            state.pending_save_target = None
+            dpg.configure_item("overwrite_modal", show=False)
+
+        with dpg.file_dialog(
+            directory_selector=False,
+            show=False,
+            modal=True,
+            callback=_on_save_picked,
+            tag="save_dialog",
+            width=700,
+            height=400,
+        ):
+            dpg.add_file_extension(".json")
+            dpg.add_file_extension(".*")
+
+        def on_save_clicked(_sender: DpgTag, _app_data: object, user_data: object) -> None:
+            kind, det_id = user_data
+            state.pending_save_target = (kind, det_id)
+            # No extension here: dpg's file_dialog appends the active
+            # extension filter, so passing "name.json" can produce
+            # "namejson.json". Setting just "name" gives "name.json".
+            dpg.configure_item("save_dialog", default_filename=f"{det_id}_{kind}")
+            dpg.show_item("save_dialog")
+
         with dpg.group(horizontal=True):
             with dpg.child_window(width=_LEFT_W, autosize_y=True):
                 with dpg.group(horizontal=True):
@@ -992,12 +1063,29 @@ def run(source: str | Path | list[str | Path] | None = None) -> None:
                 dpg.add_image("image_texture", tag="image_widget", width=state.canvas_w, height=state.canvas_h)
 
             with dpg.child_window(tag="settings_panel", width=_RIGHT_W - 20, autosize_y=True, border=True):
-                _build_settings_panel(state, on_change, redraw)
+                _build_settings_panel(state, on_change, redraw, on_save_clicked)
 
     with dpg.theme() as settings_theme, dpg.theme_component(dpg.mvAll):
         dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [42, 46, 54])
         dpg.add_theme_color(dpg.mvThemeCol_Border, [120, 140, 170])
     dpg.bind_item_theme("settings_panel", settings_theme)
+
+    with dpg.window(
+        label="File exists",
+        tag="overwrite_modal",
+        modal=True,
+        show=False,
+        no_close=True,
+        no_resize=True,
+        width=380,
+        height=140,
+    ):
+        dpg.add_text("Replace this file?")
+        dpg.add_text("", tag="overwrite_path_text", wrap=360, color=(200, 200, 200))
+        dpg.add_spacer(height=8)
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="Replace", tag="overwrite_replace_btn", width=120, callback=_on_overwrite_replace)
+            dpg.add_button(label="Cancel", width=120, callback=_on_overwrite_cancel)
 
     icon_path = str(Path(__file__).parent / "icon.png")
     dpg.create_viewport(title="cheshm", width=1400, height=900, small_icon=icon_path, large_icon=icon_path)
