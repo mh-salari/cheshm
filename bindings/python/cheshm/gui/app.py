@@ -424,6 +424,7 @@ def _build_setting_widget(
             min_value=lo,
             max_value=hi,
             width=fill_width,
+            no_input=True,
             callback=on_change,
             user_data=user_data,
         )
@@ -435,6 +436,7 @@ def _build_setting_widget(
             min_value=lo,
             max_value=hi,
             width=fill_width,
+            no_input=True,
             callback=on_change,
             user_data=user_data,
         )
@@ -466,6 +468,7 @@ def _build_setting_widget(
             max_value=hi,
             width=fill_width,
             enabled=enabled,
+            no_input=True,
             callback=on_change,
             user_data=("_opt_value_int", *user_data, enabled_tag),
         )
@@ -486,6 +489,7 @@ def _build_setting_widget(
             max_value=hi,
             width=fill_width,
             enabled=enabled,
+            no_input=True,
             callback=on_change,
             user_data=("_opt_value_float", *user_data, enabled_tag),
         )
@@ -595,6 +599,7 @@ def _build_overlay_row(state: _State, kind: str, redraw_cb: Callable[[], None]) 
                     max_value=1.0,
                     width=70,
                     format="α %.2f",
+                    no_input=True,
                     callback=on_alpha,
                     user_data=full,
                 )
@@ -845,7 +850,13 @@ def run(source: str | Path | list[str | Path] | None = None) -> None:
         with dpg.group(horizontal=True):
             dpg.add_button(label="zoom", small=True, callback=reset_zoom)
             dpg.add_slider_float(
-                tag="zoom_slider", default_value=1.0, min_value=0.1, max_value=4.0, width=150, callback=on_zoom
+                tag="zoom_slider",
+                default_value=1.0,
+                min_value=0.1,
+                max_value=4.0,
+                width=150,
+                no_input=True,
+                callback=on_zoom,
             )
             dpg.add_spacer(width=10)
             dpg.add_button(label="brightness", small=True, callback=reset_brightness)
@@ -855,6 +866,7 @@ def run(source: str | Path | list[str | Path] | None = None) -> None:
                 min_value=-100,
                 max_value=100,
                 width=150,
+                no_input=True,
                 callback=on_brightness,
             )
 
