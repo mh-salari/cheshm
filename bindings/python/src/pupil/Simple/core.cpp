@@ -3,6 +3,7 @@
 // the requested method.
 
 #include "cheshm/helpers/image/roi.hpp"
+#include "cheshm/helpers/shape/pupil_form.hpp"
 #include "cheshm/helpers/shape/shape_quality.hpp"
 #include "cheshm/helpers/shape/spline.hpp"
 #include "cheshm/pupil/Simple/defaults.hpp"
@@ -18,6 +19,7 @@
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <optional>
 #include <vector>
 
 namespace nb = nanobind;
@@ -56,6 +58,62 @@ std::vector<cv::Point> hull_in_contour_order(const std::vector<cv::Point>& conto
     return hull;
 }
 
+// Pupil centre from one contour/hull/ellipse, by the requested method.
+// ``intensity_mask`` is the crop-local mask the centre-of-mass method
+// intersects the filled contour with (the threshold mask for the raw
+// contour, or the filled smoothed margin when Fourier smoothing is on).
+std::optional<cv::Point2d> compute_center(int method,
+                                          const std::vector<cv::Point>& contour,
+                                          const std::vector<cv::Point>& hull,
+                                          const cv::RotatedRect& ellipse_fit,
+                                          const cv::Mat& intensity_mask)
+{
+    switch (method)
+    {
+        case CENTER_CONVEX_HULL_CENTROID:
+        {
+            const cheshm::SplineCentroid sc = cheshm::spline_polygon_centroid(hull, 200);
+            if (sc.area == 0.0)
+            {
+                return std::nullopt;
+            }
+            return cv::Point2d(sc.cx, sc.cy);
+        }
+        case CENTER_OF_MASS:
+        {
+            cv::Mat contour_mask = cv::Mat::zeros(intensity_mask.size(), CV_8U);
+            cv::drawContours(
+                contour_mask, std::vector<std::vector<cv::Point>>{contour}, -1, cv::Scalar(255), cv::FILLED);
+            cv::Mat region;
+            cv::bitwise_and(contour_mask, intensity_mask, region);
+            const cv::Moments m = cv::moments(region, true);
+            if (m.m00 == 0.0)
+            {
+                return std::nullopt;
+            }
+            return cv::Point2d(m.m10 / m.m00, m.m01 / m.m00);
+        }
+        case CENTER_ELLIPSE_FIT:
+            return cv::Point2d(ellipse_fit.center.x, ellipse_fit.center.y);
+        case CENTER_MIN_AREA_RECT:
+        {
+            const cv::RotatedRect rect = cv::minAreaRect(contour);
+            return cv::Point2d(rect.center.x, rect.center.y);
+        }
+        case CENTER_HULL_MOMENTS:
+        {
+            const cv::Moments m = cv::moments(hull);
+            if (m.m00 == 0.0)
+            {
+                return std::nullopt;
+            }
+            return cv::Point2d(m.m10 / m.m00, m.m01 / m.m00);
+        }
+        default:
+            return std::nullopt;
+    }
+}
+
 struct DetectResult
 {
     double cx; // centre, full-image coords, from the chosen method
@@ -76,7 +134,12 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
                                         int pupil_threshold,
                                         int pupil_center_method,
                                         double min_ellipse_fit_ratio,
-                                        double min_roundness_ratio)
+                                        double min_roundness_ratio,
+                                        bool fourier_smoothing,
+                                        int fourier_harmonics,
+                                        int fourier_samples,
+                                        int fourier_iterations,
+                                        double fourier_inward_rejection)
 {
     const int width = full.cols;
     const int height = full.rows;
@@ -149,72 +212,41 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
         return std::nullopt;
     }
 
-    const std::vector<cv::Point>& pupil_contour = contours[winning];
+    std::vector<cv::Point> out_contour = contours[winning];
+    std::vector<cv::Point> out_hull = hull;
+    cv::RotatedRect out_ellipse = ellipse_fit;
 
-    double cx_local = 0.0;
-    double cy_local = 0.0;
-    switch (pupil_center_method)
+    if (fourier_smoothing)
     {
-        case CENTER_CONVEX_HULL_CENTROID:
+        const cheshm::PupilForm form = cheshm::fit_pupil_form(
+            contours[winning], fourier_harmonics, fourier_samples, fourier_iterations, fourier_inward_rejection);
+        if (form.ok && form.boundary.size() >= 5)
         {
-            const cheshm::SplineCentroid sc = cheshm::spline_polygon_centroid(hull, 200);
-            if (sc.area == 0.0)
-            {
-                return std::nullopt;
-            }
-            cx_local = sc.cx;
-            cy_local = sc.cy;
-            break;
-        }
-        case CENTER_OF_MASS:
-        {
-            cv::Mat contour_mask = cv::Mat::zeros(pupil_mask.size(), CV_8U);
+            out_contour = form.boundary;
+            out_hull = hull_in_contour_order(out_contour);
+            out_ellipse = cv::fitEllipse(out_hull);
+            // Refill the returned mask with the smoothed margin so the mask
+            // overlay and centre-of-mass match the reported contour.
+            pupil_mask.setTo(0);
             cv::drawContours(
-                contour_mask, std::vector<std::vector<cv::Point>>{pupil_contour}, -1, cv::Scalar(255), cv::FILLED);
-            cv::Mat pupil_only;
-            cv::bitwise_and(pupil_mask, contour_mask, pupil_only);
-            const cv::Moments m = cv::moments(pupil_only, true);
-            if (m.m00 == 0.0)
-            {
-                return std::nullopt;
-            }
-            cx_local = m.m10 / m.m00;
-            cy_local = m.m01 / m.m00;
-            break;
+                pupil_mask, std::vector<std::vector<cv::Point>>{out_contour}, -1, cv::Scalar(255), cv::FILLED);
         }
-        case CENTER_ELLIPSE_FIT:
-            cx_local = ellipse_fit.center.x;
-            cy_local = ellipse_fit.center.y;
-            break;
-        case CENTER_MIN_AREA_RECT:
-        {
-            const cv::RotatedRect rect = cv::minAreaRect(pupil_contour);
-            cx_local = rect.center.x;
-            cy_local = rect.center.y;
-            break;
-        }
-        case CENTER_HULL_MOMENTS:
-        {
-            const cv::Moments m = cv::moments(hull);
-            if (m.m00 == 0.0)
-            {
-                return std::nullopt;
-            }
-            cx_local = m.m10 / m.m00;
-            cy_local = m.m01 / m.m00;
-            break;
-        }
-        default:
-            return std::nullopt;
+    }
+
+    const std::optional<cv::Point2d> center =
+        compute_center(pupil_center_method, out_contour, out_hull, out_ellipse, pupil_mask);
+    if (!center)
+    {
+        return std::nullopt;
     }
 
     return DetectResult{
-        .cx = cx_local + crop.x,
-        .cy = cy_local + crop.y,
-        .e_w = ellipse_fit.size.width,
-        .e_h = ellipse_fit.size.height,
-        .e_angle = ellipse_fit.angle,
-        .contour = pupil_contour,
+        .cx = center->x + crop.x,
+        .cy = center->y + crop.y,
+        .e_w = out_ellipse.size.width,
+        .e_h = out_ellipse.size.height,
+        .e_angle = out_ellipse.angle,
+        .contour = out_contour,
         .mask = mask_canvas,
         .crop_tl = crop.tl(),
     };
@@ -239,6 +271,11 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>
                   int pupil_center_method,
                   double min_ellipse_fit_ratio,
                   double min_roundness_ratio,
+                  bool fourier_smoothing,
+                  int fourier_harmonics,
+                  int fourier_samples,
+                  int fourier_iterations,
+                  double fourier_inward_rejection,
                   int max_contour_points)
 {
     const int height = static_cast<int>(img.shape(0));
@@ -259,7 +296,12 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>
                                               pupil_threshold,
                                               pupil_center_method,
                                               min_ellipse_fit_ratio,
-                                              min_roundness_ratio);
+                                              min_roundness_ratio,
+                                              fourier_smoothing,
+                                              fourier_harmonics,
+                                              fourier_samples,
+                                              fourier_iterations,
+                                              fourier_inward_rejection);
     if (!result)
     {
         return nb::none();
@@ -315,8 +357,18 @@ NB_MODULE(_core, m)
           "pupil_center_method"_a,
           "min_ellipse_fit_ratio"_a,
           "min_roundness_ratio"_a,
+          "fourier_smoothing"_a,
+          "fourier_harmonics"_a,
+          "fourier_samples"_a,
+          "fourier_iterations"_a,
+          "fourier_inward_rejection"_a,
           "max_contour_points"_a);
 
     m.attr("PUPIL_THRESHOLD") = d::PUPIL_THRESHOLD;
     m.attr("MAX_CONTOUR_POINTS") = d::MAX_CONTOUR_POINTS;
+    m.attr("FOURIER_SMOOTHING") = d::FOURIER_SMOOTHING;
+    m.attr("FOURIER_HARMONICS") = d::FOURIER_HARMONICS;
+    m.attr("FOURIER_SAMPLES") = d::FOURIER_SAMPLES;
+    m.attr("FOURIER_ITERATIONS") = d::FOURIER_ITERATIONS;
+    m.attr("FOURIER_INWARD_REJECTION") = d::FOURIER_INWARD_REJECTION;
 }

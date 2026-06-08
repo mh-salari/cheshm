@@ -24,6 +24,34 @@ _UI = {
         "help": "Intensity below which a pixel is considered pupil.",
     },
     "pupil_center_method": {"label": "Centre method"},
+    "fourier_smoothing": {
+        "label": "Fourier smoothing",
+        "help": "Fit a robust low-order Fourier pupil-form to the contour, bridging glint / eyelash intrusions.",
+    },
+    "fourier_harmonics": {
+        "min": 2,
+        "max": 8,
+        "label": "Fourier harmonics",
+        "help": "Number of Fourier terms (K). Higher = more shape detail, lower = rounder.",
+    },
+    "fourier_samples": {
+        "min": 90,
+        "max": 720,
+        "label": "Fourier samples",
+        "help": "Number of points on the smoothed margin.",
+    },
+    "fourier_iterations": {
+        "min": 1,
+        "max": 8,
+        "label": "Fourier iterations",
+        "help": "Robust refinement passes (IRLS).",
+    },
+    "fourier_inward_rejection": {
+        "min": 0.3,
+        "max": 3.0,
+        "label": "Fourier inward rejection",
+        "help": "How hard inward intrusions (glints / eyelashes) are ignored. Higher = bridge more aggressively.",
+    },
     "pupil_roi": {
         "widget": "roi",
         "label": "Pupil ROI",
@@ -71,6 +99,11 @@ def detect_pupil(
     ] = "convex_hull_centroid",
     pupil_roi: tuple[int, int, int, int] | None = None,
     *,
+    fourier_smoothing: bool = _core.FOURIER_SMOOTHING,
+    fourier_harmonics: int = _core.FOURIER_HARMONICS,
+    fourier_samples: int = _core.FOURIER_SAMPLES,
+    fourier_iterations: int = _core.FOURIER_ITERATIONS,
+    fourier_inward_rejection: float = _core.FOURIER_INWARD_REJECTION,
     min_ellipse_fit_ratio: float | None = None,
     min_roundness_ratio: float | None = None,
     max_contour_points: int = _core.MAX_CONTOUR_POINTS,
@@ -130,6 +163,11 @@ def detect_pupil(
         _CENTER_METHOD_CODE[pupil_center_method],
         -1.0 if min_ellipse_fit_ratio is None else float(min_ellipse_fit_ratio),
         -1.0 if min_roundness_ratio is None else float(min_roundness_ratio),
+        fourier_smoothing,
+        fourier_harmonics,
+        fourier_samples,
+        fourier_iterations,
+        fourier_inward_rejection,
         max_contour_points,
     )
     if result is None:
