@@ -163,35 +163,7 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
 
     cv::Mat mask_canvas = cv::Mat::zeros(height, width, CV_8U);
     cv::Mat pupil_mask = mask_canvas(crop);
-    if (glint_merge)
-    {
-        // dark = pupil; glint = very-white pixels to merge into the pupil.
-        cv::Mat dark;
-        cv::Mat glint;
-        cv::threshold(view, dark, pupil_threshold, 255, cv::THRESH_BINARY_INV);
-        cv::threshold(view, glint, glint_threshold, 255, cv::THRESH_BINARY);
-        if (glint_reach_px > 0 && glint_boost_pct > 0.0 && cv::countNonZero(glint) > 0)
-        {
-            // Within reach of a glint, relax the pupil threshold to recover the
-            // halo-brightened pupil pixels the plain threshold would drop.
-            cv::Mat not_glint;
-            cv::bitwise_not(glint, not_glint);
-            cv::Mat dist;
-            cv::distanceTransform(not_glint, dist, cv::DIST_L2, 3);
-            const cv::Mat near = dist <= static_cast<float>(glint_reach_px);
-            const int boosted = static_cast<int>(std::lround(pupil_threshold * (1.0 + glint_boost_pct / 100.0)));
-            cv::Mat dark_boost;
-            cv::threshold(view, dark_boost, boosted, 255, cv::THRESH_BINARY_INV);
-            cv::Mat dark_near;
-            cv::bitwise_and(dark_boost, near, dark_near);
-            cv::bitwise_or(dark, dark_near, dark);
-        }
-        cv::bitwise_or(dark, glint, pupil_mask);
-    }
-    else
-    {
-        cv::threshold(view, pupil_mask, pupil_threshold, 255, cv::THRESH_BINARY_INV);
-    }
+    cv::threshold(view, pupil_mask, pupil_threshold, 255, cv::THRESH_BINARY_INV);
 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(pupil_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
@@ -248,21 +220,84 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
     std::vector<cv::Point> out_hull = hull;
     cv::RotatedRect out_ellipse = ellipse_fit;
 
+    if (glint_merge)
+    {
+        // Anchor the merge to the pupil: absorb only the bright pixels that are
+        // connected to the dark pupil blob. The iris is mid-gray (neither dark
+        // nor glint), so it stays a gap that keeps the sclera in a separate
+        // component — the merge can never flood into the bright background.
+        cv::Mat dark;
+        cv::Mat glint;
+        cv::threshold(view, dark, pupil_threshold, 255, cv::THRESH_BINARY_INV);
+        cv::threshold(view, glint, glint_threshold, 255, cv::THRESH_BINARY);
+        if (glint_reach_px > 0 && glint_boost_pct > 0.0 && cv::countNonZero(glint) > 0)
+        {
+            // Near a glint, relax the pupil threshold to bridge the halo ring so
+            // a glint touching the pupil stays connected to it.
+            cv::Mat not_glint;
+            cv::bitwise_not(glint, not_glint);
+            cv::Mat dist;
+            cv::distanceTransform(not_glint, dist, cv::DIST_L2, 3);
+            const cv::Mat near = dist <= static_cast<float>(glint_reach_px);
+            const int boosted = static_cast<int>(std::lround(pupil_threshold * (1.0 + glint_boost_pct / 100.0)));
+            cv::Mat dark_boost;
+            cv::threshold(view, dark_boost, boosted, 255, cv::THRESH_BINARY_INV);
+            cv::Mat dark_near;
+            cv::bitwise_and(dark_boost, near, dark_near);
+            cv::bitwise_or(dark, dark_near, dark);
+        }
+        cv::Mat merged;
+        cv::bitwise_or(dark, glint, merged);
+        const cv::Moments mo = cv::moments(out_contour);
+        if (mo.m00 != 0.0)
+        {
+            cv::Point seed(static_cast<int>(mo.m10 / mo.m00), static_cast<int>(mo.m01 / mo.m00));
+            seed.x = std::clamp(seed.x, 0, merged.cols - 1);
+            seed.y = std::clamp(seed.y, 0, merged.rows - 1);
+            cv::Mat labels;
+            cv::connectedComponents(merged, labels, 8);
+            const int seed_label = labels.at<int>(seed.y, seed.x);
+            if (seed_label > 0)
+            {
+                const cv::Mat component = (labels == seed_label);
+                std::vector<std::vector<cv::Point>> merged_contours;
+                cv::findContours(component, merged_contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+                if (!merged_contours.empty())
+                {
+                    const auto& best = *std::max_element(merged_contours.begin(),
+                                                         merged_contours.end(),
+                                                         [](const auto& a, const auto& b)
+                                                         { return cv::contourArea(a) < cv::contourArea(b); });
+                    if (best.size() >= 5)
+                    {
+                        out_contour = best;
+                        out_hull = hull_in_contour_order(out_contour);
+                        out_ellipse = cv::fitEllipse(out_hull);
+                    }
+                }
+            }
+        }
+    }
+
     if (fourier_smoothing)
     {
         const cheshm::PupilForm form = cheshm::fit_pupil_form(
-            contours[winning], fourier_harmonics, fourier_samples, fourier_iterations, fourier_inward_rejection);
+            out_contour, fourier_harmonics, fourier_samples, fourier_iterations, fourier_inward_rejection);
         if (form.ok && form.boundary.size() >= 5)
         {
             out_contour = form.boundary;
             out_hull = hull_in_contour_order(out_contour);
             out_ellipse = cv::fitEllipse(out_hull);
-            // Refill the returned mask with the smoothed margin so the mask
-            // overlay and centre-of-mass match the reported contour.
-            pupil_mask.setTo(0);
-            cv::drawContours(
-                pupil_mask, std::vector<std::vector<cv::Point>>{out_contour}, -1, cv::Scalar(255), cv::FILLED);
         }
+    }
+
+    // When the contour was rebuilt (glint merge / Fourier), refill the returned
+    // mask so the mask overlay and centre-of-mass match the reported contour.
+    if (glint_merge || fourier_smoothing)
+    {
+        pupil_mask.setTo(0);
+        cv::drawContours(
+            pupil_mask, std::vector<std::vector<cv::Point>>{out_contour}, -1, cv::Scalar(255), cv::FILLED);
     }
 
     const std::optional<cv::Point2d> center =
