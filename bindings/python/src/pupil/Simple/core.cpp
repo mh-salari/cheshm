@@ -139,7 +139,11 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
                                         int fourier_harmonics,
                                         int fourier_samples,
                                         int fourier_iterations,
-                                        double fourier_inward_rejection)
+                                        double fourier_inward_rejection,
+                                        bool glint_merge,
+                                        int glint_threshold,
+                                        double glint_boost_pct,
+                                        int glint_reach_px)
 {
     const int width = full.cols;
     const int height = full.rows;
@@ -159,7 +163,35 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
 
     cv::Mat mask_canvas = cv::Mat::zeros(height, width, CV_8U);
     cv::Mat pupil_mask = mask_canvas(crop);
-    cv::threshold(view, pupil_mask, pupil_threshold, 255, cv::THRESH_BINARY_INV);
+    if (glint_merge)
+    {
+        // dark = pupil; glint = very-white pixels to merge into the pupil.
+        cv::Mat dark;
+        cv::Mat glint;
+        cv::threshold(view, dark, pupil_threshold, 255, cv::THRESH_BINARY_INV);
+        cv::threshold(view, glint, glint_threshold, 255, cv::THRESH_BINARY);
+        if (glint_reach_px > 0 && glint_boost_pct > 0.0 && cv::countNonZero(glint) > 0)
+        {
+            // Within reach of a glint, relax the pupil threshold to recover the
+            // halo-brightened pupil pixels the plain threshold would drop.
+            cv::Mat not_glint;
+            cv::bitwise_not(glint, not_glint);
+            cv::Mat dist;
+            cv::distanceTransform(not_glint, dist, cv::DIST_L2, 3);
+            const cv::Mat near = dist <= static_cast<float>(glint_reach_px);
+            const int boosted = static_cast<int>(std::lround(pupil_threshold * (1.0 + glint_boost_pct / 100.0)));
+            cv::Mat dark_boost;
+            cv::threshold(view, dark_boost, boosted, 255, cv::THRESH_BINARY_INV);
+            cv::Mat dark_near;
+            cv::bitwise_and(dark_boost, near, dark_near);
+            cv::bitwise_or(dark, dark_near, dark);
+        }
+        cv::bitwise_or(dark, glint, pupil_mask);
+    }
+    else
+    {
+        cv::threshold(view, pupil_mask, pupil_threshold, 255, cv::THRESH_BINARY_INV);
+    }
 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(pupil_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
@@ -276,6 +308,10 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>
                   int fourier_samples,
                   int fourier_iterations,
                   double fourier_inward_rejection,
+                  bool glint_merge,
+                  int glint_threshold,
+                  double glint_boost_pct,
+                  int glint_reach_px,
                   int max_contour_points)
 {
     const int height = static_cast<int>(img.shape(0));
@@ -301,7 +337,11 @@ nb::object detect(nb::ndarray<const std::uint8_t, nb::c_contig, nb::device::cpu>
                                               fourier_harmonics,
                                               fourier_samples,
                                               fourier_iterations,
-                                              fourier_inward_rejection);
+                                              fourier_inward_rejection,
+                                              glint_merge,
+                                              glint_threshold,
+                                              glint_boost_pct,
+                                              glint_reach_px);
     if (!result)
     {
         return nb::none();
@@ -362,6 +402,10 @@ NB_MODULE(_core, m)
           "fourier_samples"_a,
           "fourier_iterations"_a,
           "fourier_inward_rejection"_a,
+          "glint_merge"_a,
+          "glint_threshold"_a,
+          "glint_boost_pct"_a,
+          "glint_reach_px"_a,
           "max_contour_points"_a);
 
     m.attr("PUPIL_THRESHOLD") = d::PUPIL_THRESHOLD;
@@ -371,4 +415,8 @@ NB_MODULE(_core, m)
     m.attr("FOURIER_SAMPLES") = d::FOURIER_SAMPLES;
     m.attr("FOURIER_ITERATIONS") = d::FOURIER_ITERATIONS;
     m.attr("FOURIER_INWARD_REJECTION") = d::FOURIER_INWARD_REJECTION;
+    m.attr("GLINT_MERGE") = d::GLINT_MERGE;
+    m.attr("GLINT_THRESHOLD") = d::GLINT_THRESHOLD;
+    m.attr("GLINT_BOOST_PCT") = d::GLINT_BOOST_PCT;
+    m.attr("GLINT_REACH_PX") = d::GLINT_REACH_PX;
 }

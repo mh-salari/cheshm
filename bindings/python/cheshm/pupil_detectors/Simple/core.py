@@ -52,6 +52,28 @@ _UI = {
         "label": "Fourier inward rejection",
         "help": "How hard inward intrusions (glints / eyelashes) are ignored. Higher = bridge more aggressively.",
     },
+    "glint_merge": {
+        "label": "Glint merge",
+        "help": "Merge very-white glints (and their halo) into the pupil so they don't carve the contour inward.",
+    },
+    "glint_threshold": {
+        "min": 150,
+        "max": 255,
+        "label": "Glint threshold",
+        "help": "Brightness above which a pixel is treated as a glint to merge into the pupil.",
+    },
+    "glint_boost_pct": {
+        "min": 0.0,
+        "max": 100.0,
+        "label": "Glint boost %",
+        "help": "How much to relax the pupil threshold near a glint, to recover halo-brightened pupil pixels.",
+    },
+    "glint_reach_px": {
+        "min": 0,
+        "max": 40,
+        "label": "Glint reach px",
+        "help": "How far from a glint the relaxed threshold applies.",
+    },
     "pupil_roi": {
         "widget": "roi",
         "label": "Pupil ROI",
@@ -104,6 +126,10 @@ def detect_pupil(
     fourier_samples: int = _core.FOURIER_SAMPLES,
     fourier_iterations: int = _core.FOURIER_ITERATIONS,
     fourier_inward_rejection: float = _core.FOURIER_INWARD_REJECTION,
+    glint_merge: bool = _core.GLINT_MERGE,
+    glint_threshold: int = _core.GLINT_THRESHOLD,
+    glint_boost_pct: float = _core.GLINT_BOOST_PCT,
+    glint_reach_px: int = _core.GLINT_REACH_PX,
     min_ellipse_fit_ratio: float | None = None,
     min_roundness_ratio: float | None = None,
     max_contour_points: int = _core.MAX_CONTOUR_POINTS,
@@ -168,6 +194,10 @@ def detect_pupil(
         fourier_samples,
         fourier_iterations,
         fourier_inward_rejection,
+        glint_merge,
+        glint_threshold,
+        glint_boost_pct,
+        glint_reach_px,
         max_contour_points,
     )
     if result is None:
