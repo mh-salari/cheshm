@@ -4,6 +4,7 @@
 
 #include "cheshm/helpers/shape/pupil_center.hpp"
 #include "cheshm/helpers/shape/pupil_form.hpp"
+#include "cheshm/helpers/shape/smoothing_spline.hpp"
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -85,6 +86,31 @@ nb::object pupil_center(PointArray pts, int method)
     return nb::make_tuple(c->x, c->y);
 }
 
+// Periodic cubic smoothing spline through ``points``. ``smoothness`` 0 passes
+// through every point; larger values smooth. Returns ``None`` on failure
+// (fewer than 4 points), else the sampled boundary as ``(n_samples, 2)``.
+nb::object smoothing_spline(PointArray pts, double smoothness, int n_samples)
+{
+    const std::vector<cv::Point> points = to_points(pts);
+    const std::vector<cv::Point> curve = cheshm::smoothing_spline(points, smoothness, n_samples);
+    if (curve.empty())
+    {
+        return nb::none();
+    }
+    const int m = static_cast<int>(curve.size());
+    auto owner = std::make_unique<std::vector<double>>(2 * m);
+    for (int i = 0; i < m; ++i)
+    {
+        (*owner)[2 * i] = static_cast<double>(curve[i].x);
+        (*owner)[2 * i + 1] = static_cast<double>(curve[i].y);
+    }
+    double* data = owner->data();
+    nb::capsule cap(owner.release(), [](void* p) noexcept { delete static_cast<std::vector<double>*>(p); });
+    const std::size_t shape[2] = {static_cast<std::size_t>(m), 2};
+    nb::ndarray<nb::numpy, double, nb::ndim<2>> arr(data, 2, shape, cap);
+    return nb::cast(std::move(arr));
+}
+
 } // namespace
 
 NB_MODULE(_core, m)
@@ -97,6 +123,7 @@ NB_MODULE(_core, m)
           "iterations"_a,
           "inward_rejection"_a);
     m.def("pupil_center", &pupil_center, "points"_a, "method"_a);
+    m.def("smoothing_spline", &smoothing_spline, "points"_a, "smoothness"_a, "n_samples"_a);
 
     m.attr("CENTER_CONVEX_HULL_CENTROID") = cheshm::CENTER_CONVEX_HULL_CENTROID;
     m.attr("CENTER_ELLIPSE_FIT") = cheshm::CENTER_ELLIPSE_FIT;

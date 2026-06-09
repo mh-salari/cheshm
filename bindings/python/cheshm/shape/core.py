@@ -47,3 +47,14 @@ def pupil_center(points: np.ndarray, method: str) -> tuple[float, float] | None:
         raise ValueError(f"unknown center method {method!r}; choose from {CENTER_METHODS}")
     pts = np.ascontiguousarray(points, dtype=np.float64)
     return _core.pupil_center(pts, _CENTER_CODE[method])
+
+
+def smoothing_spline(points: np.ndarray, smoothness: float, n_samples: int = 360) -> np.ndarray | None:
+    """Periodic cubic smoothing spline through ``points`` (needs N >= 4).
+
+    ``smoothness`` 0 passes through every point (interpolation); larger values
+    trade point-closeness for lower curvature. ``smoothness`` is scale-invariant.
+    Returns the sampled closed boundary as ``(n_samples, 2)`` float64, or ``None``.
+    """
+    pts = np.ascontiguousarray(points, dtype=np.float64)
+    return _core.smoothing_spline(pts, float(smoothness), int(n_samples))
