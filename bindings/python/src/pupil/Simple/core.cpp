@@ -3,9 +3,9 @@
 // the requested method.
 
 #include "cheshm/helpers/image/roi.hpp"
+#include "cheshm/helpers/shape/pupil_center.hpp"
 #include "cheshm/helpers/shape/pupil_form.hpp"
 #include "cheshm/helpers/shape/shape_quality.hpp"
-#include "cheshm/helpers/shape/spline.hpp"
 #include "cheshm/pupil/Simple/defaults.hpp"
 
 #include <nanobind/nanobind.h>
@@ -30,12 +30,6 @@ namespace cheshm::Simple
 namespace
 {
 
-constexpr int CENTER_CONVEX_HULL_CENTROID = 0;
-constexpr int CENTER_OF_MASS = 1;
-constexpr int CENTER_ELLIPSE_FIT = 2;
-constexpr int CENTER_MIN_AREA_RECT = 3;
-constexpr int CENTER_HULL_MOMENTS = 4;
-
 bool touches_border(const std::vector<cv::Point>& contour, int view_w, int view_h)
 {
     const cv::Rect br = cv::boundingRect(contour);
@@ -56,62 +50,6 @@ std::vector<cv::Point> hull_in_contour_order(const std::vector<cv::Point>& conto
         hull.push_back(contour[i]);
     }
     return hull;
-}
-
-// Pupil centre from one contour/hull/ellipse, by the requested method.
-// ``intensity_mask`` is the crop-local mask the centre-of-mass method
-// intersects the filled contour with (the threshold mask for the raw
-// contour, or the filled smoothed margin when Fourier smoothing is on).
-std::optional<cv::Point2d> compute_center(int method,
-                                          const std::vector<cv::Point>& contour,
-                                          const std::vector<cv::Point>& hull,
-                                          const cv::RotatedRect& ellipse_fit,
-                                          const cv::Mat& intensity_mask)
-{
-    switch (method)
-    {
-        case CENTER_CONVEX_HULL_CENTROID:
-        {
-            const cheshm::SplineCentroid sc = cheshm::spline_polygon_centroid(hull, 200);
-            if (sc.area == 0.0)
-            {
-                return std::nullopt;
-            }
-            return cv::Point2d(sc.cx, sc.cy);
-        }
-        case CENTER_OF_MASS:
-        {
-            cv::Mat contour_mask = cv::Mat::zeros(intensity_mask.size(), CV_8U);
-            cv::drawContours(
-                contour_mask, std::vector<std::vector<cv::Point>>{contour}, -1, cv::Scalar(255), cv::FILLED);
-            cv::Mat region;
-            cv::bitwise_and(contour_mask, intensity_mask, region);
-            const cv::Moments m = cv::moments(region, true);
-            if (m.m00 == 0.0)
-            {
-                return std::nullopt;
-            }
-            return cv::Point2d(m.m10 / m.m00, m.m01 / m.m00);
-        }
-        case CENTER_ELLIPSE_FIT:
-            return cv::Point2d(ellipse_fit.center.x, ellipse_fit.center.y);
-        case CENTER_MIN_AREA_RECT:
-        {
-            const cv::RotatedRect rect = cv::minAreaRect(contour);
-            return cv::Point2d(rect.center.x, rect.center.y);
-        }
-        case CENTER_HULL_MOMENTS:
-        {
-            const cv::Moments m = cv::moments(hull);
-            if (m.m00 == 0.0)
-            {
-                return std::nullopt;
-            }
-            return cv::Point2d(m.m10 / m.m00, m.m01 / m.m00);
-        }
-        default:
-            return std::nullopt;
-    }
 }
 
 struct DetectResult
@@ -301,7 +239,7 @@ std::optional<DetectResult> detect_impl(const cv::Mat& full,
     }
 
     const std::optional<cv::Point2d> center =
-        compute_center(pupil_center_method, out_contour, out_hull, out_ellipse, pupil_mask);
+        cheshm::pupil_center(pupil_center_method, out_contour, out_hull, out_ellipse, pupil_mask);
     if (!center)
     {
         return std::nullopt;
