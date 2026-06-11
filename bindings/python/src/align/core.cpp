@@ -125,7 +125,10 @@ nb::object align_eye_images(U8Array ref_img,
                             double tgt_limbus_cy,
                             double tgt_limbus_radius,
                             int step1_code,
-                            bool step2)
+                            bool step2,
+                            double exclude_top,
+                            double exclude_bottom,
+                            double inner_margin)
 {
     const cv::Mat ref = as_gray(ref_img);
     const cv::Mat tgt = as_gray(tgt_img);
@@ -154,7 +157,8 @@ nb::object align_eye_images(U8Array ref_img,
     else if (step1_code == 2)
         step1 = cheshm::align::Step1Anchor::Pupil;
 
-    auto result = cheshm::align::align_eye_images(ref, tgt, ref_det, tgt_det, step1, step2);
+    auto result = cheshm::align::align_eye_images(
+        ref, tgt, ref_det, tgt_det, step1, step2, exclude_top, exclude_bottom, inner_margin);
 
     nb::object step1_obj = nb::none();
     if (result.step1_translation)
@@ -249,7 +253,10 @@ NB_MODULE(_core, m)
           "tgt_limbus_cy"_a,
           "tgt_limbus_radius"_a,
           "step1_code"_a,
-          "step2"_a);
+          "step2"_a,
+          "exclude_top"_a = d::EXCLUDE_TOP,
+          "exclude_bottom"_a = d::EXCLUDE_BOTTOM,
+          "inner_margin"_a = d::INNER_MARGIN);
 
     m.attr("DX_LO") = d::DX_LO;
     m.attr("DX_HI") = d::DX_HI;

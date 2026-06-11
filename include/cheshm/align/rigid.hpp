@@ -71,6 +71,9 @@ AlignResult align_eye_images(const cv::Mat& ref_img,
                              const EyeDetection& ref_det,
                              const EyeDetection& tgt_det,
                              Step1Anchor step1 = Step1Anchor::Glint,
-                             bool step2 = true);
+                             bool step2 = true,
+                             double exclude_top = defaults::EXCLUDE_TOP,
+                             double exclude_bottom = defaults::EXCLUDE_BOTTOM,
+                             double inner_margin = defaults::INNER_MARGIN);
 
 } // namespace cheshm::align

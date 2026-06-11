@@ -121,11 +121,19 @@ def align_eye_images(
     *,
     step1: Step1Method = "glint",
     step2: bool = True,
+    exclude_top: float = _core.EXCLUDE_TOP,
+    exclude_bottom: float = _core.EXCLUDE_BOTTOM,
+    inner_margin: float = _core.INNER_MARGIN,
 ) -> dict:
     """Rigid-align ``tgt_img`` onto ``ref_img`` using cached detections.
 
     Step 1 (translation): glint-centroid match, pupil-centre match, or off.
     Step 2 (refinement): iris-barrel min-MAE search over ``(dx, dy, theta)``.
+
+    ``exclude_top`` / ``exclude_bottom`` set the half-angle (degrees) of the
+    eyelid wedges cut from the step-2 barrel mask, and ``inner_margin`` the
+    pupil-edge gap; widen the wedges to keep eyelashes out of the rotation
+    search when the lid/lashes occlude the iris.
     """
     if step1 is None and not step2:
         return {
@@ -162,6 +170,9 @@ def align_eye_images(
         float(tgt_lim["radius"]),
         _STEP1_CODE[step1],
         bool(step2),
+        float(exclude_top),
+        float(exclude_bottom),
+        float(inner_margin),
     )
 
     return {

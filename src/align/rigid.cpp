@@ -311,7 +311,10 @@ AlignResult align_eye_images(const cv::Mat& ref_img,
                              const EyeDetection& ref_det,
                              const EyeDetection& tgt_det,
                              Step1Anchor step1,
-                             bool step2)
+                             bool step2,
+                             double exclude_top,
+                             double exclude_bottom,
+                             double inner_margin)
 {
     AlignResult out;
 
@@ -360,7 +363,8 @@ AlignResult align_eye_images(const cv::Mat& ref_img,
     {
         const double iris_r = static_cast<double>(banker_round((ref_det.limbus_radius + tgt_det.limbus_radius) / 2.0));
         const double pupil_r = static_cast<double>(banker_round(std::max(ref_det.pupil_radius, tgt_det.pupil_radius)));
-        const cv::Mat barrel = make_barrel_mask(ref_img.size(), *step2_center, iris_r, pupil_r);
+        const cv::Mat barrel = make_barrel_mask(
+            ref_img.size(), *step2_center, iris_r, pupil_r, exclude_top, exclude_bottom, inner_margin);
         const auto [p2, _score] = align_by_min_diff(ref_img,
                                                     warped,
                                                     barrel,
