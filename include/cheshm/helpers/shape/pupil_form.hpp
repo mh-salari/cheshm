@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <opencv2/core.hpp>
 #include <vector>
 
@@ -76,6 +77,8 @@ inline PupilForm fit_pupil_form(
     std::vector<double> coef(ncoef, 0.0);
     double bcx = cx;
     double bcy = cy;
+    double min_radius = 0.0;
+    double max_radius = 0.0;
 
     for (int pass = 0; pass < 2; ++pass)
     {
@@ -144,10 +147,14 @@ inline PupilForm fit_pupil_form(
         out.boundary.assign(samples, cv::Point());
         bcx = 0.0;
         bcy = 0.0;
+        min_radius = std::numeric_limits<double>::max();
+        max_radius = std::numeric_limits<double>::lowest();
         for (int j = 0; j < samples; ++j)
         {
             const double th = -PI + (2.0 * PI * j) / samples;
             const double rr = detail::polar_radius(coef, kk, th);
+            min_radius = std::min(min_radius, rr);
+            max_radius = std::max(max_radius, rr);
             const double x = cx + rr * std::cos(th);
             const double y = cy + rr * std::sin(th);
             out.boundary[j] = cv::Point(static_cast<int>(std::lround(x)), static_cast<int>(std::lround(y)));
@@ -158,6 +165,18 @@ inline PupilForm fit_pupil_form(
         bcy /= samples;
         cx = bcx; // refine the polar origin for the next pass
         cy = bcy;
+    }
+
+    // A pupil margin is convex and near-circular: its polar radius stays
+    // positive and its max-to-min ratio is small, below ~2.5 even for a
+    // strongly foreshortened pupil. A non-positive radius or a larger ratio
+    // means the low-order series could not represent the contour and folded the
+    // boundary into a self-intersecting shape. Reject it; the caller then keeps
+    // the raw contour.
+    constexpr double MAX_RADIUS_RATIO = 3.0;
+    if (min_radius <= 0.0 || max_radius > MAX_RADIUS_RATIO * min_radius)
+    {
+        return out;
     }
 
     out.cx = bcx;
