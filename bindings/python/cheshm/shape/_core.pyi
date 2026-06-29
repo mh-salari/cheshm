@@ -10,6 +10,8 @@ def pupil_center(points: Annotated[NDArray[numpy.float64], dict(shape=(None, Non
 
 def smoothing_spline(points: Annotated[NDArray[numpy.float64], dict(shape=(None, None), order='C', device='cpu', writable=False)], smoothness: float, n_samples: int) -> object: ...
 
+def ellipse_boundary(cx: float, cy: float, w: float, h: float, angle: float, n_samples: int) -> object: ...
+
 CENTER_CONVEX_HULL_CENTROID: int = 0
 
 CENTER_ELLIPSE_FIT: int = 2

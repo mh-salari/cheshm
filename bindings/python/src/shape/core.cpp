@@ -11,6 +11,7 @@
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/tuple.h>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <opencv2/core.hpp>
@@ -111,6 +112,35 @@ nb::object smoothing_spline(PointArray pts, double smoothness, int n_samples)
     return nb::cast(std::move(arr));
 }
 
+// Boundary of an ellipse sampled to ``n_samples`` points, parameterised
+// identically to ``cv::ellipse2Poly`` (even steps in the angle parameter, not
+// in arc length). ``w`` / ``h`` are the full axis lengths and ``angle`` is in
+// degrees, matching ``cv::fitEllipse``. Returns the closed boundary as
+// ``(n_samples, 2)`` float64.
+nb::object ellipse_boundary(double cx, double cy, double w, double h, double angle, int n_samples)
+{
+    const int n = std::max(n_samples, 0);
+    const double a = 0.5 * w;
+    const double b = 0.5 * h;
+    const double phi = angle * CV_PI / 180.0;
+    const double cos_phi = std::cos(phi);
+    const double sin_phi = std::sin(phi);
+    auto owner = std::make_unique<std::vector<double>>(2 * static_cast<std::size_t>(n));
+    for (int i = 0; i < n; ++i)
+    {
+        const double t = 2.0 * CV_PI * static_cast<double>(i) / static_cast<double>(n);
+        const double ex = a * std::cos(t);
+        const double ey = b * std::sin(t);
+        (*owner)[2 * i] = cx + ex * cos_phi - ey * sin_phi;
+        (*owner)[2 * i + 1] = cy + ex * sin_phi + ey * cos_phi;
+    }
+    double* data = owner->data();
+    nb::capsule cap(owner.release(), [](void* p) noexcept { delete static_cast<std::vector<double>*>(p); });
+    const std::size_t shape[2] = {static_cast<std::size_t>(n), 2};
+    nb::ndarray<nb::numpy, double, nb::ndim<2>> arr(data, 2, shape, cap);
+    return nb::cast(std::move(arr));
+}
+
 } // namespace
 
 NB_MODULE(_core, m)
@@ -124,6 +154,7 @@ NB_MODULE(_core, m)
           "inward_rejection"_a);
     m.def("pupil_center", &pupil_center, "points"_a, "method"_a);
     m.def("smoothing_spline", &smoothing_spline, "points"_a, "smoothness"_a, "n_samples"_a);
+    m.def("ellipse_boundary", &ellipse_boundary, "cx"_a, "cy"_a, "w"_a, "h"_a, "angle"_a, "n_samples"_a);
 
     m.attr("CENTER_CONVEX_HULL_CENTROID") = cheshm::CENTER_CONVEX_HULL_CENTROID;
     m.attr("CENTER_ELLIPSE_FIT") = cheshm::CENTER_ELLIPSE_FIT;

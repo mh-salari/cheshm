@@ -58,3 +58,21 @@ def smoothing_spline(points: np.ndarray, smoothness: float, n_samples: int = 360
     """
     pts = np.ascontiguousarray(points, dtype=np.float64)
     return _core.smoothing_spline(pts, float(smoothness), int(n_samples))
+
+
+def ellipse_boundary(
+    center: tuple[float, float],
+    axes: tuple[float, float],
+    angle: float,
+    n_samples: int = 360,
+) -> np.ndarray:
+    """Boundary of an ellipse sampled to ``n_samples`` points.
+
+    ``center`` is ``(cx, cy)``, ``axes`` the full ``(width, height)`` lengths and
+    ``angle`` the rotation in degrees, matching the ``cv2.fitEllipse`` convention.
+    Returns the closed boundary as ``(n_samples, 2)`` float64, parameterised
+    identically to ``cv2.ellipse2Poly``.
+    """
+    return _core.ellipse_boundary(
+        float(center[0]), float(center[1]), float(axes[0]), float(axes[1]), float(angle), int(n_samples)
+    )
