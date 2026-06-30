@@ -22,4 +22,8 @@ inline constexpr double EXCLUDE_BOTTOM = 45.0;
 inline constexpr double INNER_MARGIN = 15.0;
 inline constexpr double OUTER_MARGIN = 10.0;
 
+// Glint-match tolerance as a fraction of the glint spacing: above detection
+// noise, below the gap to a neighbouring glint.
+inline constexpr double GLINT_MATCH_TOL_FRACTION = 0.5;
+
 } // namespace cheshm::align::defaults

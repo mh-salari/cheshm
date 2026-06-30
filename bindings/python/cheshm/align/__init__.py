@@ -7,6 +7,7 @@ from .core import (
     apply_transform,
     make_barrel_mask,
     make_iris_mask,
+    match_glints,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "apply_transform",
     "make_barrel_mask",
     "make_iris_mask",
+    "match_glints",
 ]

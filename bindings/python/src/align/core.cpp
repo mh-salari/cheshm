@@ -178,6 +178,22 @@ nb::object align_eye_images(U8Array ref_img,
     return nb::make_tuple(mat_to_numpy(std::move(result.aligned)), step1_obj, step2_obj, center_obj);
 }
 
+nb::object match_glints(std::vector<std::pair<double, double>> reference,
+                        std::vector<std::pair<double, double>> moving,
+                        double tol_fraction)
+{
+    std::vector<cv::Point2d> ref_pts;
+    ref_pts.reserve(reference.size());
+    for (auto& [x, y] : reference)
+        ref_pts.emplace_back(x, y);
+    std::vector<cv::Point2d> mov_pts;
+    mov_pts.reserve(moving.size());
+    for (auto& [x, y] : moving)
+        mov_pts.emplace_back(x, y);
+    const cv::Point2d t = cheshm::align::match_glints(ref_pts, mov_pts, tol_fraction);
+    return nb::make_tuple(t.x, t.y);
+}
+
 } // namespace
 
 NB_MODULE(_core, m)
@@ -258,6 +274,8 @@ NB_MODULE(_core, m)
           "exclude_bottom"_a = d::EXCLUDE_BOTTOM,
           "inner_margin"_a = d::INNER_MARGIN);
 
+    m.def("match_glints", &match_glints, "reference"_a, "moving"_a, "tol_fraction"_a = d::GLINT_MATCH_TOL_FRACTION);
+
     m.attr("DX_LO") = d::DX_LO;
     m.attr("DX_HI") = d::DX_HI;
     m.attr("DY_LO") = d::DY_LO;
@@ -268,4 +286,5 @@ NB_MODULE(_core, m)
     m.attr("EXCLUDE_TOP") = d::EXCLUDE_TOP;
     m.attr("EXCLUDE_BOTTOM") = d::EXCLUDE_BOTTOM;
     m.attr("INNER_MARGIN") = d::INNER_MARGIN;
+    m.attr("GLINT_MATCH_TOL_FRACTION") = d::GLINT_MATCH_TOL_FRACTION;
 }

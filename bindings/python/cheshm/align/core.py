@@ -67,6 +67,25 @@ def align_by_translation(
     )
 
 
+def match_glints(
+    reference: list[tuple[float, float]],
+    moving: list[tuple[float, float]],
+    tol_fraction: float = _core.GLINT_MATCH_TOL_FRACTION,
+) -> tuple[float, float]:
+    """Translation ``(dx, dy)`` mapping ``moving`` glints onto ``reference``.
+
+    Matches the glints into one-to-one correspondences and averages the largest
+    consistent set, so a missing or mis-detected glint is dropped rather than
+    biasing the result. ``tol_fraction`` scales the match tolerance by the glint
+    spacing.
+    """
+    return _core.match_glints(
+        [(float(x), float(y)) for x, y in reference],
+        [(float(x), float(y)) for x, y in moving],
+        float(tol_fraction),
+    )
+
+
 def apply_transform(
     img: np.ndarray,
     params: tuple[float, float, float],
@@ -127,7 +146,8 @@ def align_eye_images(
 ) -> dict:
     """Rigid-align ``tgt_img`` onto ``ref_img`` using cached detections.
 
-    Step 1 (translation): glint-centroid match, pupil-centre match, or off.
+    Step 1 (translation): glint match (corresponding-glint consensus),
+    pupil-centre match, or off.
     Step 2 (refinement): iris-barrel min-MAE search over ``(dx, dy, theta)``.
 
     ``exclude_top`` / ``exclude_bottom`` set the half-angle (degrees) of the

@@ -52,6 +52,13 @@ cv::Mat make_barrel_mask(cv::Size img_size,
 
 cv::Vec3d align_by_translation(cv::Point2d ref_point, cv::Point2d mov_point);
 
+// Translation mapping ``moving`` glints onto ``reference`` by matching the glints
+// into one-to-one correspondences and averaging the largest consistent set, so a
+// missing or mis-detected glint is dropped rather than biasing the result.
+cv::Point2d match_glints(const std::vector<cv::Point2d>& reference,
+                         const std::vector<cv::Point2d>& moving,
+                         double tol_fraction = defaults::GLINT_MATCH_TOL_FRACTION);
+
 cv::Mat apply_transform(const cv::Mat& img, cv::Vec3d params, std::optional<cv::Point2d> center = std::nullopt);
 
 std::pair<cv::Vec3d, double> align_by_min_diff(const cv::Mat& img_ref,

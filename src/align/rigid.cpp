@@ -304,7 +304,106 @@ cv::Point2d glint_centroid(const std::vector<cv::Point2d>& glints)
     return {sum.x / n, sum.y / n};
 }
 
+double median_nn_distance(const std::vector<cv::Point2d>& pts)
+{
+    if (pts.size() < 2)
+        return -1.0;
+    std::vector<double> nn;
+    nn.reserve(pts.size());
+    for (std::size_t i = 0; i < pts.size(); ++i)
+    {
+        double best = std::numeric_limits<double>::max();
+        for (std::size_t j = 0; j < pts.size(); ++j)
+            if (i != j)
+                best = std::min(best, cv::norm(pts[i] - pts[j]));
+        nn.push_back(best);
+    }
+    std::sort(nn.begin(), nn.end());
+    const std::size_t m = nn.size();
+    return (m % 2 != 0) ? nn[m / 2] : 0.5 * (nn[m / 2 - 1] + nn[m / 2]);
+}
+
+struct MatchCandidate
+{
+    double dist;
+    int mov_index;
+    int ref_index;
+};
+
+// Greedy one-to-one matches (moving -> reference) within ``tol``, nearest first.
+std::vector<std::pair<int, int>> greedy_match(const std::vector<cv::Point2d>& shifted,
+                                              const std::vector<cv::Point2d>& reference,
+                                              double tol)
+{
+    std::vector<MatchCandidate> candidates;
+    for (int i = 0; i < static_cast<int>(shifted.size()); ++i)
+        for (int j = 0; j < static_cast<int>(reference.size()); ++j)
+        {
+            const double dist = cv::norm(shifted[i] - reference[j]);
+            if (dist <= tol)
+                candidates.push_back({dist, i, j});
+        }
+    std::sort(candidates.begin(),
+              candidates.end(),
+              [](const MatchCandidate& a, const MatchCandidate& b) { return a.dist < b.dist; });
+    std::vector<char> used_mov(shifted.size(), 0);
+    std::vector<char> used_ref(reference.size(), 0);
+    std::vector<std::pair<int, int>> pairs;
+    for (const auto& c : candidates)
+    {
+        if (used_mov[c.mov_index] || used_ref[c.ref_index])
+            continue;
+        used_mov[c.mov_index] = 1;
+        used_ref[c.ref_index] = 1;
+        pairs.emplace_back(c.mov_index, c.ref_index);
+    }
+    return pairs;
+}
+
 } // namespace
+
+cv::Point2d match_glints(const std::vector<cv::Point2d>& reference,
+                         const std::vector<cv::Point2d>& moving,
+                         double tol_fraction)
+{
+    if (reference.empty() || moving.empty())
+        return {0.0, 0.0};
+    double spacing = median_nn_distance(reference);
+    if (spacing < 0.0)
+        spacing = median_nn_distance(moving);
+    if (spacing < 0.0)
+        return glint_centroid(reference) - glint_centroid(moving); // a single point in each set
+    const double tol = tol_fraction * spacing;
+
+    int best_count = -1;
+    double best_residual = 0.0;
+    std::vector<std::pair<int, int>> best_pairs;
+    std::vector<cv::Point2d> shifted(moving.size());
+    for (const auto& ref_pt : reference)
+        for (const auto& mov_pt : moving)
+        {
+            const cv::Point2d t = ref_pt - mov_pt;
+            for (std::size_t k = 0; k < moving.size(); ++k)
+                shifted[k] = moving[k] + t;
+            const std::vector<std::pair<int, int>> pairs = greedy_match(shifted, reference, tol);
+            double residual = 0.0;
+            for (const auto& [mov_index, ref_index] : pairs)
+                residual += cv::norm(shifted[mov_index] - reference[ref_index]);
+            const int count = static_cast<int>(pairs.size());
+            if (count > best_count || (count == best_count && residual < best_residual))
+            {
+                best_count = count;
+                best_residual = residual;
+                best_pairs = pairs;
+            }
+        }
+    if (best_pairs.empty())
+        return glint_centroid(reference) - glint_centroid(moving);
+    cv::Point2d sum{0.0, 0.0};
+    for (const auto& [mov_index, ref_index] : best_pairs)
+        sum += reference[ref_index] - moving[mov_index];
+    return sum * (1.0 / static_cast<double>(best_pairs.size()));
+}
 
 AlignResult align_eye_images(const cv::Mat& ref_img,
                              const cv::Mat& tgt_img,
@@ -342,19 +441,15 @@ AlignResult align_eye_images(const cv::Mat& ref_img,
     }
     else
     {
-        cv::Point2d ref_pt;
-        cv::Point2d tgt_pt;
         if (step1 == Step1Anchor::Glint)
         {
-            ref_pt = glint_centroid(ref_det.glints);
-            tgt_pt = glint_centroid(tgt_det.glints);
+            const cv::Point2d t = match_glints(ref_det.glints, tgt_det.glints);
+            p1 = cv::Vec3d{t.x, t.y, 0.0};
         }
         else
         {
-            ref_pt = ref_det.pupil_center;
-            tgt_pt = tgt_det.pupil_center;
+            p1 = align_by_translation(ref_det.pupil_center, tgt_det.pupil_center);
         }
-        p1 = align_by_translation(ref_pt, tgt_pt);
         out.step1_translation = cv::Point2d{p1[0], p1[1]};
         warped = apply_transform(tgt_img, p1, step2_center);
     }
