@@ -41,7 +41,9 @@ nb::object percentile_stretch(U8Array img, double lo_pct, double hi_pct)
     return nb::cast(mat_to_numpy(cheshm::enhance::percentile_stretch(as_gray(img), lo_pct, hi_pct)));
 }
 
-nb::object gamma(U8Array img, double g)
+// Named gamma_correction rather than gamma: libm declares a global ::gamma (an obsolete
+// lgamma alias) on some platforms, so a bare &gamma is an ambiguous overloaded name.
+nb::object gamma_correction(U8Array img, double g)
 {
     return nb::cast(mat_to_numpy(cheshm::enhance::gamma(as_gray(img), g)));
 }
@@ -68,7 +70,7 @@ NB_MODULE(_core, m)
           "img"_a,
           "lo_pct"_a = d::STRETCH_LO_PCT,
           "hi_pct"_a = d::STRETCH_HI_PCT);
-    m.def("gamma", &gamma, "img"_a, "g"_a = d::GAMMA);
+    m.def("gamma", &gamma_correction, "img"_a, "g"_a = d::GAMMA);
     m.def("bilateral",
           &bilateral,
           "img"_a,
